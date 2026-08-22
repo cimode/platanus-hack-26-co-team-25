@@ -24,7 +24,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "issues:ready": "node scripts/ready.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

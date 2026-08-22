@@ -174,3 +174,59 @@ compatibility in front of them, so they were worth writing first.
 Keep E2E assertions **behaviour-level** — roles and visible text, not class names. The design
 is still being iterated externally, and a test that breaks on a `className` change is a test
 the team will delete.
+
+### Where those criteria come from
+
+Issues are the source. `/intake` turns a rough description into one spec issue **and** its
+skipped stubs in the same change, so a criterion is executable the moment it is written
+rather than after someone re-reads the issue. The format is
+`.github/ISSUE_TEMPLATE/spec.md`; the rules live in `.claude/commands/intake.md`.
+
+The join key is the AC id. It appears verbatim in the issue and verbatim at the front of
+the test name, so traceability is a `grep`:
+
+```bash
+grep -rn "AC-2" e2e src
+```
+
+```yaml
+- id: AC-2
+  kind: sad            # happy | sad | edge | safety
+  file: e2e/intake.spec.ts
+  given: a participant who answered all 15 blocks but attached no photo
+  when: they submit
+  then: submission is blocked with a visible reason and nothing is persisted
+```
+
+Three rules earn their keep:
+
+- **Happy, sad and edge are all required.** A feature whose sad path nobody can describe is
+  not understood yet. `failingLlm()` and `stubLlm()` exist precisely to make the sad ones
+  cheap to write.
+- **`file` picks the layer at spec time.** `src/**/*.test.ts` for engine logic,
+  `e2e/*.spec.ts` for anything a participant sees — decided by whoever writes the spec, not
+  by whoever happens to pick it up.
+- **`kind: safety` stubs are never skipped.** They land as running tests asserting the
+  invariant holds, vacuously at first. Everything else in this file argues for writing tests
+  before features; this is the case where a skipped test is actively dangerous, because it
+  reads green while guarding nothing.
+
+An issue must not be opened with unanswered questions — that is a conversation, not a spec.
+If one surfaces mid-build, the `issue-status` skill moves it back to `status:draft` with the
+question in a comment, rather than someone guessing.
+
+### Status and readiness
+
+Five mutually exclusive labels, `status:draft → approved → in-progress → review → completed`.
+Agents own only `start` and `block` (the `issue-status` skill); PR-opened and merged are
+driven by `.github/workflows/issue-status.yml`, because a workflow fires even when a human
+opens the PR or an agent dies mid-task.
+
+```bash
+npm run issues:ready
+```
+
+Readiness is computed, never stored — a `blocked` label would go stale the moment a
+dependency closed. It reports what is approved with dependencies met, and warns when a
+candidate's **Files affected** table overlaps something already in progress. Declared
+dependencies catch ordering; the files table catches the merge conflicts nobody declared.
