@@ -333,15 +333,14 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
 | I3 · **cancelled 2026-08-22 (D14)** — was `quiz: render the 60 caption-free option cards into public/quiz`. Options are text; there is no image pipeline, no image-generator port and no `public/quiz/`. | — | — |
 | I4 · [#6](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/6) `intake: register with a photo and per-lens consent on a phone` | `/intake` steps 1–3, session cookie, `PhotoStore` + Vercel Blob adapter, the photo-exposure safety test (§5) | I1 |
 | I5 · [#8](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/8) `intake: declared round and lens gates` | `/intake` steps 4–5 | I4 |
-| I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three preloaded batches` | `/quiz` against the instrument constant; `onError` → caption-only card | I1, I4 |
+| I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three batches` | `/quiz` against the instrument constant; typographic option cards (D14), batch beats as pacing | I1, I4 |
 | I7 · [#7](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/7) `scoring: turn 15 block responses into latent posteriors` | `domain/scoring`, `latent_estimates` | I1 |
 | I8 · [#10](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/10) `matching: rank the room under a lens and show the result` | `prepare-results` (score if missing → `byRoomForRanking(room, lens)` → `toPerson` → `rankRoom`), `/results/[lens]` with `loading.tsx`, the results-payload serialisation test (§5) and the abandoned-participant safety test | I5, I6, I7 |
 
 Waves: **I1** → **{I2, I4, I7}** → **{I3, I5, I6}** → **I8**. Each wave touches disjoint
 paths and can run in parallel through `/work`. I3 has no code dependency and no
 **I3 is cancelled** (D14): options are text, so there is no image work to file. I6 renders
-caption-only cards — which it was always required to support — and that is now the only
-mode.
+typographic option cards; that is the only mode.
 
 Not in this split, noted so nobody forgets them: the operator-gated projected room view
 (mutual pairs only, no scores — reads the same in-memory ranking), withdrawal ("delete me":

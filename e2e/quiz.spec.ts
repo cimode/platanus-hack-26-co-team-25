@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * The quiz on a phone: fifteen forced-choice blocks in three preloaded
+ * The quiz on a phone: fifteen forced-choice blocks in three
  * batches (issue #9).
  *
  *     /quiz opening -> blocks 1-5 -> "Tanda 2 de 3" -> blocks 6-10
@@ -33,8 +33,7 @@ test.describe("quiz", () => {
   // Blocked on: /quiz (src/app/quiz/page.tsx, block-screen.tsx,
   // batch-beat.tsx, option-card.tsx) and e2e/helpers/quiz-participant.ts
   // (room + participant + hookai_session cookie); the test routes every
-  // /quiz/*.png request to a 404.
-  test.skip('AC-1 · "Empezar" opens block 1 with its scenario, four captions, "1/15", a disabled "Siguiente", no "Atrás" and all four cards inside 390×844 with zero images', async () => {});
+  test.skip('AC-1 · "Empezar" opens block 1 with its scenario, four option texts as card labels, "1/15", a disabled "Siguiente", no "Atrás" and all four cards inside 390×844', async () => {});
 
   // TODO: un-skip when the block screen marks cards and submits.
   // Blocked on: block-screen.tsx (Más yo / Menos yo mark state, "Siguiente"
@@ -49,10 +48,9 @@ test.describe("quiz", () => {
   test.skip("AC-3 · a context without a hookai_session cookie lands on /intake with no scenario and no quiz_responses row", async () => {});
 
   // TODO: un-skip when the batch beat exists.
-  // Blocked on: batch-beat.tsx ("Tanda 2 de 3", "Seguir" → ?start=1, preload
-  // hints for /quiz/b6-a.png … /quiz/b10-d.png) and
+  // Blocked on: batch-beat.tsx ("Tanda 2 de 3", "Seguir" → ?start=1, pacing only — nothing is fetched) and
   // e2e/helpers/quiz-participant.ts seeding positions 1-4.
-  test.skip('AC-4 · answering block 5 shows "Tanda 2 de 3" with "Seguir" and no captions, preloads the twenty images of blocks 6-10, and "Seguir" opens block 6', async () => {});
+  test.skip('AC-4 · answering block 5 shows "Tanda 2 de 3" with "Seguir" and no option text, nothing is fetched on the beat, and "Seguir" opens block 6', async () => {});
 
   // TODO: un-skip when back and ?block exist.
   // Blocked on: "Atrás" rendering the previous block pre-marked, ?block=N
@@ -78,7 +76,7 @@ test.describe("safety invariants", () => {
   // lands, seed a participant with no responses through
   // e2e/helpers/quiz-participant.ts, walk the opening moment, blocks 1-15 and
   // both beats answering most + least on every block, and on each block
-  // screen additionally expect its four captions to be visible as text --
+  // screen additionally expect its four option texts to be visible as the card labels --
   // keeping the assertions below on every screen along the way.
   test("AC-7 · no quiz screen names a pillar or a keying direction, in its text or in its served HTML", async ({
     page,
