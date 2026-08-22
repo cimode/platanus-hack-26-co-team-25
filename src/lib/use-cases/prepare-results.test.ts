@@ -16,6 +16,21 @@ import { describe, expect, it } from "vitest";
  * top-3 drivers, friction and flags). Rankings are computed on request and
  * never stored.
  *
+ * Rescoped for #10-as-wave-2: `prepareResults(subjectId, lens, deps)` returns
+ * `RankedRoom` (src/lib/domain/reveal/rank.ts) and structurally satisfies
+ * `RankingPort.forSubject` (src/lib/ports/ranking.ts), so composition swaps
+ * the fixture adapter for it in one line. The subject arrives as a resolved
+ * `ViewerId` -- this use case reads no cookie. Entries carry `bond`
+ * ({ term, label }) and a 1-based `position`, never a score, a rank float or
+ * a flags object: a latent driver's score is softMin(la.mean, lb.mean)
+ * (engine.ts:633) and is therefore invertible to the OTHER participant's
+ * posterior by a subject who knows their own. `RankBand` has no "low" --
+ * low-band pairs are absent, like below-floor people.
+ *
+ * The `RankableParticipant` stand-in below is superseded by the landed nested
+ * type in src/lib/domain/participant/floor.ts; migrating every fixture to it
+ * is part of this issue.
+ *
  * Every test uses inline in-memory fakes declared in this file -- no shared
  * fake module, no adapter import, so the biome.json hexagon rule holds --
  * and no database. AC-1 and AC-3 are skipped until the use case exists;
@@ -231,4 +246,15 @@ describe("prepareResults", () => {
     expect(participants.rankingReads).toEqual([]);
     expect(participants.memberReads).toEqual([]);
   });
+
+  // TODO: un-skip when prepareResults exists.
+  // Blocked on: src/lib/use-cases/prepare-results.ts. The sad paths the carve
+  // left missing -- #10's original sad criterion (AC-7) was e2e and went to
+  // the ui-flow workstream with the screen.
+  it.skip('AC-5 · a decliner gets { status: "not-consented" } and a no-photo participant { status: "below-floor" }, each carrying no viewer, no entries and no other participant, with byRoomForRanking never called and zero latent writes', () => {});
+
+  // TODO: un-skip when prepareResults exists.
+  // Blocked on: src/lib/use-cases/prepare-results.ts and #30's
+  // scoreParticipant (the quiz-incomplete refusal this asserts).
+  it.skip("AC-6 · a subject with quiz_completed_at null ranks the room but acquires no latent rows, so the absent row survives and the engine imputes the prior", () => {});
 });

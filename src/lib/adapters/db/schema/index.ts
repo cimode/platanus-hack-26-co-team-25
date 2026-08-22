@@ -20,6 +20,7 @@
  */
 export * from "./enums.ts";
 export * from "./gates.ts";
+export * from "./latents.ts";
 export * from "./participants.ts";
 export * from "./quiz.ts";
 export * from "./responses.ts";
