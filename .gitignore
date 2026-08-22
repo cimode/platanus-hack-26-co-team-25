@@ -65,3 +65,8 @@ ds-bundle/
 
 # Duplicate of .claude/skills/** written by `npx skills add` for other agent tools.
 .agents/
+
+# Timeline layer — secrets and installs
+timeline/.env
+timeline/node_modules/
+node_modules/
