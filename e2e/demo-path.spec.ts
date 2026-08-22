@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 /**
  * The demo path -- the one flow that cannot break on stage.
@@ -14,16 +14,80 @@ import { expect, test } from "@playwright/test";
  * that breaks on a className change is a test the team will delete.
  */
 
-test.describe("shell", () => {
-  test("the landing screen renders and links to the design system", async ({
+test.describe("1a · impersonate", () => {
+  const combobox = (page: Page) =>
+    page.getByRole("combobox", { name: /nombre del participante/i });
+  const cta = (page: Page) => page.getByRole("button", { name: /ámonos/i });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("renders the wordmark and the heading", async ({ page }) => {
+    await expect(page.getByText("dipia", { exact: false })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /impersonar usuario/i })
+    ).toBeVisible();
+  });
+
+  test("the CTA stays disabled until someone is chosen", async ({ page }) => {
+    // The whole point: submitting with nothing picked would post an empty id.
+    await expect(cta(page)).toBeDisabled();
+    await combobox(page).click();
+    await combobox(page).fill("laura");
+    await page.getByRole("option").first().click();
+    await expect(cta(page)).toBeEnabled();
+  });
+
+  test("filtering ignores accents", async ({ page }) => {
+    // Plain ASCII must reach an accented name -- on a Spanish roster that is
+    // most of the room, and nobody types the accent into a search box.
+    await combobox(page).click();
+    await combobox(page).fill("sofia");
+    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("option")).toContainText("Sofía Guzmán");
+  });
+
+  test("says so when nobody matches", async ({ page }) => {
+    await combobox(page).click();
+    await combobox(page).fill("zzzz");
+    await expect(page.getByText(/nadie con ese nombre/i)).toBeVisible();
+    await expect(cta(page)).toBeDisabled();
+  });
+
+  test("can be driven entirely from the keyboard", async ({ page }) => {
+    await combobox(page).click();
+    await combobox(page).fill("ana");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(combobox(page)).toHaveValue(/ana/i);
+    await expect(cta(page)).toBeEnabled();
+  });
+
+  test("editing after a choice re-disables the CTA", async ({ page }) => {
+    // Guards a stale-id submit: the field would still LOOK chosen while the
+    // hidden id pointed at whoever was picked before the edit.
+    await combobox(page).click();
+    await combobox(page).fill("laura");
+    await page.getByRole("option").first().click();
+    await expect(cta(page)).toBeEnabled();
+
+    await combobox(page).fill("laur");
+    await expect(cta(page)).toBeDisabled();
+  });
+
+  test("choosing someone lands on the room as that person", async ({
     page,
   }) => {
-    await page.goto("/");
+    await combobox(page).click();
+    await combobox(page).fill("diego");
+    await page.getByRole("option").first().click();
+    await cta(page).click();
+
+    await expect(page).toHaveURL(/\/room$/);
     await expect(
-      page.getByRole("heading", { name: /simulation engine/i })
+      page.getByRole("heading", { name: /diego morales/i })
     ).toBeVisible();
-    await page.getByRole("link", { name: /design system/i }).click();
-    await expect(page).toHaveURL(/\/design$/);
   });
 });
 

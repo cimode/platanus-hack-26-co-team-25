@@ -3,8 +3,10 @@ import { getDb } from "./adapters/db/client";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
+import { rosterParticipants } from "./adapters/participants/roster";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
+import type { ParticipantsPort } from "./ports/participants";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
 
@@ -20,22 +22,31 @@ import type { RoomRepository } from "./ports/room-repository";
  *
  *     const result = await submitIntake(input, serverDeps());
  *
- * They must not reach for `getDb()` themselves. A server component that queries
- * the database directly is the one violation that feels idiomatic in App Router
- * and silently puts logic where no test can reach it.
+ * They must not reach for `getDb()` themselves.
+ *
+ * Two participant-shaped dependencies coexist on purpose:
+ *
+ *   - `roster` -- the hard-coded demo roster behind the impersonation screen
+ *     (`adapters/participants/roster.ts`). It needs no database.
+ *   - `participants` -- the real `ParticipantRepository` over Postgres (#4),
+ *     which the intake, quiz and ranking use cases depend on.
+ *
+ * Every database-backed member is a getter, so calling `serverDeps()` on a page
+ * that only needs the roster never opens a connection -- and `next build` can
+ * prerender such pages with no `DATABASE_URL` configured.
  */
 export interface Deps {
   db: Db;
   llm: LlmPort;
+  roster: ParticipantsPort;
   participants: ParticipantRepository;
   rooms: RoomRepository;
   responses: ResponseRepository;
 }
 
-/** Everything wired today: the three repositories over one database handle. */
 export type ServerDeps = Pick<
   Deps,
-  "db" | "participants" | "rooms" | "responses"
+  "db" | "roster" | "participants" | "rooms" | "responses"
 >;
 
 /**
@@ -44,18 +55,21 @@ export type ServerDeps = Pick<
  * `llm` is deliberately absent rather than stubbed: the only implementations of
  * `LlmPort` so far are the test doubles in `adapters/llm/fake.ts`, and handing
  * production a fake that quietly returns fixtures is worse than not compiling.
- * When `adapters/llm/anthropic.ts` lands, widen this to `Deps` and the use
- * cases that need a model start type-checking.
- *
- * The repositories are rebuilt per call and the handle underneath them is
- * memoised by `getDb()`, so this costs an object literal, not a connection.
  */
 export function serverDeps(): ServerDeps {
-  const db = getDb();
   return {
-    db,
-    participants: createParticipantRepository(db),
-    rooms: createRoomRepository(db),
-    responses: createResponseRepository(db),
+    get db() {
+      return getDb();
+    },
+    roster: rosterParticipants,
+    get participants() {
+      return createParticipantRepository(getDb());
+    },
+    get rooms() {
+      return createRoomRepository(getDb());
+    },
+    get responses() {
+      return createResponseRepository(getDb());
+    },
   };
 }

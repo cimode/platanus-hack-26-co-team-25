@@ -1,30 +1,28 @@
-import Link from "next/link";
+import { ImpersonateForm } from "@/components/impersonate/impersonate-form";
+import { serverDeps } from "@/lib/composition";
+import { listParticipants } from "@/lib/use-cases/list-participants";
 
-import { Button } from "@/components/ui/button";
+/**
+ * Screen 1a -- login / impersonate.
+ *
+ * A Server Component: it calls the use case, hands the roster down, and stays
+ * off the wire. `"use client"` lives on the form island, not here.
+ */
+export default async function Home() {
+  const roster = await listParticipants(serverDeps());
 
-export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-8 px-6 py-16">
-      <div className="flex items-center gap-2.5">
-        <span className="size-2 rounded-full bg-brand" />
-        <span className="text-xl font-semibold tracking-tight lowercase">
-          hookai
-        </span>
-      </div>
-
-      <div className="space-y-3">
-        <h1 className="font-display text-4xl leading-[1.1] text-balance">
-          A simulation engine for human relationships.
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          The people who would matter to you are already in this room.
-          Placeholder shell — the intake flow lands here.
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-12 pb-8">
+      <header className="mb-14">
+        <p className="font-display text-5xl leading-none font-extrabold tracking-tight text-ink lowercase">
+          dipia<span className="text-primary">.</span>
         </p>
-      </div>
+        <p className="mt-2 font-mono text-xs tracking-[0.06em] text-ink-muted lowercase">
+          simula la vida que aún no ha pasado
+        </p>
+      </header>
 
-      <Button asChild className="w-full">
-        <Link href="/design">Design system</Link>
-      </Button>
+      <ImpersonateForm roster={roster} />
     </main>
   );
 }
