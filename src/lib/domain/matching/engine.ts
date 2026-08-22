@@ -114,7 +114,29 @@ export interface RankedEntry extends PairScore {
 // Frozen constants
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_SE = 0.45; // instrument posterior SE (PILLARS §1 A4)
+/**
+ * Fallback SE for a latent stored with a `mean` but no `se`. NOT the
+ * instrument's precision, which is what the old one-line comment here claimed.
+ *
+ * The real scorer (`domain/scoring`) measures a median se near **.10** on this
+ * [0,1] scale, and always writes one — `latent_estimates` requires `se > 0` and
+ * `estimateLatents` emits all four pillars unconditionally — so on the real
+ * data path this constant is unreachable. A participant with no rows at all
+ * takes the missing-latent path below instead (PRIOR_MEAN / PRIOR_SE).
+ *
+ * .45 is retained deliberately: as a fallback for genuinely UNKNOWN uncertainty
+ * it should be near-uninformative, and it is. At se = .45 a person sitting at
+ * exactly .50 scores P(low) = .41, P(mid) = .18, P(high) = .41 — the bands stop
+ * sorting, which is the honest output when the SE is unknown. It would be the
+ * wrong number for a measured latent, and is never used as one.
+ *
+ * `PILLARS.md` A4's "SE ≈ .45" is a different-scale figure: the doc states no
+ * scale (`AUDIT.md` S9 notes it has no derivation anywhere), and .45 is only
+ * coherent as a standardized-latent quantity — Φ(θ) for θ ~ N(0,1) is exactly
+ * Uniform(0,1), so this scale's whole population SD is 1/√12 = .289. Carried
+ * across by the delta method, A4's figure lands near **.18** here.
+ */
+export const DEFAULT_SE = 0.45;
 export const PRIOR_MEAN = 0.5; // missing latent → prior (AUDIT S15)
 export const PRIOR_SE = 0.6; // missing latent → wide se (AUDIT S15)
 
