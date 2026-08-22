@@ -112,7 +112,6 @@ import type { Pillar } from "../quiz/instrument.ts";
 import { BLOCK_COUNT, PILLARS } from "../quiz/instrument.ts";
 import type { BlockResponse, OptionKey } from "../quiz/response.ts";
 import type { BlockItems } from "./items.ts";
-import { ITEM_PARAMETERS } from "./items.ts";
 
 /** Scorer identity stored beside every estimate, so a re-score is detectable. */
 export const SCORER_VERSION = "map-luce-v1";
@@ -354,13 +353,32 @@ function evaluate(
 /**
  * Posterior mode + Laplace SE per pillar.
  *
- * `items` is injectable so the tests can score the same responses against an
- * all-positive copy of the form (AC-3). Responses may be any subset of the 15
- * blocks — a partially answered quiz scores, just less precisely (AC-4).
+ * `items` is REQUIRED, and it must be the parameters of the blocks THIS
+ * PARTICIPANT was actually served.
+ *
+ * Under D16 each participant gets their own generated form. The structure is
+ * fixed for everyone — 15 positions, the 4/4/4/3 focus rotation, four pillars
+ * once each, one reversed option on the focus pillar — and `validateBlock`
+ * enforces exactly that, which is what makes the measurement comparable across
+ * people. But it does NOT pin which option KEY carries which pillar, and the
+ * authoring model chooses that per block. One person's option `c` may be agency
+ * where another's is politeness.
+ *
+ * So scoring someone's responses against a form they did not answer maps their
+ * keys onto the wrong pillars and returns a confident, well-formed, wrong
+ * answer. This parameter used to default to the committed form's parameters,
+ * which is now the FALLBACK form rather than what most people see — a default
+ * that would have been silently correct in testing and silently wrong in the
+ * room. Build the items from the participant's own `generated_blocks` with
+ * `itemParametersOfBlocks`, or from `INSTRUMENT` only for a participant who
+ * really was served the fallback.
+ *
+ * Responses may be any subset of the 15 blocks — a partially answered quiz
+ * scores, just less precisely (AC-4).
  */
 export function estimateLatents(
   responses: readonly BlockResponse[],
-  items: readonly BlockItems[] = ITEM_PARAMETERS
+  items: readonly BlockItems[]
 ): LatentEstimates {
   validateResponseSet(responses);
 

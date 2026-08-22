@@ -16,7 +16,7 @@
  * (`AUDIT.md` F1) — see `estimate.ts` for why an all-positive form measures
  * nothing but contrasts.
  */
-import type { Instrument, Pillar } from "../quiz/instrument.ts";
+import type { Block, Instrument, Pillar } from "../quiz/instrument.ts";
 import { INSTRUMENT } from "../quiz/instrument.ts";
 import type { OptionKey } from "../quiz/response.ts";
 
@@ -103,8 +103,8 @@ export interface BlockItems {
  * stops being true. Measured: perturbing discriminations by 30% moves the
  * log-likelihood by 2.89 under a shift that should move it by exactly 0.
  */
-export function itemParametersOf(instrument: Instrument): BlockItems[] {
-  return instrument.blocks.map((block) => ({
+export function itemParametersOfBlocks(blocks: readonly Block[]): BlockItems[] {
+  return blocks.map((block) => ({
     position: block.position,
     options: block.options.map((option) => ({
       key: option.key,
@@ -116,5 +116,18 @@ export function itemParametersOf(instrument: Instrument): BlockItems[] {
   }));
 }
 
-/** The shipped form's parameters. */
+/** Convenience wrapper for a whole instrument. */
+export function itemParametersOf(instrument: Instrument): BlockItems[] {
+  return itemParametersOfBlocks(instrument.blocks);
+}
+
+/**
+ * The parameters of the COMMITTED form only.
+ *
+ * Under D16 this is the per-participant **fallback**, not what most people
+ * answer. Anyone scoring a participant who was served generated blocks must
+ * derive their items from THEIR OWN blocks — see the warning on
+ * `estimateLatents`. This constant is the right input only for a participant
+ * who actually got the fallback form.
+ */
 export const ITEM_PARAMETERS: BlockItems[] = itemParametersOf(INSTRUMENT);

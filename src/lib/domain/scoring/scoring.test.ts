@@ -2,7 +2,7 @@
  * scoring.test.ts — property tests for src/lib/domain/scoring/ (issue #7).
  *
  * Bayesian MAP scoring of a Thurstonian choice model with fixed, authored
- * item parameters (AUDIT.md S8) — `estimateLatents(responses)` turns the 15
+ * item parameters (AUDIT.md S8) — `estimateLatents(responses, ITEM_PARAMETERS)` turns the 15
  * block responses into one posterior per pillar, `map-luce-v1`.
  *
  * Zero runtime dependencies, plain assertions, erasable-types-only syntax,
@@ -99,8 +99,8 @@ describe("estimateLatents", () => {
     const [person] = cohort(1);
     expect(person.responses).toHaveLength(15);
 
-    const first = estimateLatents(person.responses);
-    const second = estimateLatents(person.responses);
+    const first = estimateLatents(person.responses, ITEM_PARAMETERS);
+    const second = estimateLatents(person.responses, ITEM_PARAMETERS);
 
     expect(first.scorerVersion).toBe(SCORER_VERSION);
     expect(SCORER_VERSION).toBe("map-luce-v1");
@@ -129,7 +129,7 @@ describe("estimateLatents", () => {
     const estimatedSums: number[] = [];
 
     for (const person of people) {
-      const out = estimateLatents(person.responses);
+      const out = estimateLatents(person.responses, ITEM_PARAMETERS);
       let trueSum = 0;
       let estimatedSum = 0;
       for (const pillar of PILLARS) {
@@ -200,8 +200,11 @@ describe("estimateLatents", () => {
   it("AC-4 · scoring positions 1..5 instead of all 15 widens seTheta on every pillar for every respondent", () => {
     const people = cohort(50);
     for (let i = 0; i < people.length; i++) {
-      const wide = estimateLatents(people[i].responses.slice(0, 5));
-      const narrow = estimateLatents(people[i].responses);
+      const wide = estimateLatents(
+        people[i].responses.slice(0, 5),
+        ITEM_PARAMETERS
+      );
+      const narrow = estimateLatents(people[i].responses, ITEM_PARAMETERS);
       for (const pillar of PILLARS) {
         expect(
           wide.estimates[pillar].seTheta,
@@ -216,8 +219,8 @@ describe("estimateLatents", () => {
     let wider = 0;
     for (let i = 0; i < people.length; i++) {
       const stripped = withoutLeast(people[i].responses);
-      const withLeast = estimateLatents(people[i].responses);
-      const without = estimateLatents(stripped);
+      const withLeast = estimateLatents(people[i].responses, ITEM_PARAMETERS);
+      const without = estimateLatents(stripped, ITEM_PARAMETERS);
       expect(stripped.every((r) => r.leastKey === null)).toBe(true);
 
       let allWider = true;
@@ -241,9 +244,11 @@ describe("estimateLatents", () => {
       ...person.responses,
       { ...person.responses[0], position: 16 },
     ];
-    expect(() => estimateLatents(past)).toThrow(/16/);
+    expect(() => estimateLatents(past, ITEM_PARAMETERS)).toThrow(/16/);
     const duplicated = [...person.responses, { ...person.responses[2] }];
-    expect(() => estimateLatents(duplicated)).toThrow(/duplicate.*3/);
+    expect(() => estimateLatents(duplicated, ITEM_PARAMETERS)).toThrow(
+      /duplicate.*3/
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -258,19 +263,26 @@ describe("estimateLatents", () => {
     // confident theta = 0 out of this, with seTheta NARROWER than the prior,
     // i.e. the nonsense response appeared to add information.
     const badMost = [{ ...person.responses[0], mostKey: "e" as OptionKey }];
-    expect(() => estimateLatents(badMost)).toThrow(/mostKey.*"e".*a\.\.d/);
+    expect(() => estimateLatents(badMost, ITEM_PARAMETERS)).toThrow(
+      /mostKey.*"e".*a\.\.d/
+    );
 
     const badLeast = [{ ...person.responses[0], leastKey: "z" as OptionKey }];
-    expect(() => estimateLatents(badLeast)).toThrow(/leastKey.*"z".*a\.\.d/);
+    expect(() => estimateLatents(badLeast, ITEM_PARAMETERS)).toThrow(
+      /leastKey.*"z".*a\.\.d/
+    );
 
     const missing = [
       { ...person.responses[0], mostKey: undefined as unknown as OptionKey },
     ];
-    expect(() => estimateLatents(missing)).toThrow(/mostKey/);
+    expect(() => estimateLatents(missing, ITEM_PARAMETERS)).toThrow(/mostKey/);
 
     // A null leastKey is the legitimate single-pick fallback, not an error.
     expect(() =>
-      estimateLatents([{ ...person.responses[0], leastKey: null }])
+      estimateLatents(
+        [{ ...person.responses[0], leastKey: null }],
+        ITEM_PARAMETERS
+      )
     ).not.toThrow();
   });
 
@@ -291,8 +303,8 @@ describe("estimateLatents", () => {
     const reversed = [...person.responses].reverse();
     // Float addition is not associative, so the objective must be summed in a
     // fixed order or two orderings differ in the last ulp.
-    expect(estimateLatents(reversed)).toEqual(
-      estimateLatents(person.responses)
+    expect(estimateLatents(reversed, ITEM_PARAMETERS)).toEqual(
+      estimateLatents(person.responses, ITEM_PARAMETERS)
     );
   });
 
@@ -353,8 +365,44 @@ describe("estimateLatents", () => {
     expect(e.mean).toBeCloseTo(normCdf(e.theta, 0, 1), 12);
   });
 
+  it("D16: the same answers score differently against a form with the pillars permuted across keys", () => {
+    // Under D16 every participant gets their own generated blocks. The
+    // STRUCTURE is fixed — four pillars once each, one reversed on the focus
+    // pillar — but `validateBlock` does not pin which KEY carries which pillar,
+    // and the authoring model picks that per block. This test is why `items` is
+    // a required argument: scoring someone against a form they did not answer
+    // is not a crash, it is a confident wrong answer.
+    const [person] = cohort(1);
+
+    // Rotate the pillars one key to the left, keeping the structure legal.
+    const permuted = ITEM_PARAMETERS.map((block) => ({
+      ...block,
+      options: block.options.map((option, i) => ({
+        ...option,
+        pillar: block.options[(i + 1) % block.options.length].pillar,
+        sign: block.options[(i + 1) % block.options.length].sign,
+      })),
+    }));
+
+    const right = estimateLatents(person.responses, ITEM_PARAMETERS);
+    const wrong = estimateLatents(person.responses, permuted);
+
+    // Both look perfectly healthy. Only one of them is about this person.
+    for (const pillar of PILLARS) {
+      expect(Number.isFinite(wrong.estimates[pillar].theta)).toBe(true);
+      expect(wrong.estimates[pillar].se).toBeGreaterThan(0);
+    }
+    const moved = PILLARS.filter(
+      (p) => Math.abs(right.estimates[p].theta - wrong.estimates[p].theta) > 0.1
+    );
+    expect(
+      moved.length,
+      "a permuted form must not score the same"
+    ).toBeGreaterThan(0);
+  });
+
   it("scores an empty response set to the prior: theta 0, mean .5", () => {
-    const out = estimateLatents([]);
+    const out = estimateLatents([], ITEM_PARAMETERS);
     for (const pillar of PILLARS) {
       expect(out.estimates[pillar].theta).toBeCloseTo(0, 12);
       // normCdf uses an erf approximation, so 0.5 lands within ~5e-10.
@@ -501,14 +549,19 @@ describe("safety invariants", () => {
     for (const pillar of PILLARS) {
       scoredToday.push({
         label: `adversarial ${pillar}`,
-        estimate: estimateLatents(adversarial).estimates[pillar],
+        estimate: estimateLatents(adversarial, ITEM_PARAMETERS).estimates[
+          pillar
+        ],
       });
     }
 
     // The 200 respondents of AC-2, and their 5-response truncations.
     for (const [i, person] of cohort(200).entries()) {
-      const full = estimateLatents(person.responses);
-      const truncated = estimateLatents(person.responses.slice(0, 5));
+      const full = estimateLatents(person.responses, ITEM_PARAMETERS);
+      const truncated = estimateLatents(
+        person.responses.slice(0, 5),
+        ITEM_PARAMETERS
+      );
       for (const pillar of PILLARS) {
         scoredToday.push({
           label: `r${i} ${pillar} full`,
