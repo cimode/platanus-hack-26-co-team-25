@@ -1,0 +1,262 @@
+{
+  "batch": 1,
+  "language": "es",
+  "styleToken": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text",
+  "blocks": [
+    {
+      "id": 1,
+      "focusPillar": "regulation",
+      "domain": "food",
+      "language": "es",
+      "scenario": "Tu amigo movió la perilla del horno y el pollo lleva una hora crudo. Los invitados ya están tocando el timbre.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo el plan: pollo tarde, pero pollo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Anuncio que la cena está oficialmente arruinada",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Tomo el mando: pedimos pizza y listo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Culpo a la perilla, nunca a mi amigo",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a serene person sitting on a stool watching a chicken through the oven glass while guests behind eat crackers, wall clock at a ridiculous hour; caption reading 'Sigo el plan: pollo tarde, pero pollo'"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person holding a pale raw chicken aloft like a tragic theater prop, hand on forehead, guests peeking around the doorframe amused; caption reading 'Anuncio que la cena está oficialmente arruinada'"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person standing on a kitchen chair with a phone raised like a torch ordering pizza, guests cheering with plates in hand, oven forgotten; caption reading 'Tomo el mando: pedimos pizza y listo'"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person pointing an accusing finger at a tiny oven knob drawn with a villain mustache while warmly hugging the guilty friend's shoulder; caption reading 'Culpo a la perilla, nunca a mi amigo'"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "focusPillar": "politeness",
+      "domain": "pets",
+      "language": "es",
+      "scenario": "Cuidas el gato de un amigo y encuentras tu sillón nuevo hecho tiras. Tu amigo jura que el gato nunca hace eso.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Tapo el hueco con un cojín, me río",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Decido: llamo al tapicero y coordino todo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Termino la semana de cuidados igual",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le recuerdo cada desastre suyo desde 2019",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person laughing while dropping a bright cushion over a shredded sofa arm, a fluffy cat sitting proudly on the backrest surrounded by stuffing; caption reading 'Tapo el hueco con un cojín, me río'"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person with a clipboard and phone directing an upholsterer with a tape measure across the ruined sofa, cat supervising from a shelf; caption reading 'Decido: llamo al tapicero y coordino todo'"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person cheerfully filling a cat bowl beside a wall calendar full of check marks, sofa patched with colorful tape in the background; caption reading 'Termino la semana de cuidados igual'"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person reading a long unrolled scroll of past incidents with a smile while their friend covers their face, the cat looking angelic with a halo; caption reading 'Le recuerdo cada desastre suyo desde 2019'"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "focusPillar": "reliability",
+      "domain": "travel",
+      "language": "es",
+      "scenario": "Llegan al camping y descubren que nadie trajo las varillas de la carpa. El suelo quedó hecho un barrial.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me tiro al barro y hago un ángel",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Ni un te-lo-dije sale de mi boca",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Reservo un hostal y duermo bajo techo",
+          "pillar": "reliability",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Reparto tareas y armamos refugio con ramas",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a delighted person lying flat in a mud puddle sweeping their arms to make a mud angel, splatters like freckles on their cheeks, friends holding limp tent fabric behind; caption reading 'Me tiro al barro y hago un ángel'"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person pressing their lips shut with a tiny cartoon padlock on their mouth and a blank speech bubble sinking back down their throat, beside a sheepish friend shaking an empty tent bag; caption reading 'Ni un te-lo-dije sale de mi boca'"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person perched on a dry rock tapping a phone, a cozy thought bubble with a bunk bed and a fluffy pillow, muddy campsite and friends wrestling tent fabric behind; caption reading 'Reservo un hostal y duermo bajo techo'"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person conducting like an orchestra director while friends haul branches and a tarp, a lopsided branch shelter rising above the mud; caption reading 'Reparto tareas y armamos refugio con ramas'"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "focusPillar": "agency",
+      "domain": "friends",
+      "language": "es",
+      "scenario": "Es noche de películas y te tocó el control remoto. Tu propuesta ya fue vetada tres veces y todos siguen gritando títulos.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Le paso el control al primero que grite",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Vetan mi peli y ya se me pasó",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Aplaudo su pésimo gusto sin nada de ironía",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo despierto hasta los créditos finales",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person tossing a TV remote like a hot potato toward the loudest friend on the couch, popcorn flying, three friends with arms raised mid-shout; caption reading 'Le paso el control al primero que grite'"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person shrugging with an easy grin on the couch as three thumbs-down hands point at them, their own blank movie case set gently aside; caption reading 'Vetan mi peli y ya se me pasó'"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person applauding warmly and sincerely while a friend proudly holds up a cheesy movie case showing a dragon and a giant heart, other friends smirking behind; caption reading 'Aplaudo su pésimo gusto sin nada de ironía'"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a wide-eyed person sitting bolt upright lit by the TV glow while every other friend sleeps in a tangled pile, the screen showing abstract scrolling stripes; caption reading 'Me quedo despierto hasta los créditos finales'"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "focusPillar": "regulation",
+      "domain": "family",
+      "language": "es",
+      "scenario": "Tu mamá reorganizó toda tu cocina mientras te visitaba. Ahora nada está donde debería y el azúcar desapareció.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Elogio el orden nuevo aunque no encuentre nada",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Reviso cada cajón tres veces, por si acaso",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Decreto un orden nuevo y etiqueto todo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Cocino la cena aunque tarde el triple",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person giving two enthusiastic thumbs up to their beaming mother in a spotless kitchen while blindly groping an empty shelf behind their back; caption reading 'Elogio el orden nuevo aunque no encuentre nada'"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person yanking open every drawer and cabinet at once, drawn with motion lines and extra ghost arms, whisk and spoons flying, the sugar bowl sitting unnoticed on top of the fridge; caption reading 'Reviso cada cajón tres veces, por si acaso'"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a person standing on a kitchen chair holding a label maker like a scepter, sticking blank colored stickers on every cabinet, mother watching with raised eyebrows; caption reading 'Decreto un orden nuevo y etiqueto todo'"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text — a cheerful person stirring a pot while prying open three wrong drawers with elbow and foot, a mountain of useless utensils piling up on the counter; caption reading 'Cocino la cena aunque tarde el triple'"
+        }
+      ]
+    }
+  ]
+}

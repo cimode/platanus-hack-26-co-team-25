@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "./schema";
+import * as schema from "./schema/index.ts";
 
 /**
  * The database seam, built to the same rule as `src/lib/ports/llm.ts`:

@@ -18,10 +18,10 @@
     "test:e2e:ui": "playwright test --ui",
     "verify": "npm run typecheck && npm run check && npm run test",
     "prepare": "lefthook install",
-    "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
+    "db:seed": "node --env-file=.env scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "issues:ready": "node scripts/ready.mjs"
   },

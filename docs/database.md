@@ -40,33 +40,53 @@ directly. See `docs/architecture.md`.
 
 **`DATABASE_URL` lives in `.env`, not `.env.local`.** drizzle-kit bundles dotenv
 and reads only `.env`; Next.js reads both but prefers `.env.local`. Split across
-two files, `db:push` migrates one branch while the app queries another — and the
-symptom is a missing table, not an error that names the cause. One file avoids
-it. `.env*` is gitignored except the committed `.env.example`.
+two files, a migration lands on one branch while the app queries another — and
+the symptom is a missing table, not an error that names the cause. One file
+avoids it. `.env*` is gitignored except the committed `.env.example`.
 
 `getDb()` reads the variable lazily, so `next build` prerenders with no database
-configured. CI needs no new secret.
+configured. `drizzle.config.ts` carries `dbCredentials` **only when
+`DATABASE_URL` is set** (`docs/domain.md` D8), which is what lets `db:generate`
+and `db:check` run in a fresh checkout, in CI, and in the build job — none of
+which has a branch of its own. `db:migrate` still fails loudly there, because
+drizzle-kit needs credentials it was not given.
+
+Vitest does not read `.env` either, so `vitest.config.mts` calls
+`process.loadEnvFile(".env")` inside a `try`. Without it the integration suites
+under `src/lib/adapters/db/` would skip silently on a laptop that *has* a
+database configured.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `npm run db:push` | Push the schema straight to the branch — **use this during the hack** |
-| `npm run db:generate` | Emit a versioned migration into `drizzle/` |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:check` | Detect conflicting/corrupt migration history |
+| `npm run db:generate` | Emit a versioned migration into `drizzle/` — **the only way the schema changes** |
+| `npm run db:migrate` | Apply pending migrations to `DATABASE_URL` |
+| `npm run db:check` | Detect conflicting/corrupt migration history; needs no database |
+| `npm run db:seed` | Create the demo room if absent. That is all it does |
 | `npm run db:studio` | Browse the data |
 
-**Use `push` while the schema is molten**, against a dev branch — no migration
-files to review at hour 20. Switch to `generate` + `migrate` once the shape
-settles, and never `push` at the branch holding real intake responses. `strict`
-and `verbose` are on in `drizzle.config.ts`, so a destructive statement prints
-and asks first.
+**There is no `db:push`.** It was deleted from `package.json` and from this file
+(`docs/domain.md` D8). A pushed schema has no history, so it cannot replay on a
+fresh CI branch, cannot be reviewed in a diff, and cannot tell you what the
+branch holding real intake responses is actually running. Every schema change is
+three steps, in this order:
+
+```bash
+npm run db:generate     # writes drizzle/NNNN_<name>.sql + drizzle/meta/
+git add drizzle          # committed WITH the schema change that produced it
+npm run db:migrate      # applies it to the branch in .env
+```
+
+The migration file and the `schema/` change are one commit. A migration that
+lands in a later commit than its schema is a commit that does not build a
+database. `strict` and `verbose` stay on in `drizzle.config.ts`, so a
+destructive statement prints and asks first.
 
 ## Branch-first flow
 
 A Neon branch is a copy-on-write clone. Take one whenever you would take a git
-branch, so a bad `push` costs a branch instead of the room's responses:
+branch, so a bad migration costs a branch instead of the room's responses:
 
 ```bash
 neon link                     # once per checkout; also pulls the branch env
@@ -75,3 +95,22 @@ neon diff                     # schema diff against the parent before committing
 ```
 
 The CLI is `neon` (`npm i -g neon`) — *not* the older `neonctl`.
+
+`docs/domain.md` §8 has the CI shape: one PII-free `ci-base` parent, a
+`preview/pr-<n>` branch per pull request reset to parent before use, and
+`migrate-production` as the only job that can see production's URL.
+
+## Integration tests
+
+The suites under `src/lib/adapters/db/` need a migrated branch. One helper,
+`src/lib/adapters/db/test-db.ts`, decides whether they can run:
+
+| `DATABASE_URL` | `DB_REQUIRED` | `integrationDb()` |
+| --- | --- | --- |
+| set | — | `{ mode: "run", db }` — no connection opened until a query |
+| unset | unset | `{ mode: "skip", notice }` — the notice names the variable |
+| unset | `1` | throws — CI never goes green over tests that touched no table |
+
+They build their own `it-<runId>` room through `RoomRepository.create()` and
+delete it on teardown; the cascade removes everything beneath it. Nothing
+automated ever touches `platanus-hack-26-bogota`.

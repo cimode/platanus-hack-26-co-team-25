@@ -1,0 +1,262 @@
+{
+  "batch": 2,
+  "language": "es",
+  "styleToken": "flat vector cartoon, warm palette, thick outlines, square 1:1, bold condensed sans-serif caption centered, high contrast, no other text",
+  "blocks": [
+    {
+      "id": 6,
+      "focusPillar": "politeness",
+      "domain": "parties",
+      "language": "es",
+      "scenario": "Te ofreciste a ayudar en la fiesta de un amigo. A media noche un invitado secuestra el parlante y pone la misma canción por vigésima vez.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río, ya me sé hasta el coro",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Anuncio su pésimo gusto musical al salón",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Sigo repartiendo hielo como prometí",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Tomo el parlante y armo la lista",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a delighted person at a house party singing along with eyes closed while a speaker blasts the same song, confetti and a bored dog nearby; large centered bold condensed sans-serif caption reading 'Me río, ya me sé hasta el coro', high contrast, no other text"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person standing on a chair with a party horn, pointing theatrically at a sheepish guest hugging a speaker, guests cackling; large centered bold condensed sans-serif caption reading 'Anuncio su pésimo gusto musical al salón', high contrast, no other text"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person calmly carrying a bucket of ice through a chaotic party, refilling cups with a small smile, speaker chaos blurred behind; large centered bold condensed sans-serif caption reading 'Sigo repartiendo hielo como prometí', high contrast, no other text"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person confidently swiping a phone plugged into the speaker like a DJ, crowd throwing arms up in relief; large centered bold condensed sans-serif caption reading 'Tomo el parlante y armo la lista', high contrast, no other text"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "focusPillar": "reliability",
+      "domain": "neighbors",
+      "language": "es",
+      "scenario": "Le dijiste al vecino que recibirías sus paquetes esta semana. Ya van once cajas, tu pasillo no se camina y el timbre vuelve a sonar.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Armo un fuerte con las cajas",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me trago el sermón sobre sus compras online",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Pego un cartel: bodega cerrada, gracias",
+          "pillar": "reliability",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Reorganizo el pasillo y fijo horario de retiro",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a grinning adult crouched inside a fort built from stacked cardboard boxes in a narrow apartment hallway, peeking out through a cut-out window, cushion inside; large centered bold condensed sans-serif caption reading 'Armo un fuerte con las cajas', high contrast, no other text"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person with pressed lips and puffed cheeks visibly holding words back while accepting yet another parcel from a waving courier, a leaning tower of boxes behind them; large centered bold condensed sans-serif caption reading 'Me trago el sermón sobre sus compras online', high contrast, no other text"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person taping a blank hand-lettered sign with unreadable squiggles to their door and slipping inside, courier and parcels stranded in the hallway; large centered bold condensed sans-serif caption reading 'Pego un cartel: bodega cerrada, gracias', high contrast, no other text"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person with a blank clipboard directing boxes into neat rows along the hallway wall and tapping a wall clock, decisive stance; large centered bold condensed sans-serif caption reading 'Reorganizo el pasillo y fijo horario de retiro', high contrast, no other text"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "focusPillar": "agency",
+      "domain": "groceries",
+      "language": "es",
+      "scenario": "Fueron por pan y el carro ya va repleto. Vinieron caminando y entre los dos hay cuatro manos para volver a casa.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río, algo cabrá en la mochila",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "No digo nada de sus seis salsas picantes",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Vuelvo caminando dos veces si hace falta",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Que elija él, me como hasta el integral",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a laughing person cramming a long baguette into an already bulging backpack beside a heaped shopping cart, groceries poking out in every direction; large centered bold condensed sans-serif caption reading 'Me río, algo cabrá en la mochila', high contrast, no other text"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person looking pointedly at the ceiling with sealed lips while a friend proudly stacks six hot sauce bottles into the overflowing cart; large centered bold condensed sans-serif caption reading 'No digo nada de sus seis salsas picantes', high contrast, no other text"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a determined person marching down a sunny street with bulging bags in both arms, thumb jerked back toward the store, sweat drop and cheerful stride; large centered bold condensed sans-serif caption reading 'Vuelvo caminando dos veces si hace falta', high contrast, no other text"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person shrugging happily with both palms up while a friend lifts a dense dark whole-grain loaf off the shelf, overflowing cart between them; large centered bold condensed sans-serif caption reading 'Que elija él, me como hasta el integral', high contrast, no other text"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "focusPillar": "regulation",
+      "domain": "cooking",
+      "language": "es",
+      "scenario": "Licuaste la sopa sin tapa y hay crema en el techo, en el gato y en tus lentes. Tu amigo, en vez de ayudar, lo está grabando todo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Doy la sopa y el día por perdidos",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me guardo el comentario sobre su gran ayuda",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Termino la sopa aunque limpie hasta medianoche",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decreto sándwiches y reparto trapos a todos",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person slumped on the kitchen floor beneath a ceiling dripping orange soup, splattered glasses pushed up, a soup-covered cat sitting beside them, dramatic sigh; large centered bold condensed sans-serif caption reading 'Doy la sopa y el día por perdidos', high contrast, no other text"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person with tightly sealed lips and one twitching eyebrow gripping a mop while a friend films them with a phone, soup dripping from the ceiling behind; large centered bold condensed sans-serif caption reading 'Me guardo el comentario sobre su gran ayuda', high contrast, no other text"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person in a soup-splattered apron stirring a pot with one hand and wiping the ceiling with the other, big moon in the window, steady tired smile; large centered bold condensed sans-serif caption reading 'Termino la sopa aunque limpie hasta medianoche', high contrast, no other text"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person handing rags to three friends while balancing a tray of sandwiches overhead like a coach, splattered kitchen and dripping ceiling behind; large centered bold condensed sans-serif caption reading 'Decreto sándwiches y reparto trapos a todos', high contrast, no other text"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "focusPillar": "politeness",
+      "domain": "movies-series",
+      "language": "es",
+      "scenario": "El grupo pactó ver la serie a la misma velocidad. Alguien suelta el final de temporada en el chat, con emoji de carita sorprendida.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río, igual la veo mañana",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Lo expongo en el chat con capturas",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Igual llego a la maratón pactada",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Propongo regla nueva y fijo el horario",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ],
+      "imagePrompts": [
+        {
+          "option": "a",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person on a couch chuckling at a phone showing a spoiler message, popcorn bowl balanced on their knees, unbothered; large centered bold condensed sans-serif caption reading 'Me río, igual la veo mañana', high contrast, no other text"
+        },
+        {
+          "option": "b",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person cheerfully holding up a phone like courtroom evidence, a fan of screenshot bubbles spreading from it, the guilty friend sinking behind a cushion while the rest lean in to read, comic not cruel; large centered bold condensed sans-serif caption reading 'Lo expongo en el chat con capturas', high contrast, no other text"
+        },
+        {
+          "option": "c",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person arriving at a friend's living room on time with snacks under both arms, blanket fort and TV glowing behind; large centered bold condensed sans-serif caption reading 'Igual llego a la maratón pactada', high contrast, no other text"
+        },
+        {
+          "option": "d",
+          "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person taping a hand-drawn rules poster and a clock schedule above the TV while friends salute; large centered bold condensed sans-serif caption reading 'Propongo regla nueva y fijo el horario', high contrast, no other text"
+        }
+      ]
+    }
+  ]
+}

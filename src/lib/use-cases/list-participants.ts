@@ -10,9 +10,9 @@ import type { ParticipantsPort } from "../ports/participants";
  * on venue wifi.
  */
 export async function listParticipants(deps: {
-  participants: ParticipantsPort;
+  roster: ParticipantsPort;
 }): Promise<readonly Participant[]> {
-  return deps.participants.list();
+  return deps.roster.list();
 }
 
 /**
@@ -24,8 +24,8 @@ export async function listParticipants(deps: {
  */
 export async function findParticipant(
   id: string,
-  deps: { participants: ParticipantsPort }
+  deps: { roster: ParticipantsPort }
 ): Promise<Participant | null> {
-  const roster = await deps.participants.list();
+  const roster = await deps.roster.list();
   return roster.find((person) => person.id === id) ?? null;
 }
