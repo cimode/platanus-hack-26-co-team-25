@@ -1,0 +1,278 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel a running pipeline when the same ref is pushed again. During a 36h
+# crunch with three people pushing, this is the difference between useful
+# feedback and a queue of stale red checks.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # -- fast checks, all fanning out from the same cached install --------------
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run typecheck
+
+  biome:
+    name: biome (format + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run check
+
+  eslint:
+    name: eslint (next + design guards)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # Warnings are acceptable; errors are not. The design-system guardrails
+      # (no raw hex, no unknown classes, no conflicting classes) are errors.
+      - run: npm run lint
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # Only high and critical. Anything lower is noise we would learn to ignore.
+      - run: npm audit --audit-level=high
+
+  # -- unit tests + coverage comment -----------------------------------------
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run test:cov
+
+      # Report-only, no threshold. A coverage gate in a 36h build either blocks
+      # a legitimate PR at hour 30 or gets lowered until it asserts nothing.
+      - name: Comment coverage on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = "coverage/coverage-summary.json";
+            if (!fs.existsSync(path)) {
+              core.info("No coverage summary produced; skipping comment.");
+              return;
+            }
+            const { total } = JSON.parse(fs.readFileSync(path, "utf8"));
+            const pct = (k) => `${total[k].pct}% (${total[k].covered}/${total[k].total})`;
+            const marker = "<!-- hookai-coverage -->";
+            const body = [
+              marker,
+              "### Coverage — `src/lib/**`",
+              "",
+              "| Metric | Covered |",
+              "| --- | --- |",
+              `| Statements | ${pct("statements")} |`,
+              `| Branches | ${pct("branches")} |`,
+              `| Functions | ${pct("functions")} |`,
+              `| Lines | ${pct("lines")} |`,
+              "",
+              "_Report only — no threshold gates this PR. Scoped to `src/lib/**`;",
+              "UI coverage from unit tests would be a vanity metric._",
+            ].join("\n");
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const existing = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number }
+            );
+            const mine = existing.find((c) => c.body?.includes(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: mine.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body,
+              });
+            }
+
+  # -- heavier checks ---------------------------------------------------------
+
+  build:
+    name: next build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run build
+
+  e2e:
+    name: playwright e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      # Browsers are ~95MB; cache them against the installed Playwright version
+      # so we only pay the download when the dependency actually moves.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install system deps for cached browsers
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # GitHub sets CI=true, which makes the visual snapshot assertions skip
+      # themselves. Playwright namespaces snapshots by platform (-darwin.png)
+      # and Linux renders fonts differently, so all 18 baselines would fail here
+      # with no real regression. See docs/testing.md for the Docker recipe that
+      # generates Linux baselines if we ever want them gating.
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # -- deploy ----------------------------------------------------------------
+  #
+  # Vercel's Git integration needs its GitHub App installed on the
+  # platanus-hack org, which only the organisers can do -- so this repo cannot
+  # be "imported" in the Vercel dashboard. Deploying from CI with a token sidesteps
+  # that entirely: Vercel becomes a deploy target of the pipeline rather than a
+  # GitHub-integrated app, and no mirror repo is needed.
+  #
+  # Required configuration. Until VERCEL_TOKEN exists these jobs succeed with every
+  # step skipped, so CI stays green rather than being red while waiting on setup.
+  #
+  #   VERCEL_TOKEN       vercel.com/account/tokens            (Actions secret)
+  #   VERCEL_ORG_ID      `orgId` from .vercel/project.json    (Actions variable)
+  #   VERCEL_PROJECT_ID  `projectId` from the same file       (Actions variable)
+  #
+  # This deploys on a Hobby (personal) scope, so VERCEL_ORG_ID is a personal
+  # account id -- NOT a team_... value. Choose your own username, not a team,
+  # when `vercel link` prompts for a scope.
+
+  deploy-preview:
+    name: deploy preview
+    if: github.event_name == 'pull_request'
+    needs: [typecheck, biome, eslint, unit, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Are Vercel secrets configured?
+        id: gate
+        run: echo "ready=${{ secrets.VERCEL_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Explain the skip
+        if: steps.gate.outputs.ready != 'true'
+        run: |
+          echo "::notice title=Deploy skipped::VERCEL_TOKEN is not set. Add VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID as repository secrets to enable preview deploys."
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+
+      - uses: ./.github/actions/setup
+        if: steps.gate.outputs.ready == 'true'
+
+      - name: Deploy to Vercel (preview)
+        if: steps.gate.outputs.ready == 'true'
+        id: deploy
+        run: |
+          npx --yes vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest build --token="$VERCEL_TOKEN"
+          url=$(npx --yes vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN" | tail -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Comment the preview URL
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = "${{ steps.deploy.outputs.url }}";
+            const marker = "<!-- hookai-preview -->";
+            const body = `${marker}\n### Preview deploy\n\n${url}\n\n\`/design\` → ${url}/design`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const existing = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number }
+            );
+            const mine = existing.find((c) => c.body?.includes(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  deploy-production:
+    name: deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [typecheck, biome, eslint, unit, build, e2e]
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Are Vercel secrets configured?
+        id: gate
+        run: echo "ready=${{ secrets.VERCEL_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Explain the skip
+        if: steps.gate.outputs.ready != 'true'
+        run: |
+          echo "::notice title=Deploy skipped::VERCEL_TOKEN is not set. Production deploys are inactive."
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ready == 'true'
+
+      - uses: ./.github/actions/setup
+        if: steps.gate.outputs.ready == 'true'
+
+      - name: Deploy to Vercel (production)
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

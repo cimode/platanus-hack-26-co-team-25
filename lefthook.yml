@@ -1,0 +1,41 @@
+# Git hooks for hookai. Installed automatically by the `prepare` npm script.
+#
+# Staged files only, so this stays fast during a 36h crunch. Deliberately NOT
+# running `tsc --noEmit`, `next build`, the full test suite, or coverage here --
+# those are whole-project and would make every commit feel expensive. CI is the
+# real gate for those.
+#
+# Escape hatch when you need to commit through a red hook:
+#
+#     git commit --no-verify
+#
+# Note: `parallel: false` is intentional. The first two jobs both write to the
+# same files, so running them concurrently would race. ESLint goes first because
+# it reorders Tailwind classes (which changes line length), then Biome formats
+# and has the final say on layout.
+
+pre-commit:
+  parallel: false
+  jobs:
+    # Design-system guardrails + Next rules. Everything else lives in Biome.
+    - name: eslint (next + design guards)
+      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs}"
+      run: npx eslint --fix --no-warn-ignored {staged_files}
+      stage_fixed: true
+
+    # Format, organise imports, and general lint -- one Rust binary.
+    - name: biome
+      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,css,json,jsonc}"
+      run: npx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+    # Only the tests related to what you actually touched. `vitest related`
+    # walks the module graph, so editing src/lib/llm/port.ts runs the suites
+    # that import it -- transitively -- and nothing else. Touch a file with no
+    # tests and it exits 0 rather than blocking the commit.
+    #
+    # The FULL suite plus coverage is CI's job. Pre-commit stays about the
+    # feature in front of you.
+    - name: vitest (related only)
+      glob: "*.{ts,tsx,mts}"
+      run: npx vitest related --run {staged_files}
