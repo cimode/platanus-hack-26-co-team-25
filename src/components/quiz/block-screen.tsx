@@ -202,7 +202,7 @@ function hint(
   least: OptionKey | null,
   singlePick: boolean
 ): string {
-  if (most === null) return "Marcá la que más te suena a vos";
+  if (most === null) return "Marca la que más se parece a ti";
   if (!singlePick && least === null) return "Ahora la que menos";
   return "";
 }
