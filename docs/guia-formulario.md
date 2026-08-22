@@ -74,10 +74,12 @@ Los otros contratos son iguales de simples y están en `docs/form-response.md` �
 
 ## 5. La parte que confunde: ¿por qué guardamos letras y no el texto?
 
-Las 15 preguntas del quiz con sus 4 opciones son **siempre las mismas para todo el
-mundo**. Viven en un archivo del código (`quiz/batch-1.json`, `batch-2.json`,
-`batch-3.json`) y se cargan como una constante llamada `INSTRUMENT`. Una pregunta se ve
-así:
+Cada persona recibe **sus propias 15 preguntas**: las escribe un modelo de lenguaje cuando
+la persona entra, de cinco en cinco, y se guardan en la tabla `generated_blocks` (una fila
+por persona y por posición 1..15). Lo que sí es igual para todo el mundo es la
+**estructura**: 15 posiciones, 4 opciones por pregunta, una por rasgo, y exactamente una
+"al revés". Si el modelo falla, se usan 15 preguntas fijas de respaldo que viven en el
+código (`quiz/batch-*.json`, la constante `INSTRUMENT`). Una pregunta se ve así:
 
 ```json
 {
@@ -116,8 +118,10 @@ manda el texto**. Manda esto:
 ## 6. Pero entonces, ¿cómo sé qué respondió cada uno? (esto es lo importante)
 
 Aquí entra una decisión reciente (**D15** en `docs/domain.md`, issue #13): cuando el
-servidor recibe las letras, **él mismo busca el texto** en `INSTRUMENT` y lo guarda
-junto con la respuesta. Entonces la fila en la base queda así:
+servidor recibe las letras, **él mismo busca el texto** en la fila de `generated_blocks` de
+esa persona y esa posición, y lo guarda junto con la respuesta. Si no existe esa fila (la
+persona nunca vio ese bloque), la respuesta se rechaza. Entonces la fila en la base queda
+así:
 
 | columna | valor | de dónde sale |
 | --- | --- | --- |
@@ -126,13 +130,13 @@ junto con la respuesta. Entonces la fila en la base queda así:
 | `most_key` | `c` | lo que mandó el navegador |
 | `least_key` | `b` | lo que mandó el navegador |
 | `shown_order` | `cbad` | lo que mandó el navegador |
-| `instrument_version` | `v1` | qué versión de las preguntas estaba activa |
+| `instrument_version` | `v1` | qué versión de la **estructura** (15 posiciones, rotación, reglas) estaba activa |
 | `scenario` | "Tu amigo movió la perilla del horno…" | **lo busca el servidor** |
 | `most_text` | "Tomo el mando: pedimos pizza y listo" | **lo busca el servidor** |
 | `least_text` | "Anuncio que la cena está oficialmente arruinada" | **lo busca el servidor** |
 
-Y las preguntas completas también se copian a la base, una vez, en la tabla
-`instruments` (columna `blocks`, que guarda el JSON de arriba con las 15 preguntas).
+Y las preguntas completas de cada persona ya están en la base, en `generated_blocks`
+(columna `options`, que guarda el JSON de arriba con las 4 opciones de cada pregunta).
 
 Así que para **leer** lo que respondió una persona no necesitas el código ni un join:
 
@@ -155,37 +159,36 @@ position | scenario                                | most_text                  
 
 Hay una cosa que **a propósito** no va en la fila de respuesta: qué rasgo mide cada
 opción (`pillar`) y si está "al derecho o al revés" (`keyed`). Eso sólo está dentro de
-`instruments.blocks`. Si lo necesitas (por ejemplo para depurar el puntaje), la
+`generated_blocks.options`. Si lo necesitas (por ejemplo para depurar el puntaje), la
 asociación es:
 
 ```
-quiz_responses.instrument_version  =  instruments.version        ← misma versión de preguntas
-quiz_responses.position            =  bloque.position             ← misma pregunta
-quiz_responses.most_key            =  opción.key                  ← misma opción
+quiz_responses.participant_id  =  generated_blocks.participant_id   ← misma persona
+quiz_responses.position        =  generated_blocks.position         ← misma pregunta
+quiz_responses.most_key        =  opción.key                        ← misma opción
 ```
 
-En SQL (Postgres; `blocks` es JSON, por eso se "desarma" con `jsonb_array_elements`):
+En SQL (Postgres; `options` es JSON, por eso se "desarma" con `jsonb_array_elements`):
 
 ```sql
 select
   r.position,
   r.most_key,
-  b ->> 'scenario' as scenario,
-  o ->> 'text'     as most_text,
-  o ->> 'pillar'   as pillar,   -- el rasgo que mide esa opción
-  o ->> 'keyed'    as keyed     -- 'positive' o 'reversed'
+  g.scenario,
+  o ->> 'text'   as most_text,
+  o ->> 'pillar' as pillar,   -- el rasgo que mide esa opción
+  o ->> 'keyed'  as keyed     -- 'positive' o 'reversed'
 from quiz_responses r
-join instruments i
-  on i.version = r.instrument_version                    -- 1) misma versión
-cross join lateral jsonb_array_elements(i.blocks)       b -- cada bloque del JSON
-cross join lateral jsonb_array_elements(b -> 'options') o -- cada opción del bloque
-where (b ->> 'position')::int = r.position               -- 2) misma pregunta
-  and o ->> 'key' = r.most_key                           -- 3) misma opción
+join generated_blocks g
+  on g.participant_id = r.participant_id                 -- 1) misma persona
+ and g.position       = r.position                       -- 2) misma pregunta
+cross join lateral jsonb_array_elements(g.options) o     -- cada opción del bloque
+where o ->> 'key' = r.most_key                           -- 3) misma opción
   and r.participant_id = '01a02a27-7af6-7dfe-ac61-6a93bfef6c1a'
 order by r.position;
 ```
 
-Léelo de abajo hacia arriba: "de las respuestas de esta persona, para cada una busca el
+Léelo de abajo hacia arriba: "de las respuestas de esta persona, para cada una busca SU
 bloque con el mismo número y, dentro de él, la opción con la misma letra; devuélveme su
 texto, su rasgo y su dirección".
 
@@ -196,10 +199,11 @@ rooms ──────────< participants >────── participa
                       │
                       ├──────────────── romantic_gates        (0 o 1 fila)
                       ├──────────────── business_gates        (0 o 1 fila)
+                      ├──────────────< generated_blocks       (las 15 preguntas DE ESA persona)
                       └──────────────< quiz_responses         (0 a 15 filas)
                                             │
-                                            └── (instrument_version, position, most_key)
-                                                 ─────────────────────────────────────▶  instruments.blocks
+                                            └── (participant_id, position, most_key)
+                                                 ─────────────────────────────────────▶  generated_blocks.options
 ```
 
 - Una flecha con `<` significa "muchos": un room tiene muchas personas; una persona
@@ -217,12 +221,14 @@ rooms ──────────< participants >────── participa
 | "Más yo" y "menos yo" no pueden ser la misma letra | contrato + `check` |
 | Una sola respuesta por persona y pregunta (si vuelve atrás, se reemplaza) | `unique (participant_id, position)` |
 | Sólo se aceptan filtros del lente que la persona aceptó | el caso de uso lo rechaza |
-| Las preguntas no cambian una vez que alguien respondió | un test que fija el "hash" del instrumento + el servidor se niega a sembrar una versión distinta |
+| Cada respuesta apunta a un bloque que esa persona sí vio | el servidor rechaza la respuesta si no existe la fila en `generated_blocks` |
+| Las preguntas de respaldo no cambian por accidente | un test que fija el "hash" de la constante `INSTRUMENT` |
 
 ## 10. Para probarlo con tus manos
 
 1. `pnpm run db:migrate` crea las tablas en tu rama de base de datos (la de `.env`).
-2. `pnpm run db:seed` crea el room del evento y copia las preguntas a `instruments`.
+2. `pnpm run db:seed` crea el room del evento. Las preguntas de cada persona aparecen en
+   `generated_blocks` cuando esa persona entra (o, en tests, cuando el fixture las guarda).
 3. `pnpm run db:studio` abre un navegador de tablas: ahí verás `participants`,
    `quiz_responses`, etc., y podrás pegar las consultas de arriba.
 4. Los tests de integración (`pnpm exec vitest run src/lib/adapters/db`) crean personas y
@@ -233,8 +239,10 @@ rooms ──────────< participants >────── participa
 
 | Qué | Archivo |
 | --- | --- |
-| Las 15 preguntas | `quiz/batch-1.json`, `batch-2.json`, `batch-3.json` |
-| La constante `INSTRUMENT` y sus validaciones | `src/lib/domain/quiz/instrument.ts` |
+| Las 15 preguntas de respaldo | `quiz/batch-1.json`, `batch-2.json`, `batch-3.json` |
+| La constante `INSTRUMENT` (estructura + respaldo) y sus validaciones | `src/lib/domain/quiz/instrument.ts` |
+| Cómo se generan las preguntas de cada persona | `src/lib/use-cases/ensure-quiz-batch.ts`, `generate-quiz-batch.ts` |
+| La tabla de preguntas generadas | `src/lib/adapters/db/schema/quiz.ts` (`generated_blocks`) |
 | El tipo de una respuesta y sus reglas | `src/lib/domain/quiz/response.ts` |
 | La persona, consentimientos, ronda declarada | `src/lib/domain/participant/participant.ts` |
 | Los filtros (gates) | `src/lib/domain/participant/gates.ts` |
