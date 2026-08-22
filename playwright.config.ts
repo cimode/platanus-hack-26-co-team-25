@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3100;
+// 3000, the same port `npm run dev` uses, ON PURPOSE. Next 16 refuses to start
+// a second dev server for the same directory whatever port you give it, so a
+// separate 3100 meant `npm run test:e2e` simply failed whenever anyone had the
+// app running. On 3000, `reuseExistingServer` below picks up that server
+// instead of fighting it; CI has no server running, so it still starts its own.
+const PORT = 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
