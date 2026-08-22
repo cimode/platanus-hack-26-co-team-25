@@ -82,6 +82,6 @@ In a 36-hour build, speculative ports are the main way this becomes ceremony.
 
 ## Deliberately empty
 
-`use-cases/` has no files yet. A use case written before a screen calls it is a
-guess about an interface nobody has used. It fills when `submit-intake.ts` needs
-to exist.
+`use-cases/` holds `list-participants.ts` and `enter-room.ts` so far — both added
+when a screen actually needed them. That is the rule: a use case written before a
+screen calls it is a guess about an interface nobody has used.

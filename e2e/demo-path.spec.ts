@@ -128,8 +128,7 @@ test.describe("1b · the room", () => {
     // out of view. Counting elements did not catch it; measuring does.
     await enterAs(page, "diego");
     const band = await page
-      .locator("section", { has: page.locator("figure") })
-      .first()
+      .getByRole("region", { name: /la sala/i })
       .boundingBox();
     expect(band).not.toBeNull();
 
@@ -155,24 +154,79 @@ test.describe("1b · the room", () => {
     expect(scrollable).toBe(true);
   });
 
-  test("each lens button wears its own accent", async ({ page }) => {
-    // The payoff of the lens system: three buttons, one class each, zero
-    // conditional colour. If two ever resolve the same, the language is broken.
+  test("the card retakes the accent of the lens you pick", async ({ page }) => {
+    // The payoff of the lens system: choosing an option repaints the dot AND
+    // the Vamos button, with zero conditional colour in the component. If two
+    // lenses ever resolve the same, the visual language is broken.
     await enterAs(page, "diego");
-    const hues = await page.evaluate(() =>
-      [...document.querySelectorAll("button[name=lens]")].map((el) =>
-        getComputedStyle(el).getPropertyValue("--primary").trim()
-      )
-    );
-    expect(hues).toHaveLength(3);
-    expect(new Set(hues).size).toBe(3);
+    const trigger = page.getByRole("combobox", { name: /tipo de conexión/i });
+    const accent = () =>
+      page.evaluate(() => {
+        const el = document.querySelector("form[class*='lens-']");
+        return el
+          ? getComputedStyle(el).getPropertyValue("--primary").trim()
+          : null;
+      });
+
+    const seen = new Set<string>();
+    for (const label of [/románticamente/i, /trabajando/i, /de amigos/i]) {
+      await trigger.click();
+      await page.getByRole("option", { name: label }).click();
+      const hue = await accent();
+      expect(hue, `${label} has no accent`).toBeTruthy();
+      seen.add(hue as string);
+    }
+    expect(seen.size).toBe(3);
+  });
+
+  test("the lens listbox is fully keyboard-operable", async ({ page }) => {
+    // The native <select> this replaced gave keyboard support for free. Having
+    // traded that away for a popup we can actually style, the replacement has
+    // to earn it back -- otherwise the restyle was a downgrade wearing paint.
+    await enterAs(page, "diego");
+    const trigger = page.getByRole("combobox", { name: /tipo de conexión/i });
+    await trigger.focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(trigger).toContainText(/trabajando/i);
+  });
+
+  test("prefers-reduced-motion actually stops the room", async ({ page }) => {
+    // REGRESSION GUARD, and it earned its place: the first version of the
+    // reduced-motion block listed animation utility CLASSES, but every sprite
+    // carries its animation as an INLINE style (duration, delay and path differ
+    // per person) and the wander wrappers have no class at all. The guard
+    // stopped nothing for three commits and nothing caught it, because reading
+    // the CSS makes it look correct. Only measuring the computed style does.
+    await enterAs(page, "diego");
+    const running = () =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll("*")].filter((el) => {
+            const name = getComputedStyle(el).animationName;
+            return name && name !== "none";
+          }).length
+      );
+
+    expect(
+      await running(),
+      "the room should be alive by default"
+    ).toBeGreaterThan(0);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    await page.waitForTimeout(400);
+    expect(await running(), "reduced motion must stop everything").toBe(0);
   });
 
   test("choosing a lens carries it through to the ranking", async ({
     page,
   }) => {
     await enterAs(page, "diego");
-    await page.getByRole("button", { name: /trabajando/i }).click();
+    await page.getByRole("combobox", { name: /tipo de conexión/i }).click();
+    await page.getByRole("option", { name: /trabajando/i }).click();
+    await page.getByRole("button", { name: /vamos/i }).click();
     await expect(page).toHaveURL(/\/rank$/);
     await expect(
       page.getByRole("heading", { name: /negocios/i })

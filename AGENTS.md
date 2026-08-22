@@ -7,6 +7,10 @@
   Reliability, Agency), with exactly one reversed-keyed option on the focus pillar,
   plus per-option image prompts (centered bold caption cards). Trigger: quiz question,
   forced-choice block, question authoring, image prompts for options.
+- **neon-object-storage** (`.claude/skills/neon-object-storage/SKILL.md`) — Neon Object
+  Storage, vendored verbatim from `neondatabase/agent-skills`: `neon.ts` buckets,
+  `neon deploy` / `neon env pull`, the `AWS_*` env, path-style S3 access. Trigger:
+  object storage, bucket, photo upload, S3, presigned URL, `AWS_ENDPOINT_URL_S3`.
 
 ## Workflows
 
