@@ -44,6 +44,12 @@
   --color-friction-tint: var(--friction-tint);
   --color-friction-deep: var(--friction-deep);
 
+  /* -- rank bands --------------------------------------------------------- */
+  --color-band-high: var(--band-high);
+  --color-band-high-foreground: var(--band-high-foreground);
+  --color-band-mid: var(--band-mid);
+  --color-band-mid-foreground: var(--band-mid-foreground);
+
   /* -- event tags (timeline) --------------------------------------------- */
   --color-tag-hito: var(--tag-hito);
   --color-tag-hito-foreground: var(--tag-hito-foreground);
@@ -160,6 +166,15 @@
   --friction: #e0a13f;
   --friction-tint: #f4cf9a;
   --friction-deep: #c8842f;
+
+  /* Rank bands. Their own tokens even though `high` currently matches
+     --tag-ritual byte for byte: a rank band and a timeline event type are
+     different ideas, and sharing a token means recolouring "ritual" silently
+     recolours the ranking. */
+  --band-high: #fbe3de;
+  --band-high-foreground: #b8452f;
+  --band-mid: #f6ecd2;
+  --band-mid-foreground: #8a6a1f;
 
   /* Timeline event types. */
   --tag-hito: #e6e0f2;
@@ -453,18 +468,40 @@
   animation: bob 3.2s ease-in-out infinite;
 }
 
+@utility walking {
+  animation: walk 1.1s ease-in-out infinite;
+}
+
+@utility pop-in {
+  animation: popin 0.5s ease both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* MEASURED, not assumed. The first version of this block listed the four
+     animation utility classes and `[class*="wander"]`, and stopped NOTHING:
+     the room's sprites carry their animation as an INLINE style (duration,
+     delay and path differ per person, so they cannot come from a class), and
+     the elements running `wander` have no class at all. Emulating
+     prefers-reduced-motion in Playwright still found five animations running.
+
+     `[style*="animation"]` is an attribute substring match, so it catches every
+     inline animation in the app -- including ones nobody has written yet. That
+     is the point: a guard that depends on someone remembering to add a class is
+     a guard that rots the first time someone forgets.
+
+     !important is load-bearing here, not laziness: inline styles outrank every
+     selector, so without it this whole block is decorative. Do not "fix" it. */
+  [style*="animation"],
   .idle-hop,
   .hop-big,
   .venue-drift,
   .avatar-bob,
+  .walking,
+  .pop-in,
   [class*="wander"] {
-    /* !important is load-bearing, not laziness. Each sprite carries its own
-       `animation` as an INLINE style -- duration, delay and path differ per
-       person, so they cannot come from a class. Inline styles outrank any
-       selector, so without !important this whole block is decorative and
-       prefers-reduced-motion silently does nothing. Do not "fix" this. */
-    /* biome-ignore lint/complexity/noImportantStyles: see above */
+    /* biome-ignore lint/complexity/noImportantStyles: see the note above */
     animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: see the note above */
+    transition: none !important;
   }
 }

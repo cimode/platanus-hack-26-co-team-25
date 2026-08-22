@@ -192,6 +192,34 @@ test.describe("1b · the room", () => {
     await expect(trigger).toContainText(/trabajando/i);
   });
 
+  test("prefers-reduced-motion actually stops the room", async ({ page }) => {
+    // REGRESSION GUARD, and it earned its place: the first version of the
+    // reduced-motion block listed animation utility CLASSES, but every sprite
+    // carries its animation as an INLINE style (duration, delay and path differ
+    // per person) and the wander wrappers have no class at all. The guard
+    // stopped nothing for three commits and nothing caught it, because reading
+    // the CSS makes it look correct. Only measuring the computed style does.
+    await enterAs(page, "diego");
+    const running = () =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll("*")].filter((el) => {
+            const name = getComputedStyle(el).animationName;
+            return name && name !== "none";
+          }).length
+      );
+
+    expect(
+      await running(),
+      "the room should be alive by default"
+    ).toBeGreaterThan(0);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    await page.waitForTimeout(400);
+    expect(await running(), "reduced motion must stop everything").toBe(0);
+  });
+
   test("choosing a lens carries it through to the ranking", async ({
     page,
   }) => {
