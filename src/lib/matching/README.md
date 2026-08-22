@@ -7,7 +7,7 @@ bands, top-3 drivers, worst-term friction, and safety flags for the narrator UI.
 
 Run the demo (Node >= 22.6):
 
-    node --experimental-strip-types matching/demo.ts
+    node src/lib/matching/demo.ts
 
 Where the numbers come from: weight tables copied cell-by-cell from `PILLARS.md` §3; term
 forms from §2 and the §4 inversions; gates, degraded modes, frozen band cutoffs (0.40/0.60),

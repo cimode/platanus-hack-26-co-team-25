@@ -20,7 +20,6 @@ These are blocked on decisions nobody has made, not on writing time:
 
 | Skill to write | Blocked on deciding |
 | --- | --- |
-| `engine-architecture` | Where the matching engine lives. `matching/` is at the repo root today and its tests are a standalone runner; `docs/testing.md` assumes `src/lib/`. Until that is settled, two agents will disagree about where a new engine module goes. |
 | `data-access` | Whether route handlers call Drizzle directly or go through a repository layer; who owns transactions; where `getDb()` may be called (see `docs/database.md`). |
 | `ui-composition` | Server vs client component boundaries, where `src/components/ui/**` (shadcn-owned, lint-exempt) stops and our components start, how lens theming is threaded. |
 | `llm-usage` | Which call sites get fixtures, when a prompt change means re-recording, where prompts live as source. |

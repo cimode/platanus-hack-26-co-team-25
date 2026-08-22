@@ -90,7 +90,7 @@
       }
     },
     {
-      "includes": ["matching/demo.ts", "scripts/**"],
+      "includes": ["src/lib/matching/demo.ts", "scripts/**"],
       "linter": {
         "rules": { "suspicious": { "noConsole": "off" } }
       }
