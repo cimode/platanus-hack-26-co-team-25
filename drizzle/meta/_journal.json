@@ -22,6 +22,13 @@
       "when": 1787426991890,
       "tag": "0002_response_texts",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787436814798,
+      "tag": "0003_latent_estimates",
+      "breakpoints": true
     }
   ]
 }
