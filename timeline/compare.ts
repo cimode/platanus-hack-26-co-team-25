@@ -21,7 +21,7 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { scorePair, type Person, type Lens, type PairScore } from '../matching/engine.ts';
+import { scorePair, type Person, type Lens, type PairScore } from '../src/lib/domain/matching/engine.ts';
 import {
   isDegradedPair, validateTimeline,
   type GenerateTimeline, type Timeline, type TimelineOpts,

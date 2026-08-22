@@ -15,9 +15,9 @@
  * This module is fully deterministic: no Math.random, no Date, no I/O.
  */
 
-import type { Person, PairScore, Lens, TermName } from '../matching/engine.ts';
+import type { Person, PairScore, Lens, TermName } from '../src/lib/domain/matching/engine.ts';
 
-export type { Person, PairScore, Lens, TermName } from '../matching/engine.ts';
+export type { Person, PairScore, Lens, TermName } from '../src/lib/domain/matching/engine.ts';
 
 // ---------------------------------------------------------------------------
 // The common interface (every approach exports `generateTimeline` with this shape)
@@ -29,6 +29,20 @@ export interface TimelineOpts {
   offspringConsentB: boolean;
   /** true → use the live LLM narrator (needs AI_GATEWAY_API_KEY); default mock. */
   live?: boolean;
+  /**
+   * Progressive rendering hooks for the live demo. The beat STRUCTURE is
+   * deterministic and costs nothing, so the UI can draw the whole timeline
+   * skeleton — years, kinds, domains — the instant it exists, then fill each
+   * sentence in as its own call returns. That turns "wait for the slowest
+   * beat, see nothing" into "see the shape immediately, watch it write".
+   *
+   * Both are optional, fire at most once per beat, and are wrapped so a
+   * throwing callback can never break generation. Neither affects output:
+   * a run with hooks and a run without produce identical timelines.
+   */
+  onStructure?: (beats: readonly Beat[]) => void;
+  /** index is the beat's position in the list passed to onStructure. */
+  onSentence?: (index: number, text: string) => void;
 }
 
 export type GenerateTimeline = (
@@ -51,8 +65,10 @@ export interface TimelineMeta {
   canonicity: Canonicity;
   degraded: boolean;         // pair ran with >=1 imputed latent (AUDIT S15)
   model?: string;            // gateway model id when narration === 'live'
-  /** Live batch narration: sentences replaced by the invented-state pet guard. */
+  /** Live narration: sentences replaced by the invented-state pet guard. */
   petGuardReplacements?: number;
+  /** Live parallel narration: beats whose own call failed and took mock prose. */
+  mockFallbacks?: number;
 }
 
 // ---------------------------------------------------------------------------

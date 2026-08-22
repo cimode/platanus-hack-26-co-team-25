@@ -4,7 +4,7 @@
  * Pure offline (mock narrator); exits non-zero on any failure.
  */
 
-import { scorePair, type Person } from '../../matching/engine.ts';
+import { scorePair, type Person } from '../../src/lib/domain/matching/engine.ts';
 import {
   HAZARD_PEAK_END_YEAR, HAZARD_PEAK_START_YEAR, LENS_CONSTRAINTS,
   hashSeed, hazardShape, initialState, applyDelta, kidEventAllowed, mulberry32,

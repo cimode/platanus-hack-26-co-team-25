@@ -1,5 +1,5 @@
 /** Minimal live probe: one pair, three approaches, one seed. TEMP FILE. */
-import { scorePair, type Person } from '../matching/engine.ts';
+import { scorePair, type Person } from '../src/lib/domain/matching/engine.ts';
 import type { TimelineOpts } from './shared.ts';
 
 const sofia: Person = {
