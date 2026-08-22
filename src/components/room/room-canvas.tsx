@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { ParticipantSprite } from "@/components/room/participant-sprite";
 import { type Placement, VENUE_ASPECT } from "@/lib/domain/room/layout";
 
@@ -17,6 +17,19 @@ import { type Placement, VENUE_ASPECT } from "@/lib/domain/room/layout";
 export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<{ startX: number; startScroll: number } | null>(null);
+
+  /**
+   * Open centred, not at the left wall.
+   *
+   * The plate is far wider than a phone, so scrollLeft 0 means the room greets
+   * you with a window frame and no people in it. A callback ref rather than an
+   * effect: this runs the moment the node exists, so the first frame the user
+   * sees is already centred instead of jumping after paint.
+   */
+  const attach = useCallback((node: HTMLDivElement | null) => {
+    scroller.current = node;
+    if (node) node.scrollLeft = (node.scrollWidth - node.clientWidth) / 2;
+  }, []);
 
   function onPointerDown(event: React.PointerEvent<HTMLElement>) {
     // Touch already scrolls natively; hijacking it would kill the momentum.
@@ -55,7 +68,7 @@ export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
-      ref={scroller}
+      ref={attach}
       /* Focusable so the arrow keys reach it. WCAG 2.1.1 requires a scrollable
          region be keyboard-operable, and tabIndex={0} is the documented way --
          Chrome and Firefox now do it implicitly, Safari still does not. */
@@ -75,11 +88,11 @@ export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
         box we control, and Biome's next domain (rightly) rejects a bare <img>.
       */}
       <div
-        className="relative h-full select-none bg-center bg-no-repeat"
+        className="venue-drift pixelated relative h-full select-none bg-center bg-no-repeat"
         style={{
           aspectRatio: `${VENUE_ASPECT}`,
           containerType: "size",
-          backgroundImage: "url(/venue.jpeg)",
+          backgroundImage: "url(/venue.jpg)",
           backgroundSize: "100% 100%",
         }}
       >
