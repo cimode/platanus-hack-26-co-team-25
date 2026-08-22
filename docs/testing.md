@@ -230,3 +230,34 @@ Readiness is computed, never stored — a `blocked` label would go stale the mom
 dependency closed. It reports what is approved with dependencies met, and warns when a
 candidate's **Files affected** table overlaps something already in progress. Declared
 dependencies catch ordering; the files table catches the merge conflicts nobody declared.
+
+### Building against those tests
+
+`/work #12` takes an approved spec to an open PR through four subagents, each
+with its own definition in `.claude/agents/`:
+
+| Stage | Agent | Model | Ends with |
+| --- | --- | --- | --- |
+| 1 | `test-writer` | opus | Every AC has a test, and every one **fails on an assertion** |
+| 2 | `code-writer` | opus | `npm run verify` green, no test file touched |
+| 3 | `tester` | sonnet | Green, or a failure routed with a reason |
+| 4 | `adversarial-reviewer` | fable | A PR, or findings back to stage 2 |
+
+Three rules make it more than ceremony:
+
+- **Only stage 1 may write to a test file.** Stages 2 and 3 are forbidden from
+  touching one, because the cheap way out of a red suite is always to soften the
+  test, and it is always wrong. Stage 3 may route a test back to stage 1 only by
+  **quoting the AC** and naming how the test diverges from it. Absent that, the
+  test stands and the code is wrong.
+- **The red phase must fail for the right reason.** A test failing with
+  `Cannot find module` proves a path was misspelled, nothing more. Stage 1
+  writes the signatures too — bodies throwing `not implemented` — so every
+  failure is an assertion the implementation has to earn.
+- **The loop is bounded.** Stages 3 and 4 both route back to stage 2, at most
+  three times. On the fourth the issue goes back to `status:draft` with the
+  reason, because each extra pass is patching the previous pass's patch.
+
+Parallel issues each get their own git worktree, created by `/work` rather than
+by the Workflow tool's per-agent `isolation` option — all four stages have to
+share one checkout, or stage 2 receives a tree without stage 1's tests in it.
