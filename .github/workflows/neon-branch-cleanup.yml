@@ -20,7 +20,21 @@ jobs:
     name: delete the PR branch
     runs-on: ubuntu-latest
     steps:
+      # Same gate the CI jobs use: a secret is unreadable in a job-level `if:`.
+      # Without the settings no branch was ever created, and a cleanup with
+      # nothing to clean must not close the PR on a red check.
+      - name: Are the Neon settings configured?
+        id: gate
+        run: echo "ready=${{ secrets.NEON_API_KEY != '' && vars.NEON_PROJECT_ID != '' }}" >> "$GITHUB_OUTPUT"
+
+      # `continue-on-error` for the other half of the same rule: a PR whose runs
+      # predate the settings (or one that only ever ran a cancelled pipeline)
+      # has no `preview/pr-<n>` to delete, and the action fails on a branch that
+      # is not there. The step still shows its annotation, so a real API failure
+      # stays visible.
       - uses: neondatabase/delete-branch-action@v3
+        if: steps.gate.outputs.ready == 'true'
+        continue-on-error: true
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           api_key: ${{ secrets.NEON_API_KEY }}

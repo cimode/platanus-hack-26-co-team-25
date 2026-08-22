@@ -25,7 +25,8 @@ and commit the change.
 ## Jobs
 
 Seven checks fan out in parallel from a shared pnpm store cache; `unit` and
-`e2e` additionally wait on the run's own database branch.
+`e2e` additionally wait on the run's own database branch — they *wait* on it,
+they are never *gated* by it (see "When the Neon settings are missing" below).
 
 | Job | Runs | Gates merge |
 | --- | --- | --- |
@@ -40,7 +41,7 @@ Seven checks fan out in parallel from a shared pnpm store cache; `unit` and
 | `neon-branch-delete` | Deletes `ci/main-<run_id>`, `if: always()`, push only | ❌ |
 | `migrate-production` | `db:migrate` + `db:seed` on **production**, `main` only | ❌ (blocks the deploy) |
 | `deploy-preview` | Vercel preview, PR only | ❌ |
-| `deploy-production` | Vercel production, `main` only, `needs: migrate-production` | ❌ |
+| `deploy-production` | Vercel production, `main` only, after every gate; a *failed* `migrate-production` stops it, a *skipped* one does not | ❌ |
 
 **Concurrency:** a new push to the same ref cancels the in-flight run. No queue
 of stale red checks while three people iterate.
@@ -60,13 +61,34 @@ of stale red checks while three people iterate.
 `branch_name` (which returns the existing branch) to read its pooled URL. The
 URL is never a job output: Actions drops any output containing a masked value,
 and the action masks the branch password — so only the branch *name* travels
-between jobs. Both test jobs set `DB_REQUIRED=1`, which turns the integration
-suites' "no DATABASE_URL, skipping" notice into a failure (`docs/database.md`
-→ Integration tests): CI can never go green over tests that touched no table.
+between jobs. When that URL is there, both test jobs run with `DB_REQUIRED=1`,
+which turns the integration suites' "no DATABASE_URL, skipping" notice into a
+failure (`docs/database.md` → Integration tests): CI can never go green over
+tests that touched no table.
 
 The reset only fires when the create step reports `created == 'false'`, i.e.
 the branch already existed. That is what stops a rewritten migration on a
 re-pushed PR from meeting the schema the previous push left behind.
+
+### When the Neon settings are missing
+
+The branch is an **enhancement, never a gate**. `NEON_API_KEY` and
+`NEON_PROJECT_ID` are read by a step-level gate (a secret is unreadable in a
+job-level `if:`), exactly like `VERCEL_TOKEN` in the deploy jobs. Without them:
+
+| Job | What happens |
+| --- | --- |
+| `neon-branch` | Skips its steps, logs a `::notice`, **succeeds** |
+| `unit`, `e2e` | Run anyway — `if: ${{ !cancelled() && needs.neon-branch.result != 'failure' }}` — without `DATABASE_URL` and without `DB_REQUIRED`, so the database-backed suites skip themselves and everything else still gates the PR |
+| `deploy-preview` | Skips the deploy with a notice: a preview whose every page fails its first query is not worth an alias |
+| `neon-branch-delete`, `neon-branch-cleanup.yml` | Skip; the cleanup step is also `continue-on-error`, because a branch that was never created is nothing to clean up |
+
+`needs:` alone would have made it a gate — Actions skips every dependent of a
+job that failed or was skipped, so a missing secret silently turned "unit
+tests" into "unit tests: skipping" and a PR could merge having run none. That
+is the failure mode `!cancelled()` exists to prevent here. A `neon-branch` that
+**fails** (a broken migration) does still stop `unit` and `e2e`: the branch it
+left behind is not a database anything should be tested against.
 
 **`preview/pr-<n>` is deleted when the PR closes**, in its own workflow, because
 `ci.yml` does not run on `closed`. The Neon plan caps how many branches a
@@ -84,15 +106,23 @@ It **fails** when the secret is empty rather than skipping the way the deploy
 jobs do (first step: "Refuse to migrate without DATABASE_URL_PRODUCTION"). A
 repo with no `VERCEL_TOKEN` simply does not deploy, which is harmless; a
 production deploy that silently skipped its migration ships code against a
-table that is not there. `deploy-production` `needs: [migrate-production]`, so
-that failure stops the deploy too.
+table that is not there. `deploy-production` waits on it, so that failure stops
+the deploy too — **a push to `main` without `DATABASE_URL_PRODUCTION` is a red
+build that does not deploy**, by design.
+
+`deploy-production` spells out every gate in its own `needs` and `if:` rather
+than inheriting them through `migrate-production`. It has to: `!cancelled()` —
+which is what lets a *skipped* `migrate-production` through — also switches off
+Actions' implicit "every need succeeded". The rule it encodes is: deploy when
+every check is green and the migration did not fail.
 
 ## Actions settings
 
-Under **Settings → Secrets and variables → Actions**. The three database ones
-must exist **before this pipeline runs on `main`** — unlike the Vercel jobs,
-`neon-branch` has no skip-gate: without them `unit` and `e2e` have no database
-and go red, which is the point.
+Under **Settings → Secrets and variables → Actions**. Every one of them has a
+skip-gate, so a repo that has none of them still runs the whole pipeline; what
+they buy is what the pipeline can *prove*. `DATABASE_URL_PRODUCTION` is the
+exception and deliberately so: a push to `main` without it fails at
+`migrate-production` rather than deploying unmigrated code.
 
 | Name | Kind | Value |
 | --- | --- | --- |
@@ -104,9 +134,12 @@ and go red, which is the point.
 
 Add them in this order:
 
-1. `NEON_PROJECT_ID` and `NEON_API_KEY` — every PR run needs them.
+1. `NEON_PROJECT_ID` and `NEON_API_KEY` — without them every run still goes
+   green, but nothing it ran touched a table.
 2. Create `ci-base` by hand (`docs/database.md` → "The CI branches"). Nothing
-   automated works until the parent exists.
+   automated works until the parent exists — add it in the same sitting as
+   step 1, because `NEON_API_KEY` with no `ci-base` is the one combination that
+   *does* go red: `neon-branch` then fails on a parent that is not there.
 3. `DATABASE_URL_PRODUCTION` — only `migrate-production` reads it, and only on
    `main`, but a push to `main` without it is a red build by design.
 
