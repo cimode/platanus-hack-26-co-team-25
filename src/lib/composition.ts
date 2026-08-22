@@ -4,8 +4,8 @@ import { createGeneratedBlockRepository } from "./adapters/db/generated-block-re
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
-import { rosterParticipants } from "./adapters/participants/roster";
 import { createGatewayLlm } from "./adapters/llm/gateway";
+import { rosterParticipants } from "./adapters/participants/roster";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
@@ -50,7 +50,13 @@ export interface Deps {
 
 export type ServerDeps = Pick<
   Deps,
-  "db" | "llm" | "roster" | "generatedBlocks" | "participants" | "rooms" | "responses"
+  | "db"
+  | "llm"
+  | "roster"
+  | "generatedBlocks"
+  | "participants"
+  | "rooms"
+  | "responses"
 >;
 
 let cachedLlm: LlmPort | undefined;

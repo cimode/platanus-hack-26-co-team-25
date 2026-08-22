@@ -28,11 +28,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-
-import { participants } from "./participants.ts";
-
 import type { Option } from "../../../domain/quiz/index.ts";
 import type { BlockSource } from "../../../ports/generated-block-repository.ts";
+import { participants } from "./participants.ts";
 
 export const generatedBlocks = pgTable(
   "generated_blocks",

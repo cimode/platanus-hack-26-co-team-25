@@ -24,7 +24,7 @@
  * Contract: pure TypeScript, zero runtime dependencies, no Math.random, no Date.
  */
 
-import { BLOCK_COUNT, batchOf, type Pillar, PILLARS } from "./instrument.ts";
+import { BLOCK_COUNT, batchOf, PILLARS, type Pillar } from "./instrument.ts";
 import { mulberry32, seedFrom, shuffled } from "./rng.ts";
 
 /**
