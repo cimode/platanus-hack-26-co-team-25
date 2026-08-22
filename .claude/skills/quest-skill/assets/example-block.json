@@ -1,0 +1,19 @@
+{
+  "id": 1,
+  "focusPillar": "reliability",
+  "domain": "friends",
+  "language": "es",
+  "scenario": "Prometiste llevar el pastel al cumpleaños de tu mejor amigo. Una hora antes descubres que el gato se comió una esquina.",
+  "options": [
+    { "key": "a", "text": "Llego con el pastel mordido y lo cuento", "pillar": "regulation", "keyed": "positive" },
+    { "key": "b", "text": "Recorto la esquina y no digo nada", "pillar": "politeness", "keyed": "positive" },
+    { "key": "c", "text": "Aviso que mejor llevo helado", "pillar": "reliability", "keyed": "reversed" },
+    { "key": "d", "text": "Organizo a todos para hornear otro ya", "pillar": "agency", "keyed": "positive" }
+  ],
+  "imagePrompts": [
+    { "option": "a", "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a cheerful person proudly presenting a birthday cake with a cat-shaped bite missing, party guests laughing; large centered bold condensed sans-serif caption reading 'Llego con el pastel mordido y lo cuento', high contrast, no other text" },
+    { "option": "b", "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person surgically trimming a cake corner with a ruler, innocent whistle, cat watching guiltily; large centered bold condensed sans-serif caption reading 'Recorto la esquina y no digo nada', high contrast, no other text" },
+    { "option": "c", "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person texting with one thumb while balancing a tub of ice cream, cake abandoned behind; large centered bold condensed sans-serif caption reading 'Aviso que mejor llevo helado', high contrast, no other text" },
+    { "option": "d", "prompt": "flat vector cartoon, warm palette, thick outlines, square 1:1 — a person in a flour-dusted apron directing three friends like an orchestra conductor around a mixing bowl; large centered bold condensed sans-serif caption reading 'Organizo a todos para hornear otro ya', high contrast, no other text" }
+  ]
+}
