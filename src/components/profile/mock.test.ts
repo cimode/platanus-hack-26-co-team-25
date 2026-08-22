@@ -1,0 +1,142 @@
+import { describe, expect, it } from "vitest";
+import { mockRankedRoom, type RankCandidate } from "@/components/rank/mock";
+import { TAGS } from "@/lib/domain/participant/tags";
+import type { RankedRoom } from "@/lib/domain/reveal/rank";
+import { LENSES, type Lens } from "@/lib/domain/room/layout";
+import { mockProfile, mockTagsFor } from "./mock";
+
+/**
+ * Screen 1d's fixture.
+ *
+ * The load-bearing property is that `standing` comes off the SAME `RankedRoom`
+ * that screen 1c painted. Derive it a second way -- a second hash, a second
+ * band rule -- and the ranking and the profile eventually disagree about the
+ * same pair, which is the kind of bug nobody finds until a demo.
+ *
+ * Everything about suppression is asserted as INDISTINGUISHABILITY, never as
+ * "returns null for reason X". If the four causes were distinguishable, the
+ * 404 itself becomes an oracle for who is in the room (AC-PROF-2).
+ */
+
+const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
+
+const CANDIDATES: readonly RankCandidate[] = [
+  { id: "p-ana-ramirez", name: "Ana Ramírez", photoUrl: "/sprites/a.png" },
+  { id: "p-andres-gil", name: "Andrés Gil", photoUrl: "/sprites/b.png" },
+  { id: "p-camila-soto", name: "Camila Soto", photoUrl: null },
+  { id: "p-diego-morales", name: "Diego Morales", photoUrl: "/sprites/d.png" },
+  { id: "p-elena-vargas", name: "Elena Vargas", photoUrl: "/sprites/e.png" },
+  { id: "p-mateo-herrera", name: "Mateo Herrera", photoUrl: "/sprites/f.png" },
+  { id: "p-natalia-pena", name: "Natalia Peña", photoUrl: "/sprites/g.png" },
+];
+
+const room = (lens: Lens): RankedRoom =>
+  mockRankedRoom(lens, VIEWER, CANDIDATES);
+
+const profile = (id: string, lens: Lens) =>
+  mockProfile(id, room(lens), CANDIDATES);
+
+describe("mockProfile", () => {
+  it("renders every person who is in the viewer's ranking", () => {
+    for (const lens of LENSES) {
+      const current = room(lens);
+      if (current.status !== "ranked") throw new Error("not ranked");
+      for (const entry of current.entries) {
+        const found = profile(entry.id, lens);
+        expect(found?.name, `${lens}/${entry.id}`).toBe(entry.name);
+      }
+    }
+  });
+
+  it("reads standing off the SAME ranking, never a second derivation", () => {
+    for (const lens of LENSES) {
+      const current = room(lens);
+      if (current.status !== "ranked") throw new Error("not ranked");
+      for (const entry of current.entries) {
+        const found = profile(entry.id, lens);
+        expect(found?.standing.position, `${lens}/${entry.id}`).toBe(
+          entry.position
+        );
+        expect(found?.standing.band).toBe(entry.band);
+        expect(found?.standing.bond).toEqual(entry.bond);
+        expect(found?.standing.friction).toEqual(entry.friction);
+      }
+    }
+  });
+
+  it("suppresses an unknown id and the viewer themselves, identically", () => {
+    // Same `null`, not two different falsy shapes: the caller renders one
+    // `notFound()` and cannot leak which cause it was (AC-PROF-2).
+    for (const lens of LENSES) {
+      expect(profile("p-nobody-at-all", lens)).toBeNull();
+      expect(profile(VIEWER.id, lens)).toBeNull();
+      expect(profile("", lens)).toBeNull();
+    }
+  });
+
+  it("shows exactly the intersection, never the other person's own tags", () => {
+    // The fixture exposes `mockTagsFor` so this can compute the intersection
+    // INDEPENDENTLY and compare results. Re-deriving the hash inside the test
+    // would only prove the two copies agree, which is not the property --
+    // AC-PROF-3 is that nothing the viewer does not also hold is presented as
+    // common ground.
+    for (const lens of LENSES) {
+      const current = room(lens);
+      if (current.status !== "ranked") throw new Error("not ranked");
+      const mine = new Set(mockTagsFor(VIEWER.id));
+
+      for (const entry of current.entries) {
+        const theirs = mockTagsFor(entry.id);
+        const shared = theirs.filter((tag) => mine.has(tag));
+        const found = profile(entry.id, lens);
+
+        expect([...(found?.tags ?? [])].sort(), `${lens}/${entry.id}`).toEqual(
+          [...shared].sort()
+        );
+        for (const tag of found?.tags ?? []) {
+          expect(TAGS, `${tag} is off-vocabulary`).toContain(tag);
+        }
+      }
+    }
+  });
+
+  it("gives the empty-tags state a subject", () => {
+    // AC-PROF-3 wants an explicit "nothing in common yet". If every pair
+    // overlapped, that branch would never render and the test for it would be
+    // vacuous.
+    const current = room("romantic");
+    if (current.status !== "ranked") throw new Error("not ranked");
+    const empties = current.entries.filter(
+      (entry) => (profile(entry.id, "romantic")?.tags.length ?? 1) === 0
+    );
+    expect(empties.length).toBeGreaterThan(0);
+  });
+
+  it("gives the photoless stage a subject too", () => {
+    const current = room("romantic");
+    if (current.status !== "ranked") throw new Error("not ranked");
+    const photoless = current.entries.filter(
+      (entry) => profile(entry.id, "romantic")?.photoUrl === null
+    );
+    expect(photoless.length).toBeGreaterThan(0);
+  });
+
+  it("carries nothing offspring-shaped and nothing numeric (AC-PORT-8, AC-PROF-3)", () => {
+    const current = room("romantic");
+    if (current.status !== "ranked") throw new Error("not ranked");
+    const found = profile(current.entries[0].id, "romantic");
+    const serialised = JSON.stringify(found);
+    expect(serialised).not.toMatch(/beb[eé]|hijo|offspring|kid/i);
+    for (const key of ["rank", "sim", "score", "contribution", "shortfall"]) {
+      expect(serialised).not.toMatch(new RegExp(`"${key}"`));
+    }
+  });
+
+  it("is deterministic across calls", () => {
+    for (const lens of LENSES) {
+      expect(profile("p-ana-ramirez", lens)).toEqual(
+        profile("p-ana-ramirez", lens)
+      );
+    }
+  });
+});

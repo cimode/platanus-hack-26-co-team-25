@@ -25,6 +25,8 @@ export interface RankCandidate {
   readonly id: string;
   readonly name: string;
   readonly photoUrl: string | null;
+  /** Optional because the ranking never shows it; screen 1d's profile does. */
+  readonly team?: string | null;
 }
 
 /** Engine term names on the left, the Spanish the screen shows on the right. */
