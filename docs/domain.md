@@ -57,6 +57,7 @@ abandoners do not.
 | D11 | Photos go to **Vercel Blob** (`@vercel/blob`, `BLOB_READ_WRITE_TOKEN`), `photo_url` on the participant; tests use a fake `PhotoStore`. | GA, CDN-served, one env var, no Postgres egress for a room view that loads a hundred faces. Blob URLs are unguessable and are only ever embedded in pages the viewer is authorised to see; withdrawal deletes the blob. Fallback if provisioning becomes a problem at hour N: `photo bytea` served by a private route handler — same port, different adapter. |
 | D12 | Romantic consent covers the ranking **and** the AI-offspring render, and the copy says so. | `AUDIT.md` S17: face-merge renders only for mutually opted-in pairs. One switch, explicitly worded. |
 | D14 | **Option cards are text, not images.** No `public/quiz/*.png`, no image-generation pipeline, no `imagePathOf`. The `imagePrompts` already in `quiz/batch-*.json` stay in the file as authored history and are ignored by the domain type. | Confirmed by the user 2026-08-22. Cuts the entire image budget (60 renders per instrument version, and ~6,000 under the per-participant design §10.1 rejects), removes the model's least reliable capability — Spanish caption text baked into an image — from the critical path, and deletes issue I3 outright. Options are ≤8 words by the authoring rules, which is a card; the 2×2 grid in `docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` renders them as type. |
+| D15 | **The question set is stored in the database too, and every answer row carries its question.** `instruments(version pk, hash, blocks jsonb, seeded_at)` holds the full 15-block content per version, written by `db:seed` from the constant and refused on a hash mismatch; `quiz_responses` gains `instrument_version`, `scenario`, `most_text`, `least_text`, captured at answer time. | Requested by the user 2026-08-22: answers must be readable in the database together with the questions, without the code. The constant remains the source of truth (D2 — hash-pinned, version-guarded); the table is its audited mirror, and the columns make each row self-describing in Drizzle Studio or any SQL client. Cost: one jsonb row per version and ~150 bytes per answer. Lands with issue I9. |
 | D13 | **Rankings are computed on request, not stored.** Latent estimates *are* stored — they are the avatar. | `rankRoom` is pure and ranks a 100-person room in milliseconds; persisting its output was ceremony on the last issue. The loading moment is `loading.tsx` narrating "scoring 15 blocks · ranking N people". The projected room view, when it exists, computes mutual top-k from the same in-memory array behind an operator credential. `latent_estimates` stays: it is `CONTEXT.md` §3 step 2, and the timeline will read it. |
 
 ## 2. Aggregates (`src/lib/domain/`)
@@ -187,6 +188,19 @@ non-empty.
 
 A participant answers a block once; re-answering is an update (the back affordance), not a
 second row. The instrument the keys refer to is the room's `instrument_version`.
+
+### `instruments` — **I9** (D15): the question set, per version
+
+| column | type | notes |
+| --- | --- | --- |
+| version | text pk | `v1` — equals `INSTRUMENT.version` |
+| hash | text not null | `instrumentHash()` at seed time; the seed refuses to overwrite a different hash |
+| blocks | jsonb not null | the 15 blocks exactly as the constant: position, focusPillar, scenario, options[{key, text, pillar, keyed}] |
+| seeded_at | timestamptz not null | |
+
+`quiz_responses` also gains (I9): `instrument_version text not null`, `scenario text not null`,
+`most_text text not null`, `least_text text` — resolved from the constant when the answer is
+saved, so a row reads on its own. `pillar`/`keyed` never appear on an answer row.
 
 ## 4. Tables that land later
 
@@ -336,8 +350,9 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
 | I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three batches` | `/quiz` against the instrument constant; typographic option cards (D14), batch beats as pacing | I1, I4 |
 | I7 · [#7](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/7) `scoring: turn 15 block responses into latent posteriors` | `domain/scoring`, `latent_estimates` | I1 |
 | I8 · [#10](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/10) `matching: rank the room under a lens and show the result` | `prepare-results` (score if missing → `byRoomForRanking(room, lens)` → `toPerson` → `rankRoom`), `/results/[lens]` with `loading.tsx`, the results-payload serialisation test (§5) and the abandoned-participant safety test | I5, I6, I7 |
+| I9 · [#13](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/13) `quiz: persist the question set and resolved answers` | `instruments` table + the four answer columns, migration `0001`, `InstrumentRepository`, seed writes/refuses by hash, `save` resolves texts | #4 |
 
-Waves: **I1** → **{I2, I4, I7}** → **{I3, I5, I6}** → **I8**. Each wave touches disjoint
+Waves: **I1** → **{I2, I4, I9}** → **{I5, I6, I7}** → **I8**. I9 and I7 both add a migration and both touch `schema/index.ts`, so they run sequentially, I9 first. Each wave touches disjoint
 paths and can run in parallel through `/work`. I3 has no code dependency and no
 **I3 is cancelled** (D14): options are text, so there is no image work to file. I6 renders
 typographic option cards; that is the only mode.
