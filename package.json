@@ -18,6 +18,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "quiz:smoke": "tsx --env-file=.env scripts/quiz-smoke.ts",
+    "design:capture": "tsx scripts/capture-design.ts",
     "verify": "pnpm run typecheck && pnpm run check && pnpm run test",
     "prepare": "lefthook install",
     "db:generate": "drizzle-kit generate",
