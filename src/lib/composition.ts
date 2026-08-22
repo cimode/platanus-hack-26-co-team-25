@@ -1,9 +1,12 @@
 import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
+import { createGeneratedBlockRepository } from "./adapters/db/generated-block-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
 import { rosterParticipants } from "./adapters/participants/roster";
+import { createGatewayLlm } from "./adapters/llm/gateway";
+import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
@@ -39,6 +42,7 @@ export interface Deps {
   db: Db;
   llm: LlmPort;
   roster: ParticipantsPort;
+  generatedBlocks: GeneratedBlockRepository;
   participants: ParticipantRepository;
   rooms: RoomRepository;
   responses: ResponseRepository;
@@ -46,15 +50,37 @@ export interface Deps {
 
 export type ServerDeps = Pick<
   Deps,
-  "db" | "roster" | "participants" | "rooms" | "responses"
+  "db" | "llm" | "roster" | "generatedBlocks" | "participants" | "rooms" | "responses"
 >;
+
+let cachedLlm: LlmPort | undefined;
+
+/**
+ * Memoised per process, like `getDb()`, so a warm Fluid Compute instance reuses
+ * one gateway client across requests instead of rebuilding it per invocation.
+ */
+function getLlm(): LlmPort {
+  if (!cachedLlm) cachedLlm = createGatewayLlm();
+  return cachedLlm;
+}
+
+/** Test seam: drops the memoised LLM client so a test can swap the model. */
+export function resetLlm(): void {
+  cachedLlm = undefined;
+}
 
 /**
  * Dependencies available on the server today.
  *
- * `llm` is deliberately absent rather than stubbed: the only implementations of
- * `LlmPort` so far are the test doubles in `adapters/llm/fake.ts`, and handing
- * production a fake that quietly returns fixtures is worse than not compiling.
+ * `llm` used to be deliberately absent -- the only implementations of `LlmPort`
+ * were the test doubles in `adapters/llm/fake.ts`, and handing production a fake
+ * that quietly returns fixtures is worse than not compiling. It is real now that
+ * `adapters/llm/gateway.ts` exists, and this is the single place that knows the
+ * model is Sonnet behind AI Gateway: `generateQuizBatch` only ever sees an
+ * `LlmPort`, which is why its tests pass `stubLlm()` and touch no network.
+ *
+ * Like the database members it is a getter, so a page that needs neither a model
+ * nor a connection opens neither.
  */
 export function serverDeps(): ServerDeps {
   return {
@@ -62,6 +88,12 @@ export function serverDeps(): ServerDeps {
       return getDb();
     },
     roster: rosterParticipants,
+    get llm() {
+      return getLlm();
+    },
+    get generatedBlocks() {
+      return createGeneratedBlockRepository(getDb());
+    },
     get participants() {
       return createParticipantRepository(getDb());
     },

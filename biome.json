@@ -23,6 +23,7 @@
       "!project-description.md",
       "!public",
       "!coverage",
+      "!drizzle",
       "!timeline"
     ]
   },
@@ -98,6 +99,8 @@
                       "drizzle-orm/**",
                       "drizzle-zod",
                       "@anthropic-ai/**",
+                      "ai",
+                      "@ai-sdk/**",
                       "next/**",
                       "react",
                       "react-dom/**"
