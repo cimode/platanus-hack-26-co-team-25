@@ -100,6 +100,32 @@ The CLI is `neon` (`npm i -g neon`) — *not* the older `neonctl`.
 `preview/pr-<n>` branch per pull request reset to parent before use, and
 `migrate-production` as the only job that can see production's URL.
 
+## Reading answers with their questions
+
+Each `quiz_responses` row is self-describing (`docs/domain.md` D15/D16, §3), so nobody needs
+the code — or a join — to read what a person was asked:
+
+```sql
+select position, scenario, most_text, least_text
+from quiz_responses
+where participant_id = '…'
+order by position;
+```
+
+`scenario`, `most_text` and `least_text` are written by `ResponseRepository.save`, resolved
+from **that participant's** `generated_blocks(participant_id, position)` row at write time —
+under D16 each person answers their own generated form, so the constant in
+`src/lib/domain/quiz/` is not what they saw. `instrument_version` on the row is
+`INSTRUMENT.version`, the *structural* version (15 positions, the 4/4/4/3 rotation), not the
+scenarios. `least_text` is null exactly when `least_key` is (the single-pick fallback), and
+`pillar`/`keyed` are deliberately absent — they stay inside `generated_blocks.options`, so
+reading the answers never puts the scoring key in front of the reader.
+
+`save` **rejects** when the participant has no block at that position, or when the key is one
+that block never offered: an answer to a block nobody was shown is a bug, not a degraded
+mode. Any fixture, seed or script that writes responses must therefore write the blocks first
+(`GeneratedBlockRepository.saveBatch`).
+
 ## Integration tests
 
 The suites under `src/lib/adapters/db/` need a migrated branch. One helper,
