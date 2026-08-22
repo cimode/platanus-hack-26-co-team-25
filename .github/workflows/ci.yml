@@ -178,8 +178,12 @@ jobs:
   # step skipped, so CI stays green rather than being red while waiting on setup.
   #
   #   VERCEL_TOKEN       vercel.com/account/tokens
-  #   VERCEL_ORG_ID      team_Ux9zeur8X6TCGGuRNF3Z3hsY   (team: Memora)
-  #   VERCEL_PROJECT_ID  from `vercel link` or the project settings page
+  #   VERCEL_ORG_ID      `orgId` from .vercel/project.json after `vercel link`
+  #   VERCEL_PROJECT_ID  `projectId` from the same file
+  #
+  # This deploys on a Hobby (personal) scope, so VERCEL_ORG_ID is a personal
+  # account id -- NOT a team_... value. Choose your own username, not a team,
+  # when `vercel link` prompts for a scope.
 
   deploy-preview:
     name: deploy preview
