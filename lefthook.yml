@@ -19,13 +19,13 @@ pre-commit:
   jobs:
     # Design-system guardrails + Next rules. Everything else lives in Biome.
     - name: eslint (next + design guards)
-      glob: "*.{ts,tsx,js,jsx,mjs}"
+      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs}"
       run: npx eslint --fix --no-warn-ignored {staged_files}
       stage_fixed: true
 
     # Format, organise imports, and general lint -- one Rust binary.
     - name: biome
-      glob: "*.{ts,tsx,js,jsx,mjs,css,json,jsonc}"
+      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,css,json,jsonc}"
       run: npx biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
@@ -37,5 +37,5 @@ pre-commit:
     # The FULL suite plus coverage is CI's job. Pre-commit stays about the
     # feature in front of you.
     - name: vitest (related only)
-      glob: "*.{ts,tsx}"
+      glob: "*.{ts,tsx,mts}"
       run: npx vitest related --run {staged_files}

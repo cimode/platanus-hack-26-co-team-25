@@ -8,7 +8,7 @@ Seven checks fan out in parallel from a shared npm cache. Wall clock ~90s.
 
 | Job | Runs | Gates merge |
 | --- | --- | --- |
-| `typecheck` | `tsc --noEmit` | ✅ |
+| `typecheck` | `next typegen && tsc --noEmit` | ✅ |
 | `biome` | `biome check .` — format + lint + imports | ✅ |
 | `eslint` | Next Core Web Vitals + design-system guardrails | ✅ |
 | `audit` | `npm audit --audit-level=high` | ✅ |
@@ -94,6 +94,14 @@ and log a notice — CI stays green rather than red while waiting on setup.
 
 Once production has deployed once, put that URL in `deploy-url` in
 `platanus-hack-project.jsonc`, which is still `<FILL THIS>`.
+
+## Why `typecheck` runs `next typegen` first
+
+`LayoutProps<"/">` and `PageProps` are **generated** into `.next/types` by Next's
+typed routes. A fresh checkout has no `.next/`, so `tsc --noEmit` alone fails with
+`Cannot find name 'LayoutProps'` — which passes locally only because you have
+already built. `next typegen` takes about a second and makes the check behave
+identically on a clean clone, in CI, and on your machine.
 
 ## Node version
 
