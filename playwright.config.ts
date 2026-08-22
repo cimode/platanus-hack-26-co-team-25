@@ -5,7 +5,11 @@ import { defineConfig, devices } from "@playwright/test";
 // separate 3100 meant `npm run test:e2e` simply failed whenever anyone had the
 // app running. On 3000, `reuseExistingServer` below picks up that server
 // instead of fighting it; CI has no server running, so it still starts its own.
-const PORT = 3000;
+// `E2E_PORT` lets parallel worktrees (the /work pipelines) each boot their own
+// server instead of reusing a neighbour's on 3000 -- Playwright would otherwise
+// run one issue's specs against another issue's app. `E2E_ISOLATED=1` also turns
+// reuse off, so a stale server on that port cannot be picked up by mistake.
+const PORT = Number(process.env.E2E_PORT ?? 3000);
 const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -67,7 +71,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec next dev --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && !process.env.E2E_ISOLATED,
     timeout: 120_000,
   },
 });
