@@ -22,7 +22,10 @@ import {
   validateBusinessGate,
   validateRomanticGate,
 } from "@/lib/domain/participant";
-import type { ParticipantRepository } from "@/lib/ports/participant-repository";
+import type {
+  ParticipantRepository,
+  RankingParticipants,
+} from "@/lib/ports/participant-repository";
 import type { Db } from "./client.ts";
 import {
   acquaintances,
@@ -94,6 +97,22 @@ const BUSINESS_GATE_COLUMNS = {
   redlinesOk: businessGates.redlinesOk,
 };
 
+type RomanticGateRow = {
+  participantId: string;
+  gender: string;
+  interestedIn: string[];
+  single: boolean;
+  ageBand: number;
+  wantsKids: boolean;
+};
+
+type BusinessGateRow = {
+  participantId: string;
+  riskPosture: number;
+  exitHorizon: number;
+  redlinesOk: boolean;
+};
+
 type ParticipantRow = {
   id: string;
   roomId: string;
@@ -156,6 +175,25 @@ function toParticipant(
   };
 }
 
+/** The gate row as the engine's own type -- one mapping, two readers. */
+function toRomanticGate(row: RomanticGateRow): RomanticGate {
+  return {
+    gender: row.gender as Gender,
+    interestedIn: row.interestedIn as Gender[],
+    single: row.single,
+    ageBand: row.ageBand,
+    wantsKids: row.wantsKids,
+  };
+}
+
+function toBusinessGate(row: BusinessGateRow): BusinessGate {
+  return {
+    riskPosture: row.riskPosture,
+    exitHorizon: row.exitHorizon,
+    redlinesOk: row.redlinesOk,
+  };
+}
+
 /** The consent column the lens's floor reads (docs/domain.md §0). */
 function consentColumn(lens: Lens) {
   if (lens === "romantic") return participants.consentRomantic;
@@ -163,7 +201,19 @@ function consentColumn(lens: Lens) {
   return participants.consentFriendship;
 }
 
-export function createParticipantRepository(db: Db): ParticipantRepository {
+/**
+ * The port, plus the by-id rankable read `RankingParticipants` declares as
+ * its own narrow slice (`ports/participant-repository.ts`), the slice
+ * `prepareResults` ranks through.
+ *
+ * `byIdForRanking` is deliberately NOT on `ParticipantRepository`: six other
+ * use-case fakes implement that port and none of them ranks. Naming the slice
+ * in the return type is what makes "this adapter satisfies it" a compile-time
+ * fact rather than a comment.
+ */
+export function createParticipantRepository(
+  db: Db
+): ParticipantRepository & RankingParticipants {
   return {
     async create(
       input: NewParticipant
@@ -353,6 +403,57 @@ export function createParticipantRepository(db: Db): ParticipantRepository {
       }));
     },
 
+    async byIdForRanking(
+      id: ParticipantId
+    ): Promise<RankableParticipant | null> {
+      // NO lens and NO floor, on purpose: `prepareResults` reports the
+      // subject's own floor OUTCOME, and a floor-filtered by-id read would
+      // return null for both "not-consented" and "below-floor" and collapse
+      // two different `RankedRoom` statuses into one indistinguishable absence.
+      //
+      // Same guard as `bySessionToken`: `participants.id` is a Postgres uuid,
+      // which ERRORS on a malformed literal rather than matching nothing.
+      if (!isUuid(id)) return null;
+
+      // The joins `byRoomForRanking` performs, narrowed to one participant:
+      // one round trip, four statements, never a query per table per caller.
+      const [rows, romantic, business, known] = await db.batch([
+        db
+          .select(PARTICIPANT_COLUMNS)
+          .from(participants)
+          .where(eq(participants.id, id))
+          .limit(1),
+        db
+          .select(ROMANTIC_GATE_COLUMNS)
+          .from(romanticGates)
+          .where(eq(romanticGates.participantId, id))
+          .limit(1),
+        db
+          .select(BUSINESS_GATE_COLUMNS)
+          .from(businessGates)
+          .where(eq(businessGates.participantId, id))
+          .limit(1),
+        db
+          .select({ knowsId: acquaintances.knowsId })
+          .from(acquaintances)
+          .where(eq(acquaintances.participantId, id)),
+      ]);
+
+      if (rows.length === 0) return null;
+      const knows = known.map((row) => row.knowsId);
+
+      return {
+        participant: toParticipant(rows[0], knows),
+        // No row means never asked, which the engine reads as suppressed under
+        // that lens (D5) -- so an absent row is undefined, never a blank gate.
+        romanticGate:
+          romantic.length > 0 ? toRomanticGate(romantic[0]) : undefined,
+        businessGate:
+          business.length > 0 ? toBusinessGate(business[0]) : undefined,
+        acquaintances: knows,
+      };
+    },
+
     async byRoomForRanking(
       roomId: RoomId,
       lens: Lens
@@ -404,26 +505,10 @@ export function createParticipantRepository(db: Db): ParticipantRepository {
       ]);
 
       const romanticById = new Map<string, RomanticGate>(
-        romantic.map((row) => [
-          row.participantId,
-          {
-            gender: row.gender as Gender,
-            interestedIn: row.interestedIn as Gender[],
-            single: row.single,
-            ageBand: row.ageBand,
-            wantsKids: row.wantsKids,
-          },
-        ])
+        romantic.map((row) => [row.participantId, toRomanticGate(row)])
       );
       const businessById = new Map<string, BusinessGate>(
-        business.map((row) => [
-          row.participantId,
-          {
-            riskPosture: row.riskPosture,
-            exitHorizon: row.exitHorizon,
-            redlinesOk: row.redlinesOk,
-          },
-        ])
+        business.map((row) => [row.participantId, toBusinessGate(row)])
       );
       const knownById = new Map<string, ParticipantId[]>();
       for (const row of known) {

@@ -38,3 +38,29 @@ export interface ParticipantRepository {
   byRoom(roomId: RoomId): Promise<RoomMember[]>;
   byRoomForRanking(roomId: RoomId, lens: Lens): Promise<RankableParticipant[]>;
 }
+
+/**
+ * The narrow slice of this port that `src/lib/use-cases/prepare-results.ts`
+ * ranks through (issue #10). Declared HERE, separately from
+ * `ParticipantRepository`, rather than added to it: widening the shared port
+ * would break the six existing `ParticipantRepository` fakes in other
+ * use-case tests (`answer-block`, `quiz-progress`, `set-photo`,
+ * `submit-declared`, `submit-business-gate`, `submit-romantic-gate`) with
+ * TS2741, and a port method six implementations do not need is a port method
+ * that earns nothing. `adapters/db/participant-repository.ts` implements it
+ * over the joins `byRoomForRanking` already performs and satisfies this slice
+ * structurally.
+ *
+ * `byIdForRanking` takes NO lens and applies NO floor: the subject's own
+ * floor OUTCOME is what `prepareResults` reports, and a filtered read would
+ * return null for both "not-consented" and "below-floor" and collapse the
+ * two statuses into one. `bySessionToken` cannot stand in for it -- it
+ * selects no gate tables, so a fabricated `romanticGate: undefined` puts
+ * every subject below the romantic floor, and skipping the check lets a
+ * gateless subject reach `rankRoom`, which throws `unknown subject id` with
+ * their id in the message (engine.ts:782).
+ */
+export interface RankingParticipants {
+  byIdForRanking(id: ParticipantId): Promise<RankableParticipant | null>;
+  byRoomForRanking(roomId: RoomId, lens: Lens): Promise<RankableParticipant[]>;
+}
