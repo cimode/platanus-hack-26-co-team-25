@@ -51,11 +51,11 @@ configured. CI needs no new secret.
 
 | Command | Does |
 | --- | --- |
-| `npm run db:push` | Push the schema straight to the branch — **use this during the hack** |
-| `npm run db:generate` | Emit a versioned migration into `drizzle/` |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:check` | Detect conflicting/corrupt migration history |
-| `npm run db:studio` | Browse the data |
+| `pnpm run db:push` | Push the schema straight to the branch — **use this during the hack** |
+| `pnpm run db:generate` | Emit a versioned migration into `drizzle/` |
+| `pnpm run db:migrate` | Apply pending migrations |
+| `pnpm run db:check` | Detect conflicting/corrupt migration history |
+| `pnpm run db:studio` | Browse the data |
 
 **Use `push` while the schema is molten**, against a dev branch — no migration
 files to review at hour 20. Switch to `generate` + `migrate` once the shape
@@ -74,4 +74,4 @@ neon checkout dev-add-quiz    # per feature; creates it if new, pulls env
 neon diff                     # schema diff against the parent before committing
 ```
 
-The CLI is `neon` (`npm i -g neon`) — *not* the older `neonctl`.
+The CLI is `neon` (`pnpm add -g neon`) — *not* the older `neonctl`.

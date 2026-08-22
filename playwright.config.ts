@@ -33,7 +33,7 @@ export default defineConfig({
       // Chromium rather than WebKit deliberately: these snapshots test design
       // tokens, not browser engines, and WebKit is another ~90MB in CI. If
       // iOS-specific rendering bugs show up, add a webkit project and run
-      // `npx playwright install webkit` -- do not chase them with snapshots.
+      // `pnpm exec playwright install webkit` -- do not chase them with snapshots.
       name: "mobile",
       use: {
         ...devices["Desktop Chrome"],
@@ -53,10 +53,10 @@ export default defineConfig({
     },
   ],
 
-  // Runs on a non-default port so an already-running `npm run dev` on 3000
+  // Runs on a non-default port so an already-running `pnpm run dev` on 3000
   // does not collide with a test run.
   webServer: {
-    command: `npx next dev --port ${PORT}`,
+    command: `pnpm exec next dev --port ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

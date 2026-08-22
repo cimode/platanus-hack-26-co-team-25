@@ -123,7 +123,7 @@ subject matches. Do not reformat a file you are only appending to.
 ### 7. Verify before reporting
 
 ```bash
-npm run verify
+pnpm run verify
 ```
 
 Skipped tests must not break the suite, and a new e2e file must still compile.

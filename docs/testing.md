@@ -13,14 +13,14 @@ unrelated testing problems, and conflating them is how a 36-hour team wastes an 
 
 ## Commands
 
-| Command               | Does                                              |
-| --------------------- | ------------------------------------------------- |
-| `npm test`            | Vitest once                                       |
-| `npm run test:watch`  | Vitest in watch mode                              |
-| `npm run test:cov`    | Coverage over `src/lib/**`                        |
-| `npm run test:e2e`    | Playwright, boots its own dev server on **:3100** |
-| `npm run test:e2e:ui` | Playwright UI mode — best for debugging a flake   |
-| `npm run verify`      | typecheck → lint → format:check → Vitest          |
+| Command                | Does                                              |
+| ---------------------- | ------------------------------------------------- |
+| `pnpm test`            | Vitest once                                       |
+| `pnpm run test:watch`  | Vitest in watch mode                              |
+| `pnpm run test:cov`    | Coverage over `src/lib/**`                        |
+| `pnpm run test:e2e`    | Playwright, boots its own dev server on **:3100** |
+| `pnpm run test:e2e:ui` | Playwright UI mode — best for debugging a flake   |
+| `pnpm run verify`      | typecheck → lint → format:check → Vitest          |
 
 `verify` deliberately excludes E2E: it needs a build and a browser, which is CI's job.
 
@@ -111,7 +111,7 @@ change a prompt, read the number, decide.
 
 ## E2E
 
-Playwright boots its own dev server on **:3100**, so a running `npm run dev` on :3000 does
+Playwright boots its own dev server on **:3100**, so a running `pnpm run dev` on :3000 does
 not collide.
 
 Two projects, both Chromium:
@@ -122,7 +122,7 @@ Two projects, both Chromium:
 
 WebKit is deliberately not installed. These snapshots test design tokens, not browser
 engines, and WebKit is another ~90MB in CI. If iOS-specific rendering bugs appear, add a
-webkit project and run `npx playwright install webkit` — do not chase them with snapshots.
+webkit project and run `pnpm exec playwright install webkit` — do not chase them with snapshots.
 
 ### Visual snapshots are macOS-only
 
@@ -135,13 +135,13 @@ To enable them in CI, generate Linux baselines in the Playwright container and c
 
 ```bash
 docker run --rm -v $PWD:/w -w /w mcr.microsoft.com/playwright:v1.62.1-noble \
-  npx playwright test --update-snapshots
+  ./node_modules/.bin/playwright test --update-snapshots
 ```
 
 Accepting an intentional design change:
 
 ```bash
-npm run test:e2e -- --update-snapshots
+pnpm run test:e2e -- --update-snapshots
 ```
 
 Then **look at the diff** before committing. A snapshot updated without review is worse than
@@ -222,7 +222,7 @@ driven by `.github/workflows/issue-status.yml`, because a workflow fires even wh
 opens the PR or an agent dies mid-task.
 
 ```bash
-npm run issues:ready
+pnpm run issues:ready
 ```
 
 Readiness is computed, never stored — a `blocked` label would go stale the moment a
@@ -238,7 +238,7 @@ with its own definition in `.claude/agents/`:
 | Stage | Agent | Model | Ends with |
 | --- | --- | --- | --- |
 | 1 | `test-writer` | opus | Every AC has a test, and every one **fails on an assertion** |
-| 2 | `code-writer` | opus | `npm run verify` green, no test file touched |
+| 2 | `code-writer` | opus | `pnpm run verify` green, no test file touched |
 | 3 | `tester` | sonnet | Green, or a failure routed with a reason |
 | 4 | `adversarial-reviewer` | fable | A PR, or findings back to stage 2 |
 

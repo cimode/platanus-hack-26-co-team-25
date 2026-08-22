@@ -109,7 +109,7 @@ drifts within a day, and the drift is silent. The intake form's
 
 ## 5. Migrations and queries
 
-- `npm run db:push` while the schema is molten, against a **dev branch**
+- `pnpm run db:push` while the schema is molten, against a **dev branch**
   (`neon checkout dev-…`). Never `push` at the branch holding real responses.
 - `db:generate` + `db:migrate` once the shape settles.
 - Select the columns you need. `select *` is billed egress on Neon, and the

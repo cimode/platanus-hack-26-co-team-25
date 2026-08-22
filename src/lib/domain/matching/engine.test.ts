@@ -2,7 +2,7 @@
  * engine.test.ts — property tests for src/lib/domain/matching/engine.ts.
  *
  * Zero runtime dependencies, plain assertions, erasable-types-only syntax.
- * Run: npm test -- src/lib/domain/matching
+ * Run: pnpm test -- src/lib/domain/matching
  *
  * Properties covered (task contract):
  *   P1  weight vectors sum to 1.0 ±1e-9 per lens (after business Agency-off renorm)
@@ -48,7 +48,7 @@ describe("matching engine", () => {
   // BODY below is unchanged. `assert` already throws, which Vitest reads as a
   // failure, and the detail string each test returns is simply discarded.
   //
-  // The point of the move: `npm test` and CI now actually gate these. They did
+  // The point of the move: `pnpm test` and CI now actually gate these. They did
   // not before.
 
   function test(name: string, fn: () => string): void {

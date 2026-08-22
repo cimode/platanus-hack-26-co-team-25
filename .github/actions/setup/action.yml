@@ -1,16 +1,21 @@
 name: Setup
-description: Node + npm install, with caches shared across jobs.
+description: Node + pnpm install, with caches shared across jobs.
 
 runs:
   using: composite
   steps:
+    # Must run after actions/checkout -- the action reads the pnpm version from
+    # the `packageManager` field in package.json -- and before setup-node, whose
+    # pnpm cache needs `pnpm store path` to resolve to that pinned version.
+    - uses: pnpm/action-setup@v6
+
     - uses: actions/setup-node@v4
       with:
         node-version-file: .nvmrc
-        # Caches ~/.npm keyed on package-lock.json, which is what makes the
-        # repeated `npm ci` across parallel jobs cheap.
-        cache: npm
+        # Caches the pnpm store keyed on pnpm-lock.yaml, which is what makes the
+        # repeated installs across parallel jobs cheap.
+        cache: pnpm
 
     - name: Install dependencies
       shell: bash
-      run: npm ci
+      run: pnpm install --frozen-lockfile

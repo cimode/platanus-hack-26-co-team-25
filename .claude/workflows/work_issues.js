@@ -115,7 +115,7 @@ async function build({ issue, red }) {
 
     const t = await agent(
       `${where(issue)}\n\n${spec(issue)}\n` +
-        `Run npm run verify and npm run test:e2e. Apply only trivial fixes ` +
+        `Run pnpm run verify and pnpm run test:e2e. Apply only trivial fixes ` +
         `(<10 lines, one file, no signature change). Never edit a test file. ` +
         `Route anything larger.`,
       { agentType: 'tester', label: `test:#${issue.number}#${cycles}`, phase: 'Build', schema: ROUTE, effort: 'medium' }
