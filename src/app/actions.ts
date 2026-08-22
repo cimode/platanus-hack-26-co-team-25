@@ -2,8 +2,10 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
+import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
 import { findParticipant } from "@/lib/use-cases/list-participants";
 import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
 import { LENS_COOKIE } from "./lens";
@@ -41,6 +43,23 @@ export async function impersonateAction(
     sameSite: "lax",
     path: "/",
   });
+
+  // Start authoring this participant's first five blocks now, in the
+  // background (docs/domain.md D16). Measured at ~40-70s; they will spend
+  // longer than that on the room and the declared round, so by the time /quiz
+  // needs block 1 it is already stored and the screen does one SELECT.
+  //
+  // `after` runs once the response is sent and is bounded by this route's
+  // maxDuration, so it costs the participant nothing. `prefetchQuizBatch`
+  // never rejects -- an unhandled rejection in a background task would crash
+  // the invocation -- and if it fails anyway, `ensureQuizBatch` simply authors
+  // inline when the quiz is reached.
+  //
+  // TEMPORARY HOME. This belongs in registration (#6); impersonation is
+  // today's only "a participant arrives" event. Move it, do not duplicate it.
+  after(() =>
+    prefetchQuizBatch({ participantId: participant.id, batch: 1 }, serverDeps())
+  );
 
   // `redirect` signals by throwing, so nothing below runs and the declared
   // return type is only reached on the error paths above.
