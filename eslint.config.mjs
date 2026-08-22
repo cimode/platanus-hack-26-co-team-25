@@ -23,6 +23,10 @@ import tseslint from "typescript-eslint";
 export default [
   {
     ignores: [
+      // Agent tooling, not app code. Workflow scripts run in a wrapped
+      // async context where top-level `return` is legal, so parsing them
+      // as ES modules is a guaranteed false positive.
+      ".claude/**",
       ".next/**",
       "out/**",
       "build/**",

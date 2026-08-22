@@ -9,6 +9,7 @@
     "includes": [
       "**",
       "!.next",
+      "!.claude",
       "!out",
       "!build",
       "!next-env.d.ts",
@@ -86,6 +87,12 @@
             "useSemanticElements": "off"
           }
         }
+      }
+    },
+    {
+      "includes": ["matching/demo.ts"],
+      "linter": {
+        "rules": { "suspicious": { "noConsole": "off" } }
       }
     },
     {
