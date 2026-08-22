@@ -31,8 +31,7 @@ front of you; CI is about the whole project.**
 
 | Check                          | Pre-commit                       | CI (PR)                  | Gates merge     |
 | ------------------------------ | -------------------------------- | ------------------------ | --------------- |
-| ESLint (Next + design guards only) | staged files | whole project | ✅ |
-| Biome `check` (format + lint + imports) | staged files | whole project | ✅ |
+| Biome `check` (format + lint + imports + next/react/tailwind domains) | staged files | whole project | ✅ |
 | Vitest                         | **related to staged files only** | full suite               | ✅              |
 | `tsc --noEmit`                 | —                                | whole project            | ✅              |
 | `next build`                   | —                                | whole project            | ✅              |

@@ -1,4 +1,4 @@
-# Git hooks for hookai. Installed automatically by the `prepare` npm script.
+# Git hooks for the project. Installed automatically by the `prepare` npm script.
 #
 # Staged files only, so this stays fast during a 36h crunch. Deliberately NOT
 # running `tsc --noEmit`, `next build`, the full test suite, or coverage here --
@@ -9,21 +9,14 @@
 #
 #     git commit --no-verify
 #
-# Note: `parallel: false` is intentional. The first two jobs both write to the
-# same files, so running them concurrently would race. ESLint goes first because
-# it reorders Tailwind classes (which changes line length), then Biome formats
-# and has the final say on layout.
+# `parallel: false` is intentional: biome rewrites staged files, and letting a
+# test run read them mid-write is a race nobody wants to debug at 3am.
 
 pre-commit:
   parallel: false
   jobs:
-    # Design-system guardrails + Next rules. Everything else lives in Biome.
-    - name: eslint (next + design guards)
-      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs}"
-      run: npx eslint --fix --no-warn-ignored {staged_files}
-      stage_fixed: true
-
-    # Format, organise imports, and general lint -- one Rust binary.
+    # Format, organise imports, lint -- one Rust binary. Framework rules
+    # (next, react, tailwind, test domains) are configured in biome.json.
     - name: biome
       glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,css,json,jsonc}"
       run: npx biome check --write --no-errors-on-unmatched {staged_files}

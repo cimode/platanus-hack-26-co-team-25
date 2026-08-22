@@ -4,13 +4,12 @@ One workflow: `.github/workflows/ci.yml`. Runs on every PR and on push to `main`
 
 ## Jobs
 
-Seven checks fan out in parallel from a shared npm cache. Wall clock ~90s.
+Six checks fan out in parallel from a shared npm cache. Wall clock ~90s.
 
 | Job | Runs | Gates merge |
 | --- | --- | --- |
 | `typecheck` | `next typegen && tsc --noEmit` | ✅ |
-| `biome` | `biome check .` — format + lint + imports | ✅ |
-| `eslint` | Next Core Web Vitals + design-system guardrails | ✅ |
+| `biome` | `biome check .` — format + lint + imports, incl. the `next`, `react`, `tailwind` and `test` rule domains | ✅ |
 | `audit` | `npm audit --audit-level=high` | ✅ |
 | `unit` | `vitest run --coverage`, posts a coverage comment | ✅ |
 | `build` | `next build` | ✅ |
