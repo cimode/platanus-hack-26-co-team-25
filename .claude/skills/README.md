@@ -1,39 +1,41 @@
 # Skills
 
-## What exists
+| Skill | Loaded by | Covers |
+| --- | --- | --- |
+| `hexagonal-architecture` | `code-writer`, `adversarial-reviewer` | The general Ports & Adapters pattern. Third-party (`affaan-m/ecc`), pinned in `skills-lock.json`. |
+| `data-access` | same | Repository ports, `batch()` vs `transaction()`, id strategy, derived validators, migrations. |
+| `ui-composition` | same | Server/Client boundary, Server Actions, shadcn, tokens, lens theming, accessible names. |
+| `issue-status` | `/work` and any agent moving an issue | The five status labels and the legal transitions between them. |
+| `quest-skill` | `create_quest` workflow | Authoring quiz blocks. |
 
-| Skill | Used by |
+`docs/architecture.md` records what is hookai-specific and what the linter
+enforces; the skills say how to work inside it.
+
+## How they reach the agents
+
+`.claude/agents/code-writer.md` and `.claude/agents/adversarial-reviewer.md`
+each carry a load table keyed on what the change touches, so every `/work` run
+picks up the right ones. The reviewer treats a violation as a finding rather
+than a nitpick — several of these rules cannot fail CI, which is exactly why
+they need a reader.
+
+## Writing another one
+
+Match `quest-skill`'s shape: frontmatter with `name` and a `description` opening
+`Trigger:` plus the phrases that should activate it, an "Activation Contract"
+stating exactly what the skill produces, then "Hard Rules".
+
+Keep every rule **falsifiable**. "Prefer composition" is not something an agent
+can check itself against. "A use case may not name a Drizzle type" is — and that
+one is enforced by `biome.json` besides.
+
+Prefer rules verified against the installed libraries over rules recalled from
+training data. `db.transaction()` throwing on `neon-http` and `useFormState`
+being gone in Next 16 are both in these skills because they were checked in this
+repo, and both would otherwise have been written wrong.
+
+## Still unwritten
+
+| Skill | Blocked on |
 | --- | --- |
-| `quest-skill` | `create_quest` workflow — authoring quiz blocks |
-| `issue-status` | `/work`, and any agent moving an issue between statuses |
-
-## What `/work` stage 2 is missing
-
-`code-writer` and `adversarial-reviewer` both open with "load the architecture
-skill for the area you are touching". **No such skill exists yet**, so both
-currently fall back to the conventions of the nearest existing module. That
-fallback is deliberate and it is honest — the agents report when they used it —
-but it means stage 2's output is only as consistent as whatever it happened to
-read first.
-
-These are blocked on decisions nobody has made, not on writing time:
-
-| Skill to write | Blocked on deciding |
-| --- | --- |
-| `data-access` | Whether route handlers call Drizzle directly or go through a repository layer; who owns transactions; where `getDb()` may be called (see `docs/database.md`). |
-| `ui-composition` | Server vs client component boundaries, where `src/components/ui/**` (shadcn-owned, lint-exempt) stops and our components start, how lens theming is threaded. |
-| `llm-usage` | Which call sites get fixtures, when a prompt change means re-recording, where prompts live as source. |
-
-Write these before running `/work` on anything structural. A stage-2 agent with
-no architecture skill is not blocked — it is worse than blocked, because it will
-confidently produce something plausible and inconsistent, and the tests will
-pass, and nobody will notice until the third module disagrees with the first
-two.
-
-## Writing one
-
-Match `quest-skill`'s shape: frontmatter with `name` and a `description` that
-opens with `Trigger:` and the phrases that should activate it, then an
-"Activation Contract" saying exactly what the skill produces, then "Hard Rules".
-Keep the rules falsifiable — "prefer composition" is not a rule an agent can
-check itself against; "a module under src/lib/ may not import an SDK" is.
+| `llm-usage` | Which call sites get fixtures, when a prompt change forces re-recording, where prompts live as source. Defer until scoring or the timeline calls a model — intake does not. |

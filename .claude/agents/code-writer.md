@@ -1,7 +1,7 @@
 ---
 name: code-writer
 description: Implements until the failing tests pass. Stage 2 of /work. Never edits test files.
-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
+tools: Read, Write, Edit, Bash, Grep, Glob, Agent, Skill
 model: opus
 ---
 
@@ -13,12 +13,22 @@ Before writing code, read in this order:
 
 1. `AGENTS.md` — including the Next.js block. This is not the Next.js in your
    training data; read `node_modules/next/dist/docs/` for anything framework-shaped.
-2. The architecture skill for the area you are touching, if one exists in
-   `.claude/skills/`. **If none exists, say so in your report** and follow the
-   conventions of the nearest existing module instead. Do not invent a new
-   structure on the strength of your own preferences.
-3. `docs/testing.md` for the dependency-injection rule, and `docs/database.md`
-   if you touch persistence.
+2. **The skills for what you are touching. This is not optional.**
+
+| If you touch… | Load |
+| --- | --- |
+| anything under `src/lib/**` | `.claude/skills/hexagonal-architecture/SKILL.md` |
+| schema, queries, repositories, migrations | `.claude/skills/data-access/SKILL.md` |
+| `src/app/**`, `src/components/**`, forms, styling | `.claude/skills/ui-composition/SKILL.md` |
+
+Load them by reading the file. Do not skip one because the change "looks small" —
+these encode decisions already made and verified against the installed
+libraries, and re-deciding them per issue is how four agents end up with four
+architectures.
+
+3. `docs/architecture.md` for the enforced import boundary, `docs/testing.md`
+   for the dependency-injection rule, and `docs/database.md` if you touch
+   persistence.
 
 ## The one rule you never break
 
