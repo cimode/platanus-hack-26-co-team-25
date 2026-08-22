@@ -75,29 +75,29 @@ decided here; apply follows this column, not either source document.
 
 ## Phase U1 — Rank + profile contracts (~300, parallel)
 
-- [ ] 1.1 RED: `src/lib/domain/reveal/rank.test.ts` — `applyRankView` sorts by
+- [x] 1.1 RED: `src/lib/domain/reveal/rank.test.ts` — `applyRankView` sorts by
       `position` and by `name`, filters `high`/`mid`/`all`, is stable, and never
       mutates its input. (AC-RANK-4)
-- [ ] 1.2 GREEN: `src/lib/domain/reveal/rank.ts` — `ViewerId`, `RankBand =
+- [x] 1.2 GREEN: `src/lib/domain/reveal/rank.ts` — `ViewerId`, `RankBand =
       "high" | "mid"` (no `"low"`), `RankReason`, `RankEntry`, `RankedRoom`
       status union, `RankSort`, `applyRankView`. No `rank`/`sim`/percentage
       field. (AC-PORT-3)
-- [ ] 1.3 `src/lib/domain/reveal/profile.ts` — `PersonProfile` with `standing`
+- [x] 1.3 `src/lib/domain/reveal/profile.ts` — `PersonProfile` with `standing`
       reusing `RankBand`/`RankReason`; `tags` are `domain/participant/tags.ts`
       slugs. (AC-PROF-3)
-- [ ] 1.4 `src/lib/ports/ranking.ts` — `RankingPort.forSubject(subjectId, lens)`.
+- [x] 1.4 `src/lib/ports/ranking.ts` — `RankingPort.forSubject(subjectId, lens)`.
       No `forRoom()`. (AC-PORT-2)
-- [ ] 1.5 `src/lib/ports/profile.ts` — `ProfilePort.byId(personId, viewerId,
+- [x] 1.5 `src/lib/ports/profile.ts` — `ProfilePort.byId(personId, viewerId,
       lens)`, returning `PersonProfile | null` for all four suppression cases.
       (AC-PROF-2)
-- [ ] 1.6 `src/lib/ports/latent-source.ts` — `LatentSource.byParticipants(ids)`
+- [x] 1.6 `src/lib/ports/latent-source.ts` — `LatentSource.byParticipants(ids)`
       returning per-id `Partial<Record<LatentName, LatentEstimate>>`. This is the
       #7 seam; do NOT name it `latent-repository.ts`. (AC-PORT-4, AC-PORT-6)
-- [ ] 1.7 `src/lib/domain/reveal/index.ts` — barrel. Import `Lens` from
+- [x] 1.7 `src/lib/domain/reveal/index.ts` — barrel. Import `Lens` from
       `domain/room/layout` only; do not declare a fourth `Lens`.
-- [ ] 1.8 Typecheck guard: add a `// @ts-expect-error` probe asserting a `"low"`
+- [x] 1.8 Typecheck guard: add a `// @ts-expect-error` probe asserting a `"low"`
       band literal is rejected. (AC-PORT-3)
-- [ ] 1.9 Correct the **stale alias comment** in
+- [x] 1.9 Correct the **stale alias comment** in
       `src/lib/domain/participants/participant.ts:1-8` — it still reserves animal
       aliases "for the room and the ranking"; the ranking now shows real names,
       viewer-scoped. State the compensating control so the next reader does not
@@ -106,33 +106,33 @@ decided here; apply follows this column, not either source document.
 
 ## Phase U2 — Timeline contracts (~290, parallel with U1)
 
-- [ ] 2.1 RED **before its subject**: `src/lib/domain/reveal/event-tag.test.ts`
+- [x] 2.1 RED **before its subject**: `src/lib/domain/reveal/event-tag.test.ts`
       — a literal `EVENT_KINDS` array of all 16 members `satisfies readonly
       EventKind[]`; assert `tagFor` returns one of the 7 tokens for each and
       never `undefined`. (AC-PORT-7)
-- [ ] 2.2 RED **drift trap** — same file: read root `timeline/shared.ts` with
+- [x] 2.2 RED **drift trap** — same file: read root `timeline/shared.ts` with
       `node:fs`, extract the `EventKind` union members, and assert set-equality
       with our copy. `EventKind` is COPIED, not imported; the exhaustive `Record`
       only fires *after* someone updates the copy, so nothing else catches
       upstream drift. A loud failure here is the intended behaviour if root
       `timeline/` moves.
-- [ ] 2.3 GREEN: `src/lib/domain/reveal/event-tag.ts` — `TimelineTag`, and
+- [x] 2.3 GREEN: `src/lib/domain/reveal/event-tag.ts` — `TimelineTag`, and
       `tagFor` as an exhaustive `Record<EventKind, {token,label}>` with **no
       `default` branch**, using R3's mapping. Per-kind Spanish label; colour is
       the family, label is the identity. (AC-PORT-7, AC-SIM-5)
-- [ ] 2.4 RED: `src/lib/domain/reveal/offspring.test.ts` — `offspringVisible`
+- [x] 2.4 RED: `src/lib/domain/reveal/offspring.test.ts` — `offspringVisible`
       is `false` when either side lacks `consent.romantic` (both orders), and
       `false` under `business`/`friendship` with full consent. (AC-PORT-8)
-- [ ] 2.5 GREEN: `src/lib/domain/reveal/offspring.ts`. Pure predicate only —
+- [x] 2.5 GREEN: `src/lib/domain/reveal/offspring.ts`. Pure predicate only —
       **nothing renders an offspring affordance in this change.**
-- [ ] 2.6 `src/lib/domain/reveal/timeline.ts` — `EventKind` (copied, with a
+- [x] 2.6 `src/lib/domain/reveal/timeline.ts` — `EventKind` (copied, with a
       `// SYNC: timeline/shared.ts:78-82` comment naming the source line),
       `LifeEvent`, `Ending` union, and `SimulatedLife` as a **union discriminated
       on lens**: the `friendship` branch structurally has no `horizonYears` and
       no `Ending`. (AC-SIM-3, AC-SIM-4)
-- [ ] 2.7 `src/lib/domain/reveal/timeline.test.ts` — `@ts-expect-error` probe
+- [x] 2.7 `src/lib/domain/reveal/timeline.test.ts` — `@ts-expect-error` probe
       proving `horizonYears` is unreadable on the friendship branch. (AC-SIM-4)
-- [ ] 2.8 `src/lib/ports/timeline.ts` — `TimelinePort.simulate({subjectId,
+- [x] 2.8 `src/lib/ports/timeline.ts` — `TimelinePort.simulate({subjectId,
       otherId, lens}): Promise<SimulatedLife | null>`. (AC-SIM-1, AC-SIM-2)
 
 ## Phase U3 — `useDragScroll` extraction (~90, parallel)
