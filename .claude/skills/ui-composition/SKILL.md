@@ -79,11 +79,15 @@ exemption hides the damage from CI.
   `no-unknown-classes` and the raw-hex ban) was removed in favour of Biome
   alone, and Biome has no equivalent rule. A dead token does not error -- it
   silently renders unstyled. Grep `globals.css` rather than trusting CI.
-- `lens-romantic` / `lens-business` / `lens-friendship` recolour `--primary` on
-  a subtree. A component that hardcodes its accent instead of inheriting breaks
-  the ranking's entire visual language, and `e2e/design-system.spec.ts` asserts
-  all four contexts resolve to distinct values.
-- The app is dark-only; `dark` stays on `<html>`. There is a test.
+- `lens-romantic` / `lens-business` / `lens-friendship` recolour `--primary`
+  (and `--primary-shadow`, so `shadow-toy` follows) on a subtree. A component
+  that hardcodes its accent instead of inheriting breaks the ranking's entire
+  visual language. `e2e/design-system.spec.ts` asserts the three lenses are
+  mutually distinct; romantic deliberately EQUALS the `:root` coral, because
+  coral is the romantic accent in Dipia rather than a separate brand hue.
+- The app is light-only (warm cream). `globals.css` still declares the `dark`
+  variant -- the shadcn primitives carry 44 `dark:` utilities and an undeclared
+  variant fails the build -- but nothing may apply the class. There is a test.
 
 ## 6. Accessible names are a testing requirement
 

@@ -13,7 +13,7 @@ export default function Home() {
       </div>
 
       <div className="space-y-3">
-        <h1 className="font-narrative text-4xl leading-[1.1] text-balance">
+        <h1 className="font-display text-4xl leading-[1.1] text-balance">
           A simulation engine for human relationships.
         </h1>
         <p className="text-sm text-muted-foreground">
