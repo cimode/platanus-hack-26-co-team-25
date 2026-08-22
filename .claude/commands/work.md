@@ -79,7 +79,7 @@ WT="../.hookai-worktrees/issue-$N"
 git worktree add -b "feat/$N-<short-slug>" "$WT" HEAD
 
 # A fresh worktree has no node_modules, and every stage runs `pnpm run verify`.
-# Symlink when the issue has no e2e ACs: typecheck, Biome, ESLint and Vitest
+# Symlink when the issue has no e2e ACs: typecheck, Biome and Vitest
 # all follow it. Turbopack does NOT -- `next dev` aborts with "Symlink
 # [project]/node_modules is invalid, it points out of the filesystem root", so
 # Playwright cannot boot its server in a symlinked worktree. If any AC lives in
