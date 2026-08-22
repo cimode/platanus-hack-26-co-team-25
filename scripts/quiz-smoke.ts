@@ -7,6 +7,12 @@
  * actually take, does the model reliably return four correctly-keyed pillars,
  * and are the questions any good in Spanish. Run it after touching
  * `src/lib/domain/quiz/authoring.ts` — that file is the prompt.
+ *
+ * Read the output the way a participant would: the scenario should make you
+ * laugh or say "wtf" before you look at the options, and no option should be
+ * the obvious right answer. `docs/quiz-generation.md` §A says what to do when
+ * it doesn't. The pillar and keying of every option are printed beside it so a
+ * block that reads well but measures nothing is visible in the same glance.
  */
 
 import { createGatewayLlm } from "../src/lib/adapters/llm/gateway";
@@ -53,6 +59,10 @@ async function main(): Promise<void> {
     console.log();
   }
 
+  console.log("◀ = the reversed-keyed option: the focus pillar's LOW pole.");
+  console.log(
+    "Every block must show four distinct pillars and exactly one ◀.\n"
+  );
   console.log(`elapsed     ${elapsed}s`);
   console.log(`repaired    ${result.repairedAt.join(", ") || "none"}`);
   console.log(`fell back   ${result.fellBackAt.join(", ") || "none"}`);
