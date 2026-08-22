@@ -95,6 +95,24 @@ export function spriteHeightFraction(y: number): number {
 /*  Placement                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The four authored avatar plates.
+ *
+ * Each has a BLANK FACE by design -- that oval is where the participant's real
+ * photo goes, and the deliberate collision between a sharp photo and a pixel
+ * body is the product's whole visual joke. Until intake collects photos the
+ * faces stay empty, which reads as "not filled in yet" rather than as a bug.
+ */
+export const AVATAR_SPRITES = [
+  "/sprites/avatar1.png",
+  "/sprites/avatar2.png",
+  "/sprites/avatar3.png",
+  "/sprites/avatar4.png",
+] as const;
+
+/** Width of a sprite relative to its height, measured off the avatar plates. */
+export const SPRITE_ASPECT = 0.46;
+
 /** Where one sprite stands, in fractions of the venue plate. */
 export interface Placement {
   readonly participant: Participant;
@@ -104,6 +122,14 @@ export interface Placement {
   readonly y: number;
   /** Sprite height as a fraction of plate height. */
   readonly height: number;
+  /** Which avatar plate this person wears. */
+  readonly sprite: string;
+  /** `wander1`..`wander4` -- four paths, so neighbours never drift in step. */
+  readonly wander: string;
+  /** Seconds the wander loop takes. 9..19s, per the design. */
+  readonly wanderSeconds: number;
+  /** Seconds the idle hop takes. 2.6..4.7s, per the design. */
+  readonly hopSeconds: number;
   /** Seconds of delay on the idle hop, so the room does not pulse in unison. */
   readonly idleDelay: number;
 }
@@ -162,13 +188,20 @@ export function placeInRoom(
     const columnSpan = (right - left) / columns;
     const x = left + columnSpan * (column + 0.15 + jitterX * 0.7);
 
+    // Animation parameters straight from `Dipia Flow.dc.html` -- they are the
+    // design, not a detail. Driven by index rather than by the hash so the four
+    // wander paths stay evenly spread instead of clumping by luck.
     return {
       participant,
       x,
       y,
       height: spriteHeightFraction(y),
-      // 0..2.4s. The hop itself runs 3.6s, so staggering the START is enough
-      // to break the unison without tracking per-sprite timers.
+      sprite: AVATAR_SPRITES[index % AVATAR_SPRITES.length],
+      wander: `wander${(index % 4) + 1}`,
+      wanderSeconds: 9 + (index % 5) * 2.4,
+      hopSeconds: 2.6 + (index % 4) * 0.7,
+      // 0..2.4s. Staggering the START is enough to break the unison without
+      // tracking per-sprite timers.
       idleDelay: (seed % 240) / 100,
     };
   });

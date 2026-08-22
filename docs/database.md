@@ -96,9 +96,58 @@ neon diff                     # schema diff against the parent before committing
 
 The CLI is `neon` (`pnpm add -g neon`) — *not* the older `neonctl`.
 
-`docs/domain.md` §8 has the CI shape: one PII-free `ci-base` parent, a
-`preview/pr-<n>` branch per pull request reset to parent before use, and
-`migrate-production` as the only job that can see production's URL.
+## The CI branches
+
+Project `floral-bread-20641106`. Every branch CI touches descends from one
+PII-free parent, and **`production` is never a parent** — not of a preview, not
+of a test branch, not of anything automated:
+
+```
+production      ← migrated only by `migrate-production`; parent of nothing
+ci-base         ← long-lived, PII-free, empty schema, no expiry
+  ├── preview/pr-<n>     one per PR, reset to parent on reuse, deleted on close
+  └── ci/main-<run_id>   one per push to main, deleted `if: always()`
+dev-domain      ← laptops; untouched by CI
+```
+
+Why the indirection: `production` holds the room's real names, photo URLs, gate
+answers and consent flags (`docs/domain.md` §3, D9). A branch is a
+copy-on-write clone of its parent's **data**, so a preview branched from
+production would carry all of it into a deployment anyone with the PR link can
+open. Branching from an empty parent makes that impossible structurally rather
+than by convention — there is nothing to copy.
+
+### Creating `ci-base` (once, by hand)
+
+Deliberately not automated, and deliberately never created from a branch that
+already holds attendee rows. Do it while `production` is still empty; if it is
+not, wipe the clone **before** anything points at it:
+
+```bash
+npx neon branch create --name ci-base --parent production
+npx neon connection-string ci-base    # paste into psql, or use the SQL editor
+```
+
+```sql
+drop schema public cascade;
+create schema public;
+drop schema if exists drizzle cascade;   -- drizzle-kit's migration journal
+```
+
+Then verify it holds nothing before any CI run uses it:
+
+```sql
+select count(*) from information_schema.tables
+where table_schema not in ('pg_catalog', 'information_schema');  -- must be 0
+```
+
+Give it **no expiry**, and never write to it. Every PR branches from it and CI
+re-migrates from zero on every run — which is the point: a migration that is
+never replayed on a fresh branch is a migration nobody has tested.
+
+`docs/ci.md` has the workflow side: which job creates which branch, why only
+the branch *name* travels between jobs, and the three Actions settings
+(`NEON_PROJECT_ID`, `NEON_API_KEY`, `DATABASE_URL_PRODUCTION`).
 
 ## Reading answers with their questions
 
