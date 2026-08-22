@@ -347,7 +347,8 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
     environment never holds it either.
   - Settings: `NEON_API_KEY` (secret), `DATABASE_URL_PRODUCTION` (secret, pooled),
     `NEON_PROJECT_ID` (variable, `floral-bread-20641106`); the Vercel production env must
-    carry `DATABASE_URL` and `BLOB_READ_WRITE_TOKEN`.
+    carry `DATABASE_URL` and the four `AWS_*` object-storage variables
+  (`docs/storage.md`); Preview carries `ci-base`'s.
 - **Integration tests** (`src/lib/adapters/db/*.test.ts`) use `DATABASE_URL`; when it is
   unset they skip with a visible notice, unless `DB_REQUIRED=1`, in which case they fail.
   The guard lives in one helper, `src/lib/adapters/db/test-db.ts`.
