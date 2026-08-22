@@ -4,7 +4,13 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 /**
  * Intake on a phone: register -> photo -> consent (issue #6).
  *
- *     /intake?room=<slug>  step 1 -> step 2 -> step 3 -> "You're in"
+ *     /intake?room=<slug>  step 1 -> step 2 -> step 3 -> /intake/declared
+ *
+ * Issue #8 took the temporary done screen away: saving consent now hands off to
+ * the declared round (docs/domain.md §0 `consent -> declared round`), the form
+ * is five steps rather than three, and "what was just saved" is read back the
+ * way the rows express it -- by reopening /intake and looking at the switches.
+ * Every test name and AC id below is #6's, unchanged.
  *
  * The room is `e2e-<run>`, created by e2e/global-setup.ts and never the real
  * `platanus-hack-26-bogota` (docs/domain.md D9). Photos go through the fake
@@ -49,9 +55,9 @@ function intakeUrl(slug: string): string {
   return `/intake?room=${encodeURIComponent(slug)}`;
 }
 
-const stepHeading = (page: Page, n: 1 | 2 | 3) =>
+const stepHeading = (page: Page, n: 1 | 2 | 3 | 4 | 5) =>
   page.getByRole("heading", {
-    name: new RegExp(`step\\s*${n}\\s*of\\s*3`, "i"),
+    name: new RegExp(`step\\s*${n}\\s*of\\s*5`, "i"),
   });
 
 const nameField = (page: Page) => page.getByRole("textbox", { name: /name/i });
@@ -70,13 +76,6 @@ const lensSwitch = (page: Page, lens: RegExp) =>
   page
     .getByRole("switch", { name: lens })
     .or(page.getByRole("checkbox", { name: lens }));
-
-/**
- * A "<Lens> on" / "<Lens> off" line on the done screen. `\s*` rather than a
- * literal space so the lens and its state may live in two elements.
- */
-const lensLine = (page: Page, lens: string, state: "on" | "off") =>
-  page.getByText(new RegExp(`${lens}\\s*${state}\\b`, "i"));
 
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "hookai_session");
@@ -134,12 +133,21 @@ test.describe("intake", () => {
     await expect(lensSwitch(page, /friendship/i)).toBeChecked();
     await saveConsentButton(page).click();
 
-    await expect(page.getByText(/you['’]re in/i)).toBeVisible();
-    await expect(page.getByText("Ana Ramírez")).toBeVisible();
-    await expect(page.getByRole("img", { name: /your photo/i })).toBeVisible();
-    await expect(lensLine(page, "romantic", "off")).toBeVisible();
-    await expect(lensLine(page, "business", "on")).toBeVisible();
-    await expect(lensLine(page, "friendship", "on")).toBeVisible();
+    // #8's hand-off: consent ends in the declared round, not on a done screen.
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(stepHeading(page, 4)).toBeVisible();
+
+    // What was saved is read back from the rows: reopening /intake resolves to
+    // step 3 (no band is set yet) with this participant's own name, photo and
+    // switches.
+    const saved = await context.newPage();
+    await saved.goto(intakeUrl(slug));
+    await expect(stepHeading(saved, 3)).toBeVisible();
+    await expect(saved.getByText("Ana Ramírez")).toBeVisible();
+    await expect(saved.getByRole("img", { name: /your photo/i })).toBeVisible();
+    await expect(lensSwitch(saved, /romantic/i)).not.toBeChecked();
+    await expect(lensSwitch(saved, /business/i)).toBeChecked();
+    await expect(lensSwitch(saved, /friendship/i)).toBeChecked();
 
     expect(await sessionCookies(context)).toHaveLength(1);
   });
@@ -189,7 +197,8 @@ test.describe("intake", () => {
 
     await lensSwitch(second, /business/i).click();
     await saveConsentButton(second).click();
-    await expect(second.getByText(/you['’]re in/i)).toBeVisible();
+    await expect(second).toHaveURL(/\/intake\/declared$/);
+    await expect(stepHeading(second, 4)).toBeVisible();
 
     // Third visit: step 3 is the resting place of this issue, and the switches
     // on screen are the saved ones rather than the defaults.
@@ -223,6 +232,7 @@ test.describe("safety invariants", () => {
   // romantic switch covers the AI-offspring render, so the copy says so.
   test("AC-7 · every lens switch is off until the participant turns it on", async ({
     page,
+    context,
   }) => {
     const slug = roomSlug();
     await register(page, slug, { name: "Dana Peña" });
@@ -239,10 +249,16 @@ test.describe("safety invariants", () => {
 
     // Saving without touching anything is allowed, and stores three noes.
     await saveConsentButton(page).click();
-    await expect(page.getByText(/you['’]re in/i)).toBeVisible();
-    await expect(lensLine(page, "romantic", "off")).toBeVisible();
-    await expect(lensLine(page, "business", "off")).toBeVisible();
-    await expect(lensLine(page, "friendship", "off")).toBeVisible();
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(stepHeading(page, 4)).toBeVisible();
+
+    // The three noes, read back from the rows rather than from a done screen.
+    const saved = await context.newPage();
+    await saved.goto(intakeUrl(slug));
+    await expect(stepHeading(saved, 3)).toBeVisible();
+    await expect(lensSwitch(saved, /romantic/i)).not.toBeChecked();
+    await expect(lensSwitch(saved, /business/i)).not.toBeChecked();
+    await expect(lensSwitch(saved, /friendship/i)).not.toBeChecked();
   });
 
   // kind: safety. A page served to one context never carries another

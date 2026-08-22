@@ -1,18 +1,22 @@
+import { redirect } from "next/navigation";
 import { ConsentStep } from "@/components/intake/consent-step";
+import { IntakeShell } from "@/components/intake/intake-shell";
 import { PhotoStep } from "@/components/intake/photo-step";
 import { RegisterForm } from "@/components/intake/register-form";
 import { readSessionToken } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
+import { DECLARED_BAND_KEYS } from "@/lib/domain/participant";
 
 /**
  * `/intake` -- register, photo, consent (docs/domain.md §0, issue #6).
  *
  * A Server Component. It resolves the room, resolves the participant from the
  * httpOnly cookie and picks the step FROM THE ROWS: no cookie or an unknown
- * token is step 1, a null `photo_url` is step 2, anything else is step 3. There
- * is no step column and there must never be one -- a status field can claim a
- * state the data does not support, and this way a reload always lands exactly
- * where the data says (§0, §5).
+ * token is step 1, a null `photo_url` is step 2, a declared round that has
+ * begun is step 4's business, and anything else is step 3. There is no step
+ * column and there must never be one -- a status field can claim a state the
+ * data does not support, and this way a reload always lands exactly where the
+ * data says (§0, §5).
  *
  * Everything a participant sees here is their own row, read through
  * `bySessionToken`. Nobody else's name or photo is fetched, so none can leak.
@@ -28,7 +32,7 @@ export default async function IntakePage(props: PageProps<"/intake">) {
 
   if (!room) {
     return (
-      <Shell>
+      <IntakeShell>
         <section className="flex flex-1 flex-col justify-center gap-3">
           <h2 className="font-display text-2xl font-extrabold text-ink">
             This room doesn&apos;t exist.
@@ -38,7 +42,7 @@ export default async function IntakePage(props: PageProps<"/intake">) {
             link for the right one.
           </p>
         </section>
-      </Shell>
+      </IntakeShell>
     );
   }
 
@@ -47,54 +51,39 @@ export default async function IntakePage(props: PageProps<"/intake">) {
 
   if (!me) {
     return (
-      <Shell>
+      <IntakeShell>
         <RegisterForm roomSlug={room.slug} />
-      </Shell>
+      </IntakeShell>
     );
   }
 
   if (!me.photoUrl) {
     return (
-      <Shell>
+      <IntakeShell>
         <PhotoStep roomSlug={room.slug} />
-      </Shell>
+      </IntakeShell>
     );
   }
 
-  // Step 3 is the resting place of this issue until #8 adds step 4, and there
-  // is deliberately no URL for the done screen. "You have just saved" is the
-  // result of `consentAction` (which renders it), not a state these rows can
-  // express -- so a `?done=1` a friend could paste cannot show "You're in /
-  // Romantic off / Business off / Friendship off" to someone who was never
-  // asked about the three lenses.
+  // The declared round has begun, so this participant is past consent: one
+  // tapped band or one picked tag is the row-level fact that says so
+  // (docs/domain.md §0 -- progress is read from the rows). `declaredAt` is
+  // included for the participant who finished the round and came back here.
+  const declaredStarted =
+    me.declaredAt !== null ||
+    me.declared.tags.length > 0 ||
+    DECLARED_BAND_KEYS.some((band) => me.declared[band] !== null);
+  if (declaredStarted) redirect("/intake/declared");
+
   return (
-    <Shell>
+    <IntakeShell>
       <ConsentStep
         consent={me.consent}
         name={me.name}
         photoUrl={me.photoUrl}
         roomSlug={room.slug}
       />
-    </Shell>
-  );
-}
-
-/**
- * 390x844 is the target; the column is the same on every step.
- *
- * The `<h1>` lives here rather than in the steps, and says the same thing on
- * all four screens on purpose: Next's route announcer reads the first `<h1>`
- * whenever `document.title` is empty at commit time, so a per-step `<h1>` is
- * announced twice -- once as the heading, once as live-region text.
- */
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-10 pb-8">
-      <h1 className="font-mono text-xs tracking-[0.06em] text-ink-faint lowercase">
-        hookai · intake
-      </h1>
-      {children}
-    </main>
+    </IntakeShell>
   );
 }
 

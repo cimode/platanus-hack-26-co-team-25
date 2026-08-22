@@ -6,7 +6,7 @@ import type {
 
 /**
  * The `PhotoStore` used by Playwright and by a local checkout with no
- * `BLOB_READ_WRITE_TOKEN` (docs/domain.md D11).
+ * `AWS_ENDPOINT_URL_S3` (docs/domain.md D11, docs/storage.md).
  *
  * It returns the bytes back as a `data:` URL, so the page renders the photo the
  * participant just took with no network, no credential and nothing to clean up
@@ -15,7 +15,8 @@ import type {
  * than a stub that only works in a unit test.
  *
  * It is deliberately NOT what production uses: a data URL is re-sent with every
- * render and never hits a CDN, which is exactly what D11 chose Blob to avoid.
+ * render and never hits object storage, which is exactly what D11 chose a
+ * bucket to avoid.
  */
 export function createFakePhotoStore(): PhotoStore {
   return {
