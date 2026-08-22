@@ -243,7 +243,114 @@ describe("estimateLatents", () => {
     ];
     expect(() => estimateLatents(past)).toThrow(/16/);
     const duplicated = [...person.responses, { ...person.responses[2] }];
-    expect(() => estimateLatents(duplicated)).toThrow(/duplicate.*3|3/);
+    expect(() => estimateLatents(duplicated)).toThrow(/duplicate.*3/);
+  });
+
+  // -------------------------------------------------------------------------
+  // Regressions from the adversarial review of this module. Each one is a real
+  // input that previously produced a plausible-looking wrong answer.
+  // -------------------------------------------------------------------------
+
+  it("rejects an option key outside a..d instead of silently scoring the prior", () => {
+    const [person] = cohort(1);
+    // Impossible under the TS types and under quiz_responses' check
+    // constraints — but an adapter that skips validation used to get a
+    // confident theta = 0 out of this, with seTheta NARROWER than the prior,
+    // i.e. the nonsense response appeared to add information.
+    const badMost = [{ ...person.responses[0], mostKey: "e" as OptionKey }];
+    expect(() => estimateLatents(badMost)).toThrow(/mostKey.*"e".*a\.\.d/);
+
+    const badLeast = [{ ...person.responses[0], leastKey: "z" as OptionKey }];
+    expect(() => estimateLatents(badLeast)).toThrow(/leastKey.*"z".*a\.\.d/);
+
+    const missing = [
+      { ...person.responses[0], mostKey: undefined as unknown as OptionKey },
+    ];
+    expect(() => estimateLatents(missing)).toThrow(/mostKey/);
+
+    // A null leastKey is the legitimate single-pick fallback, not an error.
+    expect(() =>
+      estimateLatents([{ ...person.responses[0], leastKey: null }])
+    ).not.toThrow();
+  });
+
+  it("rejects an item set carrying the same position twice", () => {
+    const [person] = cohort(1);
+    const duplicated = [
+      ...ITEM_PARAMETERS,
+      { ...ITEM_PARAMETERS[1], position: 1 },
+    ];
+    // Last-wins would score block 1 against block 2's options, silently.
+    expect(() => estimateLatents(person.responses, duplicated)).toThrow(
+      /position 1 twice/
+    );
+  });
+
+  it("scores the same answers identically whatever order they arrive in", () => {
+    const [person] = cohort(1);
+    const reversed = [...person.responses].reverse();
+    // Float addition is not associative, so the objective must be summed in a
+    // fixed order or two orderings differ in the last ulp.
+    expect(estimateLatents(reversed)).toEqual(
+      estimateLatents(person.responses)
+    );
+  });
+
+  it("reports theta, seTheta, mean and se at the same point when the clamp binds", () => {
+    // Unreachable with the shipped form (an adversarial respondent tops out
+    // near |theta| = 2.5), so drive it with injected items: put a large
+    // NEGATIVE intercept on the very option the respondent then always picks.
+    // Only an enormous theta can explain choosing it anyway, so the optimum
+    // runs far past THETA_LIMIT. (Penalising the OTHER options instead makes
+    // the choice uninformative and leaves theta at the prior — which is how an
+    // earlier version of this test managed to assert nothing at all.)
+    // Only the blocks where regulation is POSITIVELY keyed — in the others it
+    // is the reversed option, and picking it would push theta the other way.
+    const skewed = ITEM_PARAMETERS.filter((block) =>
+      block.options.some((o) => o.pillar === "regulation" && o.sign === 1)
+    ).map((block) => ({
+      ...block,
+      options: block.options.map((o) => ({
+        ...o,
+        intercept: o.pillar === "regulation" && o.sign === 1 ? -50 : 0,
+      })),
+    }));
+    expect(skewed.length).toBeGreaterThan(0);
+
+    const responses: BlockResponse[] = skewed.map((block) => {
+      const target = block.options.find(
+        (o) => o.pillar === "regulation" && o.sign === 1
+      );
+      if (target === undefined)
+        throw new Error("filtered blocks must have one");
+      return {
+        participantId: "clamped",
+        position: block.position,
+        mostKey: target.key,
+        leastKey: null,
+        shownOrder: "abcd",
+        answeredAt: ANSWERED_AT,
+      };
+    });
+
+    const out = estimateLatents(responses, skewed);
+    const e = out.estimates.regulation;
+    // The test is worthless unless the clamp actually binds.
+    expect(Math.abs(e.theta)).toBe(4);
+    // seTheta must be the curvature where theta actually is. At the clamp the
+    // likelihood is saturated, so the curvature is the prior's and seTheta ~ 1;
+    // taking it at the unclamped optimum gave the same number for a different
+    // reason and left the pair mutually inconsistent.
+    expect(Number.isFinite(e.seTheta)).toBe(true);
+    expect(e.se).toBeCloseTo(
+      Math.max(
+        0.04,
+        (Math.exp((-e.theta * e.theta) / 2) / Math.sqrt(2 * Math.PI)) *
+          e.seTheta
+      ),
+      12
+    );
+    expect(e.mean).toBeCloseTo(normCdf(e.theta, 0, 1), 12);
   });
 
   it("scores an empty response set to the prior: theta 0, mean .5", () => {
@@ -315,10 +422,13 @@ describe("safety invariants", () => {
   //   1. the consumer-side reason for the invariant — bandOf(NaN) is "high",
   //      so a NaN mean would rank a person on nothing (docs/domain.md §0);
   //   2. the mapping the estimator must use, mean = Φ(θ) via the engine's
-  //      normCdf and se = φ(θ)·seTheta, stays finite, inside [0, 1] and > 0
-  //      across the whole |θ| ≤ 4 range AC-8 allows and every plausible
-  //      seTheta (incl. the 0.45 fallback), so a bounded theta can never
-  //      produce an out-of-range mean or a non-positive se;
+  //      normCdf and se = max(SE_FLOOR, φ(θ)·seTheta) — the floor is a tail
+  //      guard documented in estimate.ts, and since it only ever RAISES se the
+  //      unfloored form checked on the grid below is the strict case — stays
+  //      finite, inside [0, 1] and > 0 across the whole |θ| ≤ 4 range AC-8
+  //      allows and every plausible seTheta (incl. the 0.45 fallback), so a
+  //      bounded theta can never produce an out-of-range mean or a
+  //      non-positive se;
   //   3. nothing under src/lib/domain/scoring/ reaches for Math.random or a
   //      clock, so identical responses can never score differently twice —
   //      the route by which a stray NaN would be irreproducible.

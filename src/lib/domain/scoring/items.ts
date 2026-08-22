@@ -30,10 +30,16 @@ import type { OptionKey } from "../quiz/response.ts";
  * that probit — see SCORER_VERSION — so the probit discrimination is carried
  * across by the standard logistic-normal scaling constant 1.702.
  *
- * The resulting precision is not asserted, it is measured: `scoring.test.ts`
- * AC-2 recovers levels from simulated respondents, and the realized per-trait
- * RMSE is reported in `estimate.ts`'s header against the .36–.39 the corpus
- * claims for this instrument.
+ * 1.702 is the standard logistic–normal scaling constant, a fixed value from
+ * the IRT literature rather than a free parameter — but it is derived for the
+ * BINARY probit/logit case and is being borrowed here for a 4-way choice, which
+ * is an approximation, not an identity.
+ *
+ * The resulting precision is not asserted, it is measured: `estimate.ts`'s
+ * "Measured precision" section carries the realized numbers, and `scoring.test.ts`
+ * AC-2 enforces them. Note what that comparison can and cannot do — the
+ * simulator and the estimator share these same utilities, so an error in the
+ * conversion above would be invisible to it.
  */
 export const LAMBDA = 0.7;
 const PROBIT_DISCRIMINATION = LAMBDA / Math.sqrt(1 - LAMBDA * LAMBDA);
@@ -50,9 +56,16 @@ export const DISCRIMINATION = PROBIT_DISCRIMINATION * LOGIT_SCALING;
  * that passes that review is a block whose options are equally attractive,
  * which is exactly intercept = 0.
  *
- * It is also the assumption most likely to be wrong in the room, and unlike λ
- * it is checkable after the fact: with N respondents, an option chosen "most"
- * far more often than its pillar-mates across the whole room has a non-zero
+ * Read that as MOTIVATION, not identification. The rule is a social-desirability
+ * screen judged by an author in three seconds; the intercept absorbs any
+ * trait-independent attractiveness at all — humour that lands better, a more
+ * vivid image card, sheer salience — none of which the rule measures. A block
+ * that passes an author's read is not thereby a block with equal choice
+ * propensity in the room.
+ *
+ * It is therefore the assumption most likely to be wrong, and unlike λ it is
+ * checkable after the fact: with N respondents, an option chosen "most" far
+ * more often than its pillar-mates across the whole room has a non-zero
  * intercept. That check needs data this file cannot have, so it stays a known
  * limitation rather than a fitted parameter.
  */
@@ -79,6 +92,16 @@ export interface BlockItems {
  * argument rather than reading the constant is what lets the tests build an
  * all-positive copy of the form and show that it measures no levels
  * (`AUDIT.md` F1) using the same estimator.
+ */
+/**
+ * PRECONDITION worth stating, because `estimateLatents` lets callers inject
+ * their own items: the "all-positive keying pins Σθ to zero" algebra in
+ * `estimate.ts` requires the four options of a block to share ONE
+ * discrimination. This function guarantees that — every option gets the same
+ * `DISCRIMINATION` constant — but a hand-built item set with unequal
+ * within-block discriminations breaks the invariance and the story silently
+ * stops being true. Measured: perturbing discriminations by 30% moves the
+ * log-likelihood by 2.89 under a shift that should move it by exactly 0.
  */
 export function itemParametersOf(instrument: Instrument): BlockItems[] {
   return instrument.blocks.map((block) => ({

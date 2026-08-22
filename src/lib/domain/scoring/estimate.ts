@@ -32,11 +32,21 @@
  * what `scoring.test.ts` AC-1 pins.
  *
  * The posterior SE comes from the Laplace approximation: `seTheta` is the root
- * of the diagonal of the inverse Hessian at the optimum. Each block adds a PSD
- * term to that Hessian, so **more answered blocks can only narrow the posterior**
- * (AC-4), and a block answered most+least can only be narrower than the same
- * block answered most-only (AC-5). Those two ACs hold by construction, not by
- * luck.
+ * of the diagonal of the inverse Hessian at the optimum.
+ *
+ * It is tempting to conclude that more data can only narrow the posterior,
+ * since each block contributes a PSD term to the Hessian. **That argument is
+ * wrong**, and an earlier version of this comment asserted it as a theorem: the
+ * PSD ordering holds at a FIXED theta, but adding the least-picks MOVES the
+ * optimum, and the curvature at the new optimum can be lower. Counterexamples
+ * exist — over 2000 simulated respondents, 8 per-pillar cases came back wider
+ * with most+least than most-only (seed 299, reliability: seTheta .46031 with
+ * least vs .45264 without).
+ *
+ * So AC-4 (truncating to 5 blocks widens) held pointwise over all 2000, and
+ * AC-5 asserts 90 of 100 rather than all of them — measured 99/100. Those
+ * thresholds are empirical, and the looser one is loose on purpose. Do not
+ * "strengthen" AC-5 to expect every respondent.
  *
  * ## What the identification actually depends on
  *
@@ -51,26 +61,49 @@
  *
  * ## Measured precision
  *
- * Reported by `scoring.test.ts` AC-2 over 200 simulated respondents, and by
- * `npm run scoring:report`. Read it with the caveat that matters: the
- * respondents are simulated FROM this model with THESE parameters, so recovery
- * measures whether the arithmetic inverts its own generative model. It is not
- * evidence about real people, and it must never be quoted as if it were.
+ * Measured by `scoring.test.ts` AC-2 over 200 respondents from mulberry32(42):
+ * per-pillar r .932–.942, per-trait RMSE .338–.388 (pooled .352), median
+ * seTheta .322. The corpus claims .36–.39 per-trait for this instrument
+ * (`AUDIT.md` line 107); three of the four traits come in slightly BELOW that
+ * band rather than inside it.
+ *
+ * Two caveats, both load-bearing:
+ *
+ * 1. Respondents are simulated FROM this model with THESE parameters, so
+ *    recovery measures whether the arithmetic inverts its own generative model.
+ *    It catches sign errors, ipsativity bugs and optimizer failures, and it
+ *    bounds the information content of the DESIGN (15 blocks, mixed keying,
+ *    most+least) conditional on the model being true. It is not evidence about
+ *    real people and must never be quoted as if it were.
+ * 2. Matching the corpus figure is a consistency check between two simulations,
+ *    not a validation. Because the simulator and the estimator share the same
+ *    logit utilities, an error in the probit→logit conversion below would be
+ *    invisible to this loop: both sides would use the same wrong `u`.
  *
  * ## A scale mismatch worth knowing about
  *
  * `Person.latents[p]` carries `mean` and `se` on the [0,1] scale, and the band
  * cuts sit at .40/.60. But Φ(θ) for θ ~ N(0, 1) is *exactly* Uniform(0, 1), so
  * the population SD of `mean` is 1/√12 = .289 — and `engine.ts`'s
- * `DEFAULT_SE = 0.45` is therefore LARGER than the entire spread of the scale
- * it is applied to. At se = .45 a perfectly mid person scores P(low) = .41,
- * P(mid) = .18, P(high) = .41: the bands stop discriminating. That number reads
- * like `PILLARS.md` A4's "SE ≈ .45", which is a *standardized latent* figure —
- * a θ-scale quantity applied on the probability scale.
+ * `DEFAULT_SE = 0.45` is larger than the population SD of the scale it is
+ * applied to (not, as an earlier draft of this comment had it, larger than the
+ * scale's whole range, which is 1.0). At se = .45 a mid person scores
+ * P(low) = .41, P(mid) = .18, P(high) = .41 — the middle band is the LEAST
+ * likely place to put someone sitting in the middle of it.
  *
- * It does not bite today: `DEFAULT_SE` is only the fallback for a latent stored
- * without an `se`, and this estimator always writes one. Flagged rather than
- * changed, because the fix belongs with whoever re-runs A4's simulations.
+ * `PILLARS.md` A4 states no scale for its "SE ≈ .45" and `AUDIT.md` S9 confirms
+ * the figure has no derivation anywhere in the corpus, so reading it as a
+ * θ-scale quantity is an inference, not a quotation — but it is the only
+ * coherent reading, since .45 on [0,1] is wider than the U(0,1) prior itself.
+ * The delta-method image of a θ-scale SE of .45 at mid-scale is ≈ **.18** on
+ * [0,1]; that, not .45, is the defensible probability-scale default.
+ *
+ * Where it bites: `DEFAULT_SE` is the fallback for a latent stored without an
+ * `se`, and this estimator always writes one — but `matching/demo.ts` stores 22
+ * latents with no `se`, and `engine.test.ts` calibrates its pursueWithdraw
+ * expectations at .45. So it shapes the demo room and some frozen test
+ * expectations even though no pipeline-scored person will hit it. Flagged
+ * rather than changed: the fix belongs with whoever re-runs A4's simulations.
  *
  * Zero runtime dependencies, no clock, no randomness.
  */
@@ -103,10 +136,11 @@ export const THETA_LIMIT = 4;
  * and they are not calibrated (`items.ts`). It is deliberately explicit rather
  * than folded into the likelihood.
  *
- * NOTE for whoever tunes the engine: a median se near .10 is what delivers
- * `PILLARS.md` A4's "2–3 distinguishable bands per latent". `engine.ts`'s
- * `DEFAULT_SE = 0.45` cannot — see this module's header note on the scale
- * mismatch.
+ * NOTE for whoever tunes the engine: a median se near .10 is consistent with
+ * `PILLARS.md` A4's "2–3 distinguishable bands per latent" — at se = .10 a
+ * person at mean .2 or .8 lands in the correct band with p ≈ .98 while a mid
+ * person gets P(mid) ≈ .68, i.e. three bands with a soft middle. At .45 there
+ * are effectively none. See this module's header note on the scale mismatch.
  */
 export const SE_FLOOR = 0.04;
 
@@ -148,6 +182,23 @@ const DIM = 4;
 function validateResponseSet(responses: readonly BlockResponse[]): void {
   const seen = new Set<number>();
   for (const r of responses) {
+    // Keys first. An unrecognised key indexes KEY_INDEX to `undefined`, which
+    // turns the objective into NaN, which makes every line-search candidate
+    // fail its comparison — Newton then stalls at the prior and returns a
+    // confident-looking theta = 0 while the Hessian contributions still
+    // accumulate, so the estimate claims the nonsense response ADDED
+    // information. A corrupted row must throw, not score.
+    for (const [field, key] of [
+      ["mostKey", r.mostKey],
+      ["leastKey", r.leastKey],
+    ] as const) {
+      if (key === null) continue;
+      if (KEY_INDEX[key as OptionKey] === undefined) {
+        throw new Error(
+          `scoring: position ${r.position} has ${field} "${String(key)}", expected a..d`
+        );
+      }
+    }
     if (
       !Number.isInteger(r.position) ||
       r.position < 1 ||
@@ -186,8 +237,17 @@ function softmaxInto(
   for (const j of members) p[j] /= total;
 }
 
-/** 4x4 inverse by Gauss-Jordan with partial pivoting. H is SPD, so this is safe. */
-function invert4(m: readonly number[][]): number[][] {
+/**
+ * 4x4 inverse by Gauss-Jordan with partial pivoting, or null if the matrix is
+ * singular or so badly scaled that the result stops being finite.
+ *
+ * In this module H = I + (a sum of PSD terms), so its eigenvalues are >= 1 and
+ * the null branch is unreachable with authored items. It is reachable through
+ * injected ones — a discrimination large enough to overflow the Hessian to
+ * Infinity NaNs the inverse — and an all-NaN covariance returned silently is
+ * exactly how a nonsense estimate would reach a ranking.
+ */
+function invert4(m: readonly number[][]): number[][] | null {
   const a = m.map((row, i) => [
     ...row,
     ...Array.from({ length: DIM }, (_, j) => (i === j ? 1 : 0)),
@@ -211,7 +271,11 @@ function invert4(m: readonly number[][]): number[][] {
       for (let c = col; c < 2 * DIM; c++) a[r][c] -= f * a[col][c];
     }
   }
-  return a.map((row) => row.slice(DIM));
+  const inverse = a.map((row) => row.slice(DIM));
+  for (const row of inverse) {
+    for (const value of row) if (!Number.isFinite(value)) return null;
+  }
+  return inverse;
 }
 
 interface Term {
@@ -300,9 +364,21 @@ export function estimateLatents(
 ): LatentEstimates {
   validateResponseSet(responses);
 
-  const byPosition = new Map(items.map((b) => [b.position, b]));
+  const byPosition = new Map<number, BlockItems>();
+  for (const block of items) {
+    // Last-wins would silently score a block against another block's options.
+    if (byPosition.has(block.position)) {
+      throw new Error(`scoring: items carry position ${block.position} twice`);
+    }
+    byPosition.set(block.position, block);
+  }
+
+  // Score in position order so the objective is summed in a fixed sequence:
+  // floating-point addition is not associative, and two orderings of the same
+  // answers otherwise differ in the last ulp.
+  const ordered = [...responses].sort((x, y) => x.position - y.position);
   const terms: Term[] = [];
-  for (const r of responses) {
+  for (const r of ordered) {
     const block = byPosition.get(r.position);
     if (block === undefined) {
       throw new Error(`scoring: no block at position ${r.position}`);
@@ -330,6 +406,7 @@ export function estimateLatents(
   let state = evaluate(theta, terms);
   for (let iter = 0; iter < 50; iter++) {
     const step = invert4(state.h);
+    if (step === null) break; // cannot take a Newton step; keep the best theta so far
     const delta = new Array<number>(DIM).fill(0);
     for (let i = 0; i < DIM; i++) {
       for (let j = 0; j < DIM; j++) delta[i] += step[i][j] * state.g[j];
@@ -356,21 +433,29 @@ export function estimateLatents(
     state = nextState;
   }
 
-  const covariance = invert4(state.h);
+  // Report every field at the SAME point. The clamp normally does nothing —
+  // with the shipped form an adversarial respondent only reaches |theta| ~ 2.5
+  // — but when it does bind, a seTheta taken at the unclamped optimum would be
+  // the curvature somewhere the reported theta is not, and the pair would be
+  // mutually inconsistent.
+  const bounded = theta.map((t) =>
+    Math.max(-THETA_LIMIT, Math.min(THETA_LIMIT, t))
+  );
+  const covariance = invert4(evaluate(bounded, terms).h);
+
   const estimates = {} as Record<Pillar, ScoredLatent>;
   for (const pillar of PILLARS) {
     const k = PILLAR_INDEX[pillar];
-    const bounded = Math.max(-THETA_LIMIT, Math.min(THETA_LIMIT, theta[k]));
-    // The Hessian is SPD, so the diagonal is positive; guard anyway so a
-    // pathological form can never emit a NaN into the ranking (AC-8).
-    const variance = covariance[k][k];
+    // H is SPD so the diagonal is positive; fall back to the prior's SE rather
+    // than emit a NaN into a ranking (AC-8) if a pathological form breaks that.
+    const variance = covariance === null ? Number.NaN : covariance[k][k];
     const seTheta =
       Number.isFinite(variance) && variance > 0 ? Math.sqrt(variance) : 1;
     estimates[pillar] = {
-      theta: bounded,
+      theta: bounded[k],
       seTheta,
-      mean: normCdf(bounded, 0, 1),
-      se: Math.max(SE_FLOOR, phi(bounded) * seTheta),
+      mean: normCdf(bounded[k], 0, 1),
+      se: Math.max(SE_FLOOR, phi(bounded[k]) * seTheta),
     };
   }
   return { scorerVersion: SCORER_VERSION, estimates };
