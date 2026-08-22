@@ -17,7 +17,7 @@ context: |
 session:
   execution_mode: auto
   delivery_strategy: auto-chain
-  chain_strategy: unset # ask before the first chained apply
+  chain_strategy: stacked-to-main # decided; main moves too fast for a tracker branch
 
 strict_tdd: true
 # Rationale: a runner exists (Vitest), AND the project mandates test-first independently —
