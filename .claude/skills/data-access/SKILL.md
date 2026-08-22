@@ -29,25 +29,36 @@ unreachable from inside the hexagon, by design.
 The shape:
 
 ```ts
-// src/lib/ports/participants.ts — owned by the core
-export interface ParticipantRepository {
-  save(participant: NewParticipant, responses: BlockResponse[]): Promise<void>;
-  byRoom(roomId: RoomId): Promise<Participant[]>;
+// src/lib/ports/response-repository.ts — owned by the core
+export interface ResponseRepository {
+  save(response: BlockResponse, opts?: { completedAt: Date }): Promise<void>;
+  //  upserts on (participant_id, position); when `completedAt` is given — the
+  //  15th distinct position — the SAME db.batch() sets
+  //  participants.quiz_completed_at, so a participant can never hold fifteen
+  //  responses and no completion timestamp
+  byParticipant(id: ParticipantId): Promise<BlockResponse[]>;
 }
 
-// src/lib/use-cases/submit-intake.ts — depends on the port
-export async function submitIntake(
-  input: IntakeSubmission,
-  deps: { participants: ParticipantRepository }
-): Promise<ParticipantId> { … }
+// src/lib/use-cases/answer-block.ts — depends on the port
+export async function answerBlock(
+  input: BlockAnswer,
+  deps: { responses: ResponseRepository }
+): Promise<QuizProgress> { … }
 
-// src/lib/adapters/db/participant-repository.ts — implements it with Drizzle
+// src/lib/adapters/db/response-repository.ts — implements it with Drizzle
 // src/lib/composition.ts — wires the two together
 ```
 
+Note the shape of that signature: the *caller* decides that this response
+completes the set and passes `completedAt`; it never follows up with a second
+`markQuizCompleted` call. A port method that needs two calls to leave the data
+consistent is a port method with a half-written state between them.
+
 **A repository never returns a Drizzle row type.** It returns a domain type
 defined in `src/lib/domain/`. Returning the row leaks the schema into the core
-and every column rename becomes a domain change.
+and every column rename becomes a domain change. `byRoom()` returns
+`RoomMember` — id, name, photoUrl — because what the type cannot carry, no
+serialiser downstream can leak.
 
 ## 2. Atomic writes use `batch()`. `transaction()` throws.
 
@@ -65,14 +76,26 @@ atomicity you want:
 
 ```ts
 await db.batch([
-  db.insert(participants).values(p),
-  db.insert(responses).values(rows),
+  db.insert(quizResponses).values(answer).onConflictDoUpdate({ … }),
+  db.update(participants).set({ quizCompletedAt }).where(eq(participants.id, id)),
 ]);
 ```
 
-Intake writes a participant plus fifteen block responses. A half-written
-participant appearing in a room ranking is a visible failure on stage, so that
-write is one `batch`, always.
+There are exactly three batched writes in this codebase (`docs/domain.md` §7),
+and each one exists because the rows it touches are meaningless apart:
+
+| Batch | Statements | What a partial write would mean |
+| --- | --- | --- |
+| `participants.create` | insert participant + insert `participant_sessions` row | a participant nobody can log back in as, or a credential pointing at nothing |
+| `participants.saveDeclared` | update the six bands + delete acquaintances + (conditionally) insert them | a declared round whose acquaintance list is half the old one and half the new |
+| `responses.save(r, { completedAt })` | upsert the 15th response + set `quiz_completed_at` | fifteen responses and no completion timestamp, or a timestamp with fourteen |
+
+The conditional insert in `saveDeclared` is conditional because an empty
+`values()` throws; the update keeps the batch non-empty either way.
+
+Everything else is a single statement. A per-block response upsert does **not**
+need a batch — wrapping one statement in a transaction buys nothing and costs a
+round trip on venue wifi.
 
 If a call site genuinely needs interactive transaction semantics — reading a
 value mid-transaction and branching on it — that call site needs the
@@ -109,12 +132,27 @@ drifts within a day, and the drift is silent. The intake form's
 
 ## 5. Migrations and queries
 
-- `pnpm run db:push` while the schema is molten, against a **dev branch**
-  (`neon checkout dev-…`). Never `push` at the branch holding real responses.
-- `db:generate` + `db:migrate` once the shape settles.
+**`db:push` does not exist** (`docs/domain.md` D8). Every schema change is
+generate → commit → migrate, in that order and in one commit:
+
+```bash
+pnpm run db:generate     # drizzle/NNNN_<name>.sql + drizzle/meta/
+git add drizzle src/lib/adapters/db/schema
+pnpm run db:migrate      # applies it to the branch in .env
+```
+
+A pushed schema has no history, so it cannot replay on a fresh CI branch and
+cannot be reviewed in a diff. `db:generate` and `db:check` need no database —
+`drizzle.config.ts` carries `dbCredentials` only when `DATABASE_URL` is set —
+so "I have no branch right now" is never a reason to skip the migration file.
+
+Queries:
+
 - Select the columns you need. `select *` is billed egress on Neon, and the
   room view reads every participant.
-- No N+1. One query per screen where possible; the room ranking loads the room.
+- No N+1. One query per table, joined in memory: `byRoomForRanking` reads
+  participants, romantic gates, business gates and acquaintances as four
+  statements and assembles them, never one query per person.
 
 ## Hard Rules
 
@@ -123,4 +161,5 @@ drifts within a day, and the drift is silent. The intake form's
 3. Never `db.transaction()`. Use `db.batch()`.
 4. Never a serial primary key.
 5. Every table exports a derived insert schema beside it.
-6. Never `push` against a branch holding real intake responses.
+6. Never change the schema without `db:generate`; commit the migration with the
+   schema change that produced it, then `db:migrate`.
