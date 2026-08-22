@@ -14,7 +14,7 @@
  * it: a successful business `exit` is not a fight, so it must not come out
  * amber alongside `conflict`.
  */
-import type { EventKind } from "./timeline";
+import type { EventKind } from "@/lib/domain/reveal/timeline";
 
 /**
  * The seven tokens, in `globals.css` order. Each names a `--tag-{token}` /

@@ -15,8 +15,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { EventKind } from "@/lib/domain/reveal/timeline";
 import { TAG_TOKENS, type TagToken, tagFor } from "./event-tag";
-import type { EventKind } from "./timeline";
 
 /**
  * Every member of the union, written out. `satisfies` catches a typo;

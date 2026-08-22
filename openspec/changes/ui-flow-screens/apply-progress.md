@@ -176,6 +176,72 @@ fails `typecheck` with TS2307, not a runtime error. Then `pnpm run verify` green
 typecheck clean, biome clean over 197 files, **151 passed / 22 skipped**.
 `pnpm run build` with `DATABASE_URL` unset green, 14 routes.
 
+## Batch 4 — R13, the correction to R9
+
+Found while opening Batch 3's PR, by reading the two issues R9 claimed to be
+deferring to. **R9's premise was false, and one `gh issue view` away.**
+
+The other team never wrote a competing contract — they adopted ours:
+
+- **#10** (`matching`, draft): *"The read contract is fixed by U1 (merged, PR #27)
+  and this issue implements it, not its own shape."* Cites `ports/ranking.ts` and
+  quotes its docblock, cites `domain/reveal/rank.ts`, cites `ports/latent-source.ts`,
+  and names **`rank.test.ts:136` by line**. Requires `prepareResults` to return
+  `RankedRoom` so it structurally satisfies `RankingPort.forSubject`.
+- **#33** (`simulation`, draft): *"`ports/timeline.ts` and
+  `domain/reveal/timeline.ts` are U2's deliverables. If they exist when this issue
+  starts, they are imported, never edited."*
+
+Those files are on `origin/main` today (PR #27). `46a798c` deleted them, so
+merging Batch 3 as it stood would have deleted a contract two open issues cite —
+and #33's fallback clause would then have recreated the same shapes in the same
+place, producing exactly the duplication R9 claimed to prevent.
+
+### The corrected line
+
+**A thing is contract if someone else implements it; otherwise it is view.**
+
+Restored to `src/lib/domain/reveal/` + `src/lib/ports/`: `RankedRoom`,
+`RankEntry`, `RankReason`, `RankBand`, `ViewerId`, `PersonProfile`,
+`SimulatedLife`, `LifeEvent`, `Ending`, `EventKind`, the four port interfaces,
+the barrel, and the `@ts-expect-error` probes that guard those shapes.
+
+Stayed in `src/components/`: `applyRankView` + `RankSort` + `NAME_ORDER`
+(`rank/view.ts`), `tagFor` / `TAG_TOKENS` / `TimelineTag` (`simulate/event-tag.ts`),
+`offspringVisible` (`simulate/offspring.ts`), `mock.ts`, and the behaviour tests.
+
+`domain/reveal/index.ts` re-exports **types only** — a function in that barrel
+reads as something the engine team must satisfy, and none of them is. Check 10.7
+was inverted to assert this, having previously asserted the opposite.
+
+### Probe liveness re-proven after the split
+
+Both guards were mutated and observed to fire across the new folder boundary:
+
+| Mutation | Guard | Observed |
+|---|---|---|
+| `RankBand` widened to admit `"low"` | AC-PORT-3 | **TS2578** at `domain/reveal/rank.test.ts:38` and `profile.test.ts:47` |
+| 17th `EventKind` member added | AC-PORT-7 | **TS2741** at `components/simulate/event-tag.ts:47`, inside `tagFor`'s `Record` — exactly as the AC words it — plus TS2322 on the `CoversEveryKind` guard |
+
+Both reverted, `pnpm run verify` green after each.
+
+**vitest reported 159 passed during the `EventKind` mutation.** The type gate is
+`tsc` and only `tsc`; this is the third independent confirmation.
+
+### One citation drifted, stated plainly
+
+#10 names `rank.test.ts:136`; the probe now sits at `rank.test.ts:38`, because
+the `applyRankView` behaviour tests that preceded it moved to
+`components/rank/view.test.ts`. Same file, same assertion, same property. A line
+number in an issue body was always going to drift; the file and the guarantee are
+what #10 depends on.
+
+### Verification
+
+`pnpm run verify` green: typecheck clean, biome clean over 205 files,
+**159 passed / 22 skipped** (up from 151 — the restored `ports/reveal.test.ts`
+and `domain/reveal/*.test.ts` add 8).
+
 ### Remaining
 
 U3, U6, U7, U9, plus every Phase 10 check re-run per unit. Next dependency-ready:

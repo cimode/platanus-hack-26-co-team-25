@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { RankBand, RankEntry, RankSort } from "./view";
+import type { RankBand, RankEntry } from "@/lib/domain/reveal/rank";
+import type { RankSort } from "./view";
 import { applyRankView } from "./view";
 
 /**
@@ -127,26 +128,5 @@ describe("applyRankView", () => {
     const same = applyRankView(ENTRIES, view("position", "all"));
     expect(same).not.toBe(ENTRIES);
     expect(ids(same)).toEqual(ids(ENTRIES));
-  });
-});
-
-describe("the read model cannot carry a score", () => {
-  it("rejects a third band (AC-PORT-3)", () => {
-    const fromAdapter = "low";
-    // @ts-expect-error -- RankBand is "high" | "mid". The design has two pills,
-    // so an adapter that computes bandOf(rank) === "low" must not compile its
-    // way onto the screen; below-band people are ABSENT, never a third pill.
-    const rejected: RankBand = fromAdapter;
-    expect(rejected).toBe("low");
-  });
-
-  it("rejects a compatibility number on an entry (AC-PORT-3)", () => {
-    const scored = {
-      ...entry("s", "Sofía Guzmán", 1, "high"),
-      // @ts-expect-error -- `rank`/`sim` stop in the adapter (D3). If a float
-      // could cross the port, no serialiser downstream could stop it leaking.
-      rank: 0.87,
-    } satisfies RankEntry;
-    expect(scored.position).toBe(1);
   });
 });

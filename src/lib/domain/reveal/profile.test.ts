@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { RankEntry } from "@/components/rank/view";
 // SINGULAR `participant/` -- the intake aggregate that owns consent, gates and
 // the tag vocabulary. Not `participants/`, which is the demo roster.
-import { TAGS } from "@/lib/domain/participant/tags";
-import type { PersonProfile } from "./view";
+import { TAGS } from "../participant/tags";
+import type { PersonProfile } from "./profile";
+import type { RankEntry } from "./rank";
 
 const ENTRY: RankEntry = {
   id: "sofia",

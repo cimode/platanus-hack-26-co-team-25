@@ -1,6 +1,6 @@
+import type { RankedRoom } from "@/lib/domain/reveal/rank";
 import type { Lens } from "@/lib/domain/room/layout";
 import { AVATAR_SPRITES } from "@/lib/domain/room/layout";
-import type { RankedRoom } from "./view";
 
 /**
  * Fixture data for screen 1c.

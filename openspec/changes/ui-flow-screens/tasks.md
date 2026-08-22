@@ -83,10 +83,59 @@ that costs the plan, and they override every row above them where they disagree.
 
 | # | Was | Is | Why |
 |---|---|---|---|
-| R9 | We own `RankingPort`, `ProfilePort`, `LatentSource`, `TimelinePort` under `src/lib/ports/` | **The ports are deleted.** The projection logic they wrapped survives as **view models colocated with their screen**: `components/rank/view.ts`, `components/profile/view.ts`, `components/simulate/{event-tag,offspring,timeline}.ts` | The other team owns the ranking contract — `prepareResults(sessionToken, lens, deps)` is pinned by `use-cases/prepare-results.test.ts` for #10, and `domain/scoring/estimate.ts` for #7 has landed. Ours was a **second contract for the same thing**, and two competing contracts are worse than none. The logic is not domain: picking one of seven colours from sixteen event kinds, picking a band, sorting a row — that is a view model, and it was only ever misfiled. |
+| R9 | Everything reveal-shaped — types, ports, sorting, colour maps — sits under `src/lib/{domain/reveal,ports}/` | **Split by whether it has a second implementer.** The *shapes* stay put and are the shared contract; the *behaviour* moves next to the component that calls it: `applyRankView` + `RankSort` → `components/rank/view.ts`, `tagFor`/`TAG_TOKENS` → `components/simulate/event-tag.ts`, `offspringVisible` → `components/simulate/offspring.ts`, fixtures → each screen's `mock.ts` | Sorting a row the server already sent, mapping sixteen event kinds onto seven CSS tokens, choosing a Spanish label — none of that is domain logic and none of it has a second implementer. It was misfiled. **See R13: the first attempt at this deleted the shapes too, and that was wrong.** |
 | R10 | Fixtures live in `src/lib/adapters/reveal/*` behind a port, wired into `composition.ts` as getters (R5) | **Fixtures are `mock.ts` colocated in the screen's own folder.** `components/rank/mock.ts` exists; U7 and U9 add their own. No adapter, no port, no `composition.ts` entry | Deleting a mock must be deleting one file and one import — not unpicking a port, a getter, a `Deps` member and a `Pick`. **R5 is void** (there is no getter to argue about) and AC-PORT-9's prerender property is now trivially true: no screen of ours reaches a database at all. `pnpm run build` with `DATABASE_URL` unset stays a gate anyway. |
 | R11 | A new `src/app/viewer.ts` resolver, `hookai_session` beating `dipia_impersonating` (R6) | **The viewer is the impersonated participant, resolved exactly as `/room` already resolves it**: `enterRoom(store.get(IMPERSONATION_COOKIE)?.value, serverDeps())`. **No new file.** `redirect("/")` on a null `me`, same as `RoomPage` | R6 was written for a world where our screens sat on the real `hookai_session`. They do not — the demo path is 1a picks a person, 1b shows the room, 1c ranks it, and that identity is the impersonation cookie. A second resolver preferring a session cookie no screen of ours reads is the same mistake as R9, one layer up. **R6 is void; R7's allowlist still holds** for the intake files that already use it. |
 | R12 | `mock.ts` fabricates the viewer (`p-diego-morales`, hardcoded) and seven hardcoded names | **`mockRankedRoom(lens, me, others)` takes the real people in and fabricates only `position`, `band`, `bond` and `friction`** | As written today 1c contradicts 1a: pick Laura Méndez on the chooser and the ranking greets Diego Morales — and lists Laura among her own matches. `enterRoom` already returns `me` plus everyone else with a stable per-person `sprite`, through a real port. Real identity in, mocked numbers out: that is the narrowest honest seam, and it is what the demo needs when #10 lands. |
+
+### R13 — the correction: the shapes were never ours to delete
+
+`46a798c` deleted `ports/{ranking,profile,latent-source}.ts`,
+`domain/reveal/{rank,profile,index}.ts` and `ports/timeline.ts` on the argument
+that they were "a second contract for the same thing". **That argument is false
+on the facts, and the facts were one `gh issue view` away.**
+
+The other team never wrote a competing contract. They adopted ours:
+
+- **Issue #10** (`matching`, `status:draft`) — *"The read contract is fixed by U1
+  (merged, PR #27) and **this issue implements it, not its own shape**."* It cites
+  `src/lib/ports/ranking.ts` and quotes its docblock; it cites
+  `src/lib/domain/reveal/rank.ts` for `RankEntry`/`RankReason`; it cites
+  `ports/latent-source.ts`; and it names `rank.test.ts:136` by line as its
+  evidence that `RankBand` is pinned by a live `@ts-expect-error`. It requires
+  `prepareResults` to return `RankedRoom` so it structurally satisfies
+  `RankingPort.forSubject`.
+- **Issue #33** (`simulation`, `status:draft`) — *"`src/lib/ports/timeline.ts` and
+  `src/lib/domain/reveal/timeline.ts` … are U2's deliverables. **If they exist
+  when this issue starts, they are imported, never edited.** If they do not, this
+  issue creates them verbatim from `design.md` 261–294."*
+
+So deleting them removed no duplicate. It removed the **shared** contract and
+left two issues pointing at nothing — and #33's fallback clause would then have
+recreated the same shapes in the same place, producing the exact duplication R9
+claimed to be preventing.
+
+**The corrected line, and it is the one that generalises: a thing is contract if
+someone else implements it; otherwise it is view.**
+
+| Stays in `domain/reveal/` + `ports/` (contract) | Moves to `components/` (view) |
+|---|---|
+| `RankedRoom`, `RankEntry`, `RankReason`, `RankBand`, `ViewerId` | `applyRankView`, `RankSort`, `NAME_ORDER` |
+| `PersonProfile` | `tagFor`, `TAG_TOKENS`, `TimelineTag` |
+| `SimulatedLife`, `LifeEvent`, `Ending`, `EventKind` | `offspringVisible` |
+| `RankingPort`, `ProfilePort`, `LatentSource`, `TimelinePort` | every `mock.ts` |
+| the `@ts-expect-error` probes guarding those shapes | the behaviour tests |
+
+`domain/reveal/index.ts` re-exports **types only** now. A function in that barrel
+reads as something the engine team is expected to satisfy, and none of them is.
+
+**One citation did drift and it is worth stating plainly.** #10 names
+`rank.test.ts:136`; the probe now sits at `rank.test.ts:38`, because the
+`applyRankView` behaviour tests that used to precede it moved to
+`components/rank/view.test.ts`. Same file, same assertion, same property —
+proven live by widening `RankBand` to admit `"low"` and watching **TS2578** fire
+at that line, then reverting. A line number in an issue body was always going to
+drift; the file and the guarantee are what #10 actually depends on.
 
 **What R9–R12 delete from this plan:** `src/lib/adapters/reveal/**`, `view-rank.ts`,
 `view-profile.ts`, `simulate-life.ts`, `src/app/viewer.ts`, three `composition.ts`
@@ -106,12 +155,12 @@ what the user sees, and every AC about what must never cross to the client.
 
 ## Phase U1 — Rank + profile view model (~300) — **DONE**
 
-Merged as PR #27 (`ee42d3b`). Paths in the tasks below are the ones that were
-written at the time; **R9 has since moved them**:
-`domain/reveal/rank.ts` → `components/rank/view.ts`,
-`domain/reveal/profile.ts` → `components/profile/view.ts`, and
-`ports/{ranking,profile,latent-source}.ts` plus `domain/reveal/index.ts` are
-deleted. Task 1.9's comment fix stands where it is.
+Merged as PR #27 (`ee42d3b`). **Every path below still holds after R13.** What
+moved is behaviour, not shapes: `applyRankView` and `RankSort` left
+`domain/reveal/rank.ts` for `components/rank/view.ts`, and 1.1's behaviour tests
+went with them to `components/rank/view.test.ts`. The types, the three ports, the
+barrel and 1.8's `@ts-expect-error` probes are where 1.2–1.7 put them, because
+issue #10 implements them.
 
 - [x] 1.1 RED: `src/lib/domain/reveal/rank.test.ts` — `applyRankView` sorts by
       `position` and by `name`, filters `high`/`mid`/`all`, is stable, and never
@@ -146,9 +195,11 @@ deleted. Task 1.9's comment fix stands where it is.
 
 Shipped on `feat/ui-flow-u2-timeline-contracts`; PR #29 was closed unmerged and
 its content rescued into `46a798c`, which is why these land on
-`feat/ui-view-models` instead. Paths below are **post-R9** — the files moved from
-`src/lib/domain/reveal/` to `src/components/simulate/`, `git mv` where possible so
-`git log --follow` still reaches the reasoning in them.
+`feat/ui-view-models` instead. Paths below are **post-R13**: the *types*
+(`timeline.ts`) sit in `src/lib/domain/reveal/` where issue #33 expects to import
+them, and the *behaviour* (`event-tag.ts`, `offspring.ts`) sits in
+`src/components/simulate/` next to the cards that call it. `git mv` throughout, so
+`git log --follow` still reaches the reasoning in every one of them.
 
 - [x] 2.1 RED **before its subject**: `src/components/simulate/event-tag.test.ts`
       — a literal `EVENT_KINDS` array of all 16 members `satisfies readonly
@@ -171,17 +222,18 @@ its content rescued into `46a798c`, which is why these land on
       `false` under `business`/`friendship` with full consent. (AC-PORT-8)
 - [x] 2.5 GREEN: `src/components/simulate/offspring.ts`. Pure predicate only —
       **nothing renders an offspring affordance in this change.**
-- [x] 2.6 `src/components/simulate/timeline.ts` — `EventKind` (copied, with a
+- [x] 2.6 `src/lib/domain/reveal/timeline.ts` — `EventKind` (copied, with a
       `// SYNC: timeline/shared.ts` comment naming the source), `LifeEvent`,
       `Ending` union, and `SimulatedLife` as a **union discriminated on lens**:
       the `friendship` branch structurally has no `horizonYears` and no `Ending`.
       (AC-SIM-3, AC-SIM-4)
-- [x] 2.7 `src/components/simulate/timeline.test.ts` — `@ts-expect-error` probe
+- [x] 2.7 `src/lib/domain/reveal/timeline.test.ts` — `@ts-expect-error` probe
       proving `horizonYears` is unreadable on the friendship branch. (AC-SIM-4)
-- [x] ~~2.8 `src/lib/ports/timeline.ts` — `TimelinePort.simulate(...)`~~
-      **DELETED by R9.** `SimulatedLife` is reached by `mockSimulatedLife` in
-      `components/simulate/mock.ts` (task 9.0), not through a port we own.
-      AC-SIM-1 and AC-SIM-2 keep their force as the mock's null cases.
+- [x] 2.8 `src/lib/ports/timeline.ts` — `TimelinePort.simulate({subjectId,
+      otherId, lens}): Promise<SimulatedLife | null>`. Deleted by `46a798c`,
+      **restored by R13** — issue #33 names this exact file as the seam it fills.
+      Nothing implements it yet; `mockSimulatedLife` (task 9.0) paints the screen
+      meanwhile and is deliberately not an adapter behind it. (AC-SIM-1, AC-SIM-2)
 
 ### Carried forward from U2 — read before writing any test below
 
@@ -243,7 +295,8 @@ All nine tasks deleted:
 ## Phase U6 — `/rank`, screen 1c (~380)
 
 Depends on U3 only. `components/rank/{view,view.test,mock}.ts` already exist on
-`feat/ui-view-models`; this unit consumes them and paints the screen.
+`feat/ui-view-models`, and the shapes they use come from
+`@/lib/domain/reveal/rank` (R13). This unit consumes both and paints the screen.
 
 - [ ] 6.0 RED **before touching the page** — `src/components/rank/mock.test.ts`,
       the surviving half of dissolved 4.2/5.1/5.2. Against
@@ -303,7 +356,8 @@ Depends on U6 — it reuses the card's photo placeholder and the lens threading.
 
 - [ ] 7.0 RED+GREEN: `src/components/profile/mock.ts` —
       `mockProfile(personId, lens, me, others)` returning `PersonProfile | null`
-      from `./view`. Returns **`null` for an unknown id, for the viewer's own id,
+      from `@/lib/domain/reveal/profile` (R13 — the shape is #10's to return, so
+      it is not redeclared here). Returns **`null` for an unknown id, for the viewer's own id,
       and for a person absent from the ranking under that lens**, so the four
       AC-PROF-2 suppression cases collapse to one indistinguishable `null`.
       `standing` is read off `mockRankedRoom` for the same lens — **never a band
@@ -356,7 +410,8 @@ take the rail and the ending card as a second slice.
 
 - [ ] 9.0 RED+GREEN: `src/components/simulate/mock.ts` —
       `mockSimulatedLife({subjectId, otherId, lens})` returning `SimulatedLife |
-      null` from `./timeline`. **`null` for an unknown id, for a person absent
+      null` from `@/lib/domain/reveal/timeline`, structurally satisfying
+      `TimelinePort.simulate` so issue #33 replaces it without touching a screen. **`null` for an unknown id, for a person absent
       from `mockRankedRoom` under that lens, and for `otherId === subjectId`** —
       resolved through the ranking mock, never a literal. (AC-SIM-1, AC-SIM-2)
 - [ ] 9.1 RED: the content must include **one event of each of the 16
@@ -429,11 +484,14 @@ take the rail and the ending card as a second slice.
       `prefers-reduced-motion` block — U9 must reach them through an inline
       `style` containing `animation`, which the guard does cover.
 - [ ] 10.6 Never edit `src/components/ui/**` — shadcn-owned and lint-exempt.
-- [ ] 10.7 **The deleted ports stay deleted.** Grep that
-      `src/lib/ports/{ranking,profile,latent-source,timeline,reveal}.ts` and
-      `src/lib/domain/reveal/**` do not exist, and that nothing under `src/`
-      imports them. Re-adding any of them re-opens the second-contract problem
-      R9 closed. (R9, R10)
+- [ ] 10.7 **The shared contract stays stable and stays type-only.** Two greps,
+      because R13 made this the load-bearing check of the whole change:
+      (a) `src/lib/ports/{ranking,profile,latent-source,timeline}.ts` and
+      `src/lib/domain/reveal/{rank,profile,timeline,index}.ts` all exist and
+      still export every name issues #10 and #33 cite; (b) `domain/reveal/index.ts`
+      exports **no value** — only `export type`. A function in the barrel is a
+      false promise that the engine team must satisfy something. Behaviour that
+      drifts back into these files is the R9 mistake in reverse. (R9, R13)
 - [ ] 10.8 Every `mock.ts` carries a header comment naming **which issue
       deletes it** (#10 for rank and profile, #10 + the simulation engine for
       simulate) and states that the file is fixture data. A mock nobody can date
