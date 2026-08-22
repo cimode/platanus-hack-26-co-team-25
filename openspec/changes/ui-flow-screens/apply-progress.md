@@ -242,7 +242,89 @@ what #10 depends on.
 **159 passed / 22 skipped** (up from 151 — the restored `ports/reveal.test.ts`
 and `domain/reveal/*.test.ts` add 8).
 
+## Batch 5 — Work unit U3 (`useDragScroll`) — COMPLETE
+
+4/4 on `feat/ui-flow-u3-drag-scroll`, branched from `main` at `f88a3d4`
+(PR #38 merged). Strict TDD.
+
+### The task the plan did not have, and why it mattered most
+
+3.3 said "prove it: e2e green before the PR opens." **That gate was vacuous.**
+The only room-scroll test on `main` was `"the floor scrolls horizontally"`, which
+asserts `scrollWidth > clientWidth` — it passes on a bare `overflow-x-auto` div
+with no hook, no pointer handlers and no starting offset. Both behaviours the
+hook was about to take ownership of were untested, so the refactor could have
+silently dropped either.
+
+So 3.0 was added first: two probes in `e2e/demo-path.spec.ts`, each proven live
+against the **unmigrated** component before a line of it moved.
+
+| Mutation on `room-canvas.tsx` | Probe | Observed |
+|---|---|---|
+| centring deleted from the callback ref | *the room opens centred, not against the left wall* | `Expected <= 1, Received 438` |
+| the four `onPointer*` props deleted | *a mouse drag shoves the floor sideways* | `Expected > 100, Received 0` |
+
+Each mutation fails **only** its own probe. The guards are orthogonal, not two
+spellings of the same assertion.
+
+The drag probe moves the mouse in two steps rather than one on purpose: a single
+coalesced step would still pass against a handler that accumulates deltas instead
+of measuring from the drag origin.
+
+### The unit half
+
+vitest runs `environment: "node"` here (`vitest.config.mts` — deliberate, the
+codebase is engine-shaped), so there is no jsdom and the hook's wiring cannot be
+unit tested at all. The arithmetic is therefore split out as
+`initialScrollLeft(scrollWidth, clientWidth, initial)` and pinned in
+`use-drag-scroll.test.ts`:
+
+- RED 1 — `Cannot find module './use-drag-scroll'`
+- RED 2 — Fake-It `return 0` ⇒ **2 assertion failures** (`expected +0 to be 1305`,
+  `expected +0 to be 305.5`)
+- GREEN — 4/4, and the clamp case (`Math.max(0, …)`) matters precisely because a
+  browser silently clamps a negative `scrollLeft`, so a wrong sign would be
+  invisible in the room and only a jsdom-less unit test catches it.
+
+### What shipped
+
+- `src/components/shared/use-drag-scroll.ts` — `"use client"`, returns
+  `{ ref, handlers }`, takes `initial: "start" | "center"`. A **callback** ref,
+  not an object ref: it runs the moment the node exists, so the first painted
+  frame is already positioned instead of jumping after paint.
+- `src/components/room/room-canvas.tsx` migrated. No prop, no class, no DOM
+  change. `overflow-x-auto` stays the caller's to declare — the hook has no
+  opinion about the element — and `initial: "center"` moves to the call site.
+
+U6 will call it with `"start"` (rank position 1 is not something you scroll back
+to); U9 with `"center"`.
+
+### Verification
+
+- `pnpm exec playwright test -g "1b · the room"` — **20/20 across mobile and
+  desktop** after the migration.
+- `pnpm run verify` — **163 passed / 22 skipped**, typecheck and biome clean.
+- `pnpm run build` with `DATABASE_URL` unset — green, 14 routes.
+- Phase 10 all green: 10.2 `excludedFromRoom` only in `domain/matching/`;
+  10.3 the four protected files unchanged and the five forbidden modules absent;
+  10.5 `globals.css` and 10.6 `components/ui/**` byte-identical to `main`;
+  10.7 `domain/reveal/index.ts` exports no value.
+
+### Correction to 3.3 and to 10.1
+
+- **3.3's command does not exist.** There is no `e2e/room.spec.ts` — the room
+  lives in `e2e/demo-path.spec.ts` under `1b · the room` — and
+  `pnpm run test:e2e -- room` does not forward args to playwright. Use
+  `pnpm exec playwright test -g "1b · the room"`.
+- **R7's allowlist is now SEVEN files, not two.** `@/lib/adapters/http/session`
+  is imported by intake's `page`, `actions`, `guards`, `declared/actions` and
+  `gates/actions`, plus quiz's `page` and `actions`. The rule is about the
+  module, not the file count; 10.1 was rewritten to stop maintaining a list.
+- A `next dev` server on port 3000 blocks a second one **per directory**, not per
+  port, so `E2E_PORT` alone does not isolate a run in the same working tree.
+  Reuse the running server (`pnpm exec playwright test`) or kill it first.
+
 ### Remaining
 
-U3, U6, U7, U9, plus every Phase 10 check re-run per unit. Next dependency-ready:
-**U3** (`useDragScroll`), which unblocks both U6 and U9.
+U6, U7, U9, plus every Phase 10 check re-run per unit. Next dependency-ready:
+**U6** (`/rank`, screen 1c) — the first user-visible screen of the change.

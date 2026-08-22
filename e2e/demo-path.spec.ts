@@ -154,6 +154,66 @@ test.describe("1b · the room", () => {
     expect(scrollable).toBe(true);
   });
 
+  /*
+   * The two tests below exist because `useDragScroll` was extracted out of this
+   * screen (U3), and the suite as it stood could not have caught the extraction
+   * going wrong: "the floor scrolls horizontally" passes on a plain
+   * `overflow-x-auto` div with no hook, no handlers and no starting offset.
+   * A refactor is only safe behind a test that fails when the behaviour is
+   * lost, so these were written first and each was proven live by breaking the
+   * thing it guards.
+   */
+
+  test("the room opens centred, not against the left wall", async ({
+    page,
+  }) => {
+    // The plate is far wider than a phone, so scrollLeft 0 greets you with a
+    // window frame and no people in it. This is the whole reason the hook takes
+    // an `initial` at all, and the reason it positions from a CALLBACK ref
+    // rather than an effect -- the first painted frame must already be centred.
+    await enterAs(page, "diego");
+    const floor = page.getByRole("region", { name: /la sala/i });
+    const { left, max } = await floor.evaluate((el) => ({
+      left: el.scrollLeft,
+      max: el.scrollWidth - el.clientWidth,
+    }));
+
+    expect(
+      max,
+      "the plate must overflow or there is nothing to centre"
+    ).toBeGreaterThan(0);
+    // Within a pixel of the midpoint. Not `toBeGreaterThan(0)`: that would pass
+    // on any stray offset, including the browser restoring a previous scroll.
+    expect(Math.abs(left - max / 2)).toBeLessThanOrEqual(1);
+  });
+
+  test("a mouse drag shoves the floor sideways", async ({ page }) => {
+    // Native overflow gives touch, trackpad, scrollbar and arrow keys for free.
+    // What it does NOT give is click-and-drag with a mouse, which is the only
+    // thing the pointer handlers add -- and the only thing that disappears
+    // silently if they are dropped during a refactor.
+    await enterAs(page, "diego");
+    const floor = page.getByRole("region", { name: /la sala/i });
+    const box = await floor.boundingBox();
+    expect(box).not.toBeNull();
+
+    const before = await floor.evaluate((el) => el.scrollLeft);
+    const y = (box?.y ?? 0) + (box?.height ?? 0) / 2;
+    const from = (box?.x ?? 0) + (box?.width ?? 0) * 0.8;
+
+    await page.mouse.move(from, y);
+    await page.mouse.down();
+    // Two moves: one is enough to scroll, but a coalesced single step would
+    // hide a handler that accumulates deltas instead of measuring from origin.
+    await page.mouse.move(from - 100, y);
+    await page.mouse.move(from - 200, y);
+    await page.mouse.up();
+
+    const after = await floor.evaluate((el) => el.scrollLeft);
+    // Dragging LEFT reveals what is to the right, so scrollLeft grows.
+    expect(after - before).toBeGreaterThan(100);
+  });
+
   test("the card retakes the accent of the lens you pick", async ({ page }) => {
     // The payoff of the lens system: choosing an option repaints the dot AND
     // the Vamos button, with zero conditional colour in the component. If two

@@ -4,10 +4,11 @@ Twin: Engram `sdd/ui-flow-screens/tasks`. Reads `specs/*/spec.md` (normative) an
 `design.md` (structural). STRICT TDD: `pnpm run test`, RED on an assertion.
 
 > **Read the reconciliation table first.** Spec and design were authored in
-> parallel and disagree in eight places; R9–R12 then changed the architecture
+> parallel and disagree in eight places; R9–R13 then re-drew the layer boundary
 > after U1 and U2 had shipped. **Where this file disagrees with `specs/` or
-> `design.md`, this file wins** — those two documents describe ports we no longer
-> own. Their acceptance criteria still bind; their file layout does not.
+> `design.md`, this file wins** — those two documents describe adapters and a
+> resolver that no longer exist. Their acceptance criteria still bind; their file
+> layout does not.
 
 ## Review Workload Forecast
 
@@ -27,7 +28,7 @@ Read every number below as a floor.
 Decision needed before apply: No
 Chained PRs recommended: Yes
 Chain strategy: stacked-to-main
-400-line budget risk: High
+400-line budget risk: Low per unit (was High as one PR)
 
 **Strategy-neutral base rule.** Under `stacked-to-main` every unit branches from
 `main`. Under `feature-branch-chain` U1 targets the tracker branch and each later
@@ -39,10 +40,10 @@ unit targets its immediate predecessor. No task below names a base branch.
 |---|---|---|---|---|---|
 | U1 | rank+profile view model, `applyRankView`, alias-comment fix | ~300 | — | No | **DONE**, merged (PR #27), relocated by R9 |
 | U2 | timeline view model (lens union), `tagFor`, `offspringVisible` | ~290 | — | No | **DONE**, on `feat/ui-view-models` (PR #29 closed, content rescued) |
-| U3 | `useDragScroll` extracted; `RoomCanvas` migrated | ~90 | — | No | Ready |
+| U3 | `useDragScroll` extracted; `RoomCanvas` migrated | ~90 | — | No | **DONE** — `feat/ui-flow-u3-drag-scroll` |
 | ~~U4~~ | ~~fixture roster + fixture `LatentSource`~~ | — | — | — | **DISSOLVED by R9/R10** |
 | ~~U5~~ | ~~fixture adapters, `viewRank`/`viewProfile`, composition ×2, viewer resolver~~ | — | — | — | **DISSOLVED by R9/R10/R11** |
-| U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | Ready after U3 |
+| U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | **Ready** |
 | U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | |
 | ~~U8~~ | ~~timeline fixture + `simulateLife` + composition ×1~~ | — | — | — | **DISSOLVED by R9/R10** |
 | U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | |
@@ -77,9 +78,12 @@ decided here; apply follows this column, not either source document.
 
 ### R9–R12 — the post-U2 scope change
 
-U1 and U2 shipped port interfaces for ranking, profiles, latents and timelines.
-They should not have. Commit `46a798c` removed them; these four rows record what
-that costs the plan, and they override every row above them where they disagree.
+U1 and U2 put the whole reveal layer — types, ports, sorting, colour maps — under
+`src/lib/`. Half of it belonged next to the screens. These four rows record the
+correction and override every row above them where they disagree.
+
+`46a798c` overshot and deleted the ports as well; **R13 below is the correction to
+R9, and it is the row to read if you only read one.**
 
 | # | Was | Is | Why |
 |---|---|---|---|
@@ -257,17 +261,38 @@ guards.**
   "one of the seven" without restating seven literals.
 - `offspringVisible` takes a structural `ConsentHolder`, not a `Participant`.
 
-## Phase U3 — `useDragScroll` extraction (~90, parallel)
+## Phase U3 — `useDragScroll` extraction (~90) — **DONE**
 
-- [ ] 3.1 Create `src/components/shared/use-drag-scroll.ts` (`"use client"`)
-      returning `{ ref, handlers }`, taking `initial: "start" | "center"`. Keep
-      native `overflow-x`; handlers only nudge `scrollLeft` so touch momentum,
-      trackpad, scrollbar and arrow keys survive.
-- [ ] 3.2 Migrate `src/components/room/room-canvas.tsx` onto the hook.
-      Behaviour unchanged — no prop, no class, no DOM change.
-- [ ] 3.3 Prove it: `pnpm run test:e2e -- room` green before the PR opens. This
-      is the whole justification for touching a shipped screen in a new-screen
-      change (design D5); do not skip it.
+- [x] 3.0 RED **before the refactor, and this was not in the plan**: the suite as
+      it stood could not have caught the extraction going wrong. `"the floor
+      scrolls horizontally"` passes on a plain `overflow-x-auto` div with no
+      hook, no handlers and no starting offset, so 3.3's "prove it green" was
+      vacuous. Two probes added to `e2e/demo-path.spec.ts` first, each proven
+      live by breaking what it guards:
+
+      | Mutation on `room-canvas.tsx` | Probe | Observed |
+      |---|---|---|
+      | centring deleted from the callback ref | *opens centred* | `Expected <= 1, Received 438` |
+      | the four `onPointer*` props deleted | *mouse drag shoves the floor* | `Expected > 100, Received 0` |
+
+      Each fails for its own reason only — the guards are orthogonal, not two
+      spellings of one assertion.
+- [x] 3.1 `src/components/shared/use-drag-scroll.ts` (`"use client"`) returning
+      `{ ref, handlers }`, taking `initial: "start" | "center"`. Native
+      `overflow-x` kept; the handlers only nudge `scrollLeft`, so touch momentum,
+      trackpad, scrollbar and arrow keys survive. The pure arithmetic is split
+      out as `initialScrollLeft(scrollWidth, clientWidth, initial)` and unit
+      tested — vitest runs `environment: "node"` (no jsdom), so the hook's wiring
+      cannot be unit tested and the e2e above is the only thing covering it. RED
+      was 4 assertion failures against a Fake-It `return 0`.
+- [x] 3.2 `src/components/room/room-canvas.tsx` migrated. No prop, no class, no
+      DOM change; `overflow-x-auto` stays the caller's to declare and
+      `initial: "center"` moves to the call site.
+- [x] 3.3 `pnpm exec playwright test -g "1b · the room"` — **20/20 green across
+      both viewports** after the migration. NB: the task originally said
+      `pnpm run test:e2e -- room`; there is no `e2e/room.spec.ts` (the room lives
+      in `e2e/demo-path.spec.ts` under `1b · the room`) and `pnpm run test:e2e --`
+      does not forward args to playwright.
 
 ## ~~Phase U4 — Fixture roster + latents~~ — DISSOLVED (R9, R10)
 
@@ -457,10 +482,13 @@ take the rail and the ending card as a second slice.
 - [ ] 10.1 Hexagon grep per unit: no file under `src/app/**` or
       `src/components/**` imports `getDb`, `@/lib/adapters/db/**` or
       `drizzle-orm`. `@/lib/adapters/http/session` is the one allowed adapter
-      import (R7; precedent `src/app/intake/page.tsx:4` **and**
-      `src/app/intake/actions.ts:9` — the allowlist is two files, confirmed).
-      Pages reach data through `serverDeps()` from `@/lib/composition`, the way
-      `src/app/room/page.tsx` already does.
+      import (R7). **It is now SEVEN files, not the two U2 recorded** — intake's
+      `page`, `actions`, `guards`, `declared/actions` and `gates/actions`, plus
+      quiz's `page` and `actions`. The rule is about the module, not the file
+      count, so stop maintaining a file list: assert against `getDb`,
+      `@/lib/adapters/db/**` and `drizzle-orm`, and let `adapters/http/session`
+      through wherever it turns up. Pages reach data through `serverDeps()` from
+      `@/lib/composition`, the way `src/app/room/page.tsx` already does.
 - [ ] 10.2 `excludedFromRoom()` is unreachable from `src/app/**` and
       `src/components/**`. (AC-PORT-5)
 - [ ] 10.3 **Do not create** `to-person.ts`, `prepare-results.ts`,
