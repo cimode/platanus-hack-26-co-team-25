@@ -181,20 +181,10 @@ test.describe("1b · the room", () => {
 });
 
 test.describe("demo path", () => {
-  // TODO: un-skip when the intake form exists.
-  // Blocked on: intake screen (form + photo capture + per-lens consent).
-  // Acceptance criteria to assert:
-  //   - all required fields must be completable on a 390px viewport
-  //   - per-lens consent is explicit and defaults to opt-OUT for romantic
-  //   - submitting yields a personality profile for the participant
-  test.skip("a participant can complete intake on a phone", async ({
-    page,
-  }) => {
-    await page.goto("/");
-    await page.getByLabel(/name/i).fill("Ana Ramírez");
-    await page.getByRole("button", { name: /continue/i }).click();
-    await expect(page.getByText(/step 2/i)).toBeVisible();
-  });
+  // The intake leg of the demo path lives in e2e/intake.spec.ts (issue #6):
+  // register -> photo -> consent on a 390px viewport, per-lens consent
+  // defaulting to off, and the three safety invariants around it. It is not
+  // duplicated here -- one acceptance criterion, one test.
 
   // TODO: un-skip when lens selection exists.
   // Acceptance criteria: choosing a lens must change --primary on the subtree.

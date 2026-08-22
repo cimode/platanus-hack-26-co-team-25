@@ -10,6 +10,10 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Creates the `e2e-<run>` room the intake specs register into and exports
+  // its slug as E2E_ROOM_SLUG (docs/domain.md D9). Workers are forked after it
+  // runs, so they inherit the variable.
+  globalSetup: "./e2e/global-setup.ts",
   // Fail the run if someone leaves a test.only in a commit.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
