@@ -154,19 +154,36 @@ neither branch renders any other person's name, which is the part of AC-RANK-5
 that actually protects someone. If #10 wants the finer reason it adds the field
 and the screen reads it; one property, one line.
 
-### R15 — the two degraded states are unreachable in the demo, and that is stated, not hidden
+### R15 — three branches are dead code, and the blocker is the HARNESS, not the fixture
 
-`mockRankedRoom` always returns `ranked`: the roster
-(`adapters/participants/roster.ts`) carries `{id, name, team}` and no consent, so
-nothing in the fixture can honestly produce `not-consented` or `below-floor`.
-Fabricating one would mean a fixture inventing a **consent** value, which R1
-forbids for exactly the right reason.
+**Corrected after `sdd-verify` on U6.** The first version of this row said the
+degraded states were untestable because the fixture cannot produce them. That
+conflates two different things, and the conflation cost three unrecorded gaps.
 
-So both branches are implemented and neither has an e2e. `mockNotConsented` and
-`mockBelowFloor` exist and are exercised by nothing but the type. **They light up
-the day #10 returns a real status**, and the e2e for AC-RANK-5's two floor
-scenarios is deferred to that issue rather than faked here. The third AC-RANK-5
-scenario — no lens cookie — IS reachable and is covered.
+`mockNotConsented` and `mockBelowFloor` exist precisely to construct those
+states, and `<Body>` is a pure function of `RankedRoom` — so the states ARE
+constructible. **What blocks them is that `vitest.config.mts` sets
+`environment: "node"`: there is no jsdom, so no component branch is unit-testable
+at all.** Naming that correctly matters, because the same limit hits every branch
+the fixture's happy path does not walk — and by framing it as a fixture problem,
+the first version filed one gap where there were four.
+
+| Scenario | Dead code | Why the fixture never reaches it |
+|---|---|---|
+| AC-RANK-2 · no photo | `rank-card.tsx` `Avatar` null branch | `Placement.sprite` is `readonly string`, so `photoUrl` is never null |
+| AC-RANK-4 · filter with no matches | `rank-board.tsx` empty branch | `highCount >= 1` and 17 > 7, so both bands always populate |
+| AC-RANK-6 · empty room | `page.tsx` empty branch | the roster is 18 people, so `entries` is always 17 |
+| AC-RANK-5 · not-consented / below-floor | `page.tsx` `<Blocked>` | the roster carries no consent, and a fixture inventing one is what R1 forbids |
+
+**Only the last row is a fixture problem.** The first three are reachable with
+honest data — a person who has not uploaded a photo is not a fabricated *consent*
+value — and are left dead only because covering them needs either a component
+test environment or an e2e seam neither of which U6 built.
+
+All four branches are implemented. **None is covered by any test at any layer**,
+and `tasks.md` marked 6.4 and 6.6 `[x]` without saying so. That is recorded here
+rather than fixed under time pressure; the honest close is a jsdom project in
+vitest, which is a change to the test harness and not to this screen.
 
 **What R9–R12 delete from this plan:** `src/lib/adapters/reveal/**`, `view-rank.ts`,
 `view-profile.ts`, `simulate-life.ts`, `src/app/viewer.ts`, three `composition.ts`
@@ -405,6 +422,52 @@ All nine tasks deleted:
       staggered `pop-in`, and a bounding box is the TRANSFORMED box — measuring
       mid-animation reported four different heights for four identical cards.
 
+### 6.10 — the redesign, after the first build was shown to the user
+
+The first build was rejected on sight and it deserved to be. Three problems, all
+structural rather than cosmetic:
+
+- **Half a phone of dead cream below the fold.** Everything stacked from the top
+  and stopped. Fixed by making the whole screen one flex column that fills the
+  viewport: tight header, hairline, then the row in a `flex-1` band that takes
+  ALL the slack.
+- **Every person boxed in a card.** That put a border between the viewer and the
+  person and turned a room into a catalogue. The people are loose now — a big
+  ordinal (`1º`, in the lens accent only for first place), the sprite standing on
+  its own ground-shadow ellipse, then name, band and reasons. No panel.
+- **A blank background.** Screen 1c now carries the same venue as 1b, so the
+  ranking reads as something happening in that room rather than a list rendered
+  on a blank page. Two veils, not one: the first fades the plate in from the
+  hairline, the second is a flat wash — without it the venue's own signage reads
+  THROUGH the people and the row stops being the subject. **Atmosphere loses to
+  content every time.**
+
+`items-end`, not `items-center`: centred, the sprites float in mid-air over a
+room; pushed down, they stand on its floor.
+
+**The title went back to the design's words** — `Rank Romántico` /
+`Rank de Negocios` / `Rank de Amistad`. The first build invented
+"Con quién encajás trabajando" and then "fixed" `demo-path.spec.ts`, which had
+been asserting `/negocios/i` all along. That edit is reverted: the test was
+right and the screen was wrong.
+
+Filter chips carry the design's labels too — `Todos` / `Banda alta` /
+`Banda media` — with `ordenar:` and `filtrar:` legends.
+
+### 6.11 — corrections from `sdd-verify`
+
+- **The reduced-motion probe was time-window dependent.** It counted animations
+  with `playState === "running"`, asserting at ~240ms while the staggered pop-in
+  finishes by ~1.2s — so it would have started passing on its own once the page
+  settled, which is a green meaning "you were late", not "the guard works". It
+  now asserts `document.getAnimations().length === 0`, a property of the page
+  rather than of when you looked. Re-proven live: 17 without the guard, 0 with it.
+- **R15 was rewritten** — the blocker is `environment: "node"` in
+  `vitest.config.mts`, not the fixture, and framing it as a fixture limit filed
+  one gap where there were four. See R15 for the table of dead branches.
+- **10.5's "known gap" was false** and **10.3's absence check had expired.** Both
+  corrected in Phase 10.
+
 ## Phase U7 — `/profile/[id]`, screen 1d (~330)
 
 Depends on U6 — it reuses the card's photo placeholder and the lens threading.
@@ -521,11 +584,16 @@ take the rail and the ending card as a second slice.
       `@/lib/composition`, the way `src/app/room/page.tsx` already does.
 - [ ] 10.2 `excludedFromRoom()` is unreachable from `src/app/**` and
       `src/components/**`. (AC-PORT-5)
-- [ ] 10.3 **Do not create** `to-person.ts`, `prepare-results.ts`,
+- [ ] 10.3 **Do not create OR EDIT** `to-person.ts`, `prepare-results.ts`,
       `score-participant.ts`, `estimate.ts` or `latent-repository.ts`; do not
       edit or un-skip `prepare-results.test.ts`, `to-person.test.ts`,
       `score-participant.test.ts` or `scoring.test.ts`. Assert their skipped
       count and file contents are unchanged after every unit. (AC-PORT-6)
+      **Reworded after U6's verify.** The old wording said these modules must be
+      ABSENT, and that expired: `score-participant.ts` and `latent-repository.ts`
+      landed on `main` via PR #37. AC-PORT-6 was never about their absence — it
+      is about this change not touching the other team's surface. Check the diff,
+      not the filesystem.
       **This is the rule R9 exists to enforce** — the deleted ports were a
       slower, politer version of breaking it.
 - [ ] 10.4 (was 5.9) `pnpm run verify` and `pnpm run build` with `DATABASE_URL`
@@ -537,10 +605,12 @@ take the rail and the ending card as a second slice.
 - [ ] 10.5 `src/app/globals.css` stays **unchanged**: `--band-*`, `@utility
       walking`/`pop-in` and the `[style*="animation"]` reduced-motion guard all
       landed in `d6e0d4d`. Verify before writing a utility; nothing machine-
-      checks token names since ESLint was removed. **Known gap:** the `walk` and
-      `popin` keyframes have no `@utility` wrapper and do not appear in the
-      `prefers-reduced-motion` block — U9 must reach them through an inline
-      `style` containing `animation`, which the guard does cover.
+      checks token names since ESLint was removed. **The "known gap" this task
+      used to record was FALSE** — `sdd-verify` checked the file: `@utility
+      walking` and `@utility pop-in` both exist and both class names are listed
+      in the `prefers-reduced-motion` block, alongside the `[style*="animation"]`
+      attribute match. U9 can use either a class or an inline animation; do not
+      route around a constraint that was never there.
 - [ ] 10.6 Never edit `src/components/ui/**` — shadcn-owned and lint-exempt.
 - [ ] 10.7 **The shared contract stays stable and stays type-only.** Two greps,
       because R13 made this the load-bearing check of the whole change:

@@ -6,12 +6,17 @@ import { cn } from "@/lib/utils";
 /**
  * One person in the viewer's ranking.
  *
- * A <Link>, not a card with a button in it, so the whole target is one thing
- * with one accessible name -- which is also what lets the e2e find an entry
- * that is scrolled off-screen by role and name (AC-RANK-8) instead of by class.
+ * NO CARD. The people stand loose on the floor of the row, the way they stand
+ * loose on the floor of the room -- boxing each one in a panel put a border
+ * between the viewer and the person, and turned a room into a catalogue. The
+ * design was right and the first build was wrong.
+ *
+ * A <Link>, so the whole target is one thing with one accessible name, which is
+ * what lets the e2e find an entry that is scrolled off-screen by role and name
+ * (AC-RANK-8) instead of by class.
  *
  * `position` is the engine's, never an index into what is currently visible:
- * filtering to ALTA must not renumber anybody, because the number is this
+ * filtering to BANDA ALTA must not renumber anybody, because the number is this
  * viewer's rank and not a row counter.
  */
 export function RankCard({
@@ -25,7 +30,7 @@ export function RankCard({
    * An EXPLICIT accessible name, composed in reading order.
    *
    * Left to itself the browser concatenates every descendant, so a photoless
-   * card announces "sin foto 3 Camila Soto BANDA MEDIA les une..." -- the
+   * entry announces "sin foto 3 Camila Soto BANDA MEDIA les une..." -- the
    * placeholder first and the person third. Naming it here puts the position
    * and the person up front and still carries the bond and the friction, so a
    * screen reader hears the same three facts a sighted user reads, in the same
@@ -43,9 +48,8 @@ export function RankCard({
     <Link
       aria-label={name}
       className={cn(
-        "pop-in flex w-[172px] shrink-0 flex-col gap-2.5 rounded-[20px] bg-card p-3.5",
-        "shadow-toy transition-transform",
-        "hover:-translate-y-0.5 hover:shadow-toy-lg",
+        "pop-in flex w-[132px] shrink-0 flex-col items-center gap-1 rounded-2xl px-1 py-2",
+        "transition-transform hover:-translate-y-0.5",
         "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
       )}
       href={`/profile/${entry.id}`}
@@ -54,50 +58,57 @@ export function RankCard({
          delay is caught by the same guard that catches the class. */
       style={{ animationDelay: `${delay}ms` }}
     >
+      {/* The ordinal is the loudest thing on the entry, and first place is the
+          only one that takes the lens accent. Everything below it is quieter by
+          design: the rank is the message, the reasons are the footnote. */}
+      <span
+        className={cn(
+          "font-display font-extrabold text-[26px] leading-none",
+          entry.position === 1 ? "text-primary" : "text-ink"
+        )}
+      >
+        {entry.position}º
+      </span>
+
       <Avatar entry={entry} />
 
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-[11px] text-ink-faint tabular-nums">
-          {entry.position}
-        </span>
-        <span className="truncate font-display font-bold text-[15px] text-ink">
-          {entry.name}
-        </span>
-      </div>
+      <span className="max-w-full truncate font-display font-bold text-[14px] text-ink">
+        {entry.name}
+      </span>
 
       <BandPill band={entry.band} />
 
       {/*
         FIXED height and one line each, not `min-h`.
-        AC-RANK-2 says a card without friction must not collapse -- but `min-h`
-        only stops it collapsing BELOW a floor, and a long bond label still
-        wraps and makes that card taller than its neighbours. A row of ragged
-        cards reads as broken layout, and it also made the AC untestable: the
+        AC-RANK-2 says an entry without friction must not collapse -- but
+        `min-h` only stops it collapsing BELOW a floor, and a long bond label
+        still wraps and makes that entry taller than its neighbours. A ragged
+        row reads as broken layout, and it also made the AC untestable: the
         heights differed for a reason that had nothing to do with friction.
       */}
-      <div className="flex h-[38px] flex-col gap-0.5">
-        <span className="truncate font-mono text-[10px] text-ink-muted leading-snug">
+      <span className="flex h-[30px] w-full flex-col gap-0.5 text-center">
+        <span className="truncate font-mono text-[9.5px] text-ink-muted leading-snug">
           {entry.bond.label}
         </span>
         {entry.friction ? (
-          <span className="truncate font-mono text-[10px] text-ink-faint leading-snug">
+          <span className="truncate font-mono text-[9.5px] text-ink-faint leading-snug">
             {entry.friction.label}
           </span>
         ) : null}
-      </div>
+      </span>
     </Link>
   );
 }
 
 /**
- * The face, or an honest hole where one goes.
+ * The body plate, standing on its own shadow.
  *
  * A CSS background rather than <Image>: these are pixel-art plates at a size we
  * control, and Biome's next domain (rightly) rejects a bare <img>.
  *
- * The placeholder is NAMED. A person with no photo is a person who has not
- * finished intake, not a rendering failure, and an empty grey box reads as the
- * second one.
+ * The ellipse under the feet is what stops a loose sprite from floating. With
+ * the card gone there is no panel edge to sit on, so the shadow IS the floor --
+ * the same trick `participant-sprite.tsx` uses in the room.
  */
 function Avatar({ entry }: { entry: RankEntry }) {
   if (!entry.photoUrl) {
@@ -105,22 +116,26 @@ function Avatar({ entry }: { entry: RankEntry }) {
       <span
         aria-label={`${entry.name}, sin foto todavía`}
         className={cn(
-          "flex h-[104px] items-center justify-center rounded-[14px]",
-          "border-2 border-ink-faint/25 border-dashed bg-dark/5",
-          "font-mono text-[10px] text-ink-faint lowercase"
+          "flex h-[112px] w-[62px] items-center justify-center rounded-xl",
+          "border-2 border-ink-faint/30 border-dashed",
+          "font-mono text-[9px] text-ink-faint leading-tight lowercase"
         )}
         role="img"
       >
-        sin foto
+        sin
+        <br />
+        foto
       </span>
     );
   }
 
   return (
-    <span
-      aria-hidden="true"
-      className="pixelated block h-[104px] rounded-[14px] bg-dark/5 bg-center bg-contain bg-no-repeat"
-      style={{ backgroundImage: `url(${entry.photoUrl})` }}
-    />
+    <span aria-hidden="true" className="relative block h-[112px] w-[62px]">
+      <span
+        className="pixelated absolute inset-0 bg-bottom bg-contain bg-no-repeat"
+        style={{ backgroundImage: `url(${entry.photoUrl})` }}
+      />
+      <span className="-translate-x-1/2 absolute bottom-0.5 left-1/2 h-[7px] w-[34px] rounded-[50%] bg-dark/20 blur-[1.5px]" />
+    </span>
   );
 }

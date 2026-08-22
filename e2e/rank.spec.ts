@@ -125,7 +125,7 @@ test.describe("1c · the ranking", () => {
     await open(page, "romantic");
     const before = await cards(page).count();
 
-    await page.getByRole("radio", { name: "Alta" }).check();
+    await page.getByRole("radio", { name: "Banda alta" }).check();
     const after = await cards(page).count();
 
     expect(after).toBeGreaterThan(0);
@@ -209,10 +209,15 @@ test.describe("1c · the ranking", () => {
   test("AC-RANK-8 · reduced motion stops every animation", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await open(page, "romantic");
-    const running = await page.evaluate(
-      () =>
-        document.getAnimations().filter((a) => a.playState === "running").length
+    // `length`, not `filter(playState === "running").length`. The staggered
+    // pop-in finishes by ~1.2s and this asserts at ~240ms, so counting only
+    // RUNNING animations would start passing on its own once the page settled
+    // -- a green that means "you were late", not "the guard works". With the
+    // reduced-motion block active, no animation is registered at all, which is
+    // a property of the page rather than of when you looked at it.
+    const animations = await page.evaluate(
+      () => document.getAnimations().length
     );
-    expect(running).toBe(0);
+    expect(animations).toBe(0);
   });
 });
