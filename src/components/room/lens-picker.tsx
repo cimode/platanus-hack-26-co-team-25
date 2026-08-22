@@ -1,86 +1,63 @@
-import { Briefcase, Handshake, Heart } from "lucide-react";
+"use client";
+
+import { Menu } from "lucide-react";
+import { useState } from "react";
 import { chooseLensAction } from "@/app/actions";
 import type { Lens } from "@/lib/domain/room/layout";
 import { cn } from "@/lib/utils";
-
-const OPTIONS: readonly {
-  lens: Lens;
-  label: string;
-  blurb: string;
-  cls: string;
-  Icon: typeof Heart;
-}[] = [
-  {
-    lens: "romantic",
-    label: "Románticamente",
-    blurb: "una vida juntos",
-    cls: "lens-romantic",
-    Icon: Heart,
-  },
-  {
-    lens: "business",
-    label: "Trabajando",
-    blurb: "socios, cofundadores",
-    cls: "lens-business",
-    Icon: Briefcase,
-  },
-  {
-    lens: "friendship",
-    label: "De amigos",
-    blurb: "la gente que te queda",
-    cls: "lens-friendship",
-    Icon: Handshake,
-  },
-];
+import { LensSelect } from "./lens-select";
 
 /**
  * "¿Cómo quieres conectar?" -- the only action on screen 1b.
  *
- * A Server Component with a plain form: three submit buttons sharing one
- * `name`, so the browser posts the lens the user actually pressed. No client
- * JavaScript, which means the choice still works while the room's islands are
- * still hydrating on venue wifi.
+ * The card wears `lens-{selected}`, so choosing "Trabajando" turns the dot AND
+ * the Vamos button violet before you commit. That is the lens token system
+ * paying for itself -- there is not one conditional colour in here.
  *
- * Each button wears its own `lens-*` class, so its coral / violet / green comes
- * from `--primary` -- including the toy shadow, which reads `--primary-shadow`.
- * That is the whole point of the lens system: no conditional colour anywhere.
+ * The chooser itself is `LensSelect`, a hand-rolled listbox. See the note there
+ * for why the native `<select>` it replaced had to go, and what that cost.
  */
-export function LensPicker() {
-  return (
-    <form action={chooseLensAction} className="space-y-3">
-      <h2 className="font-display text-xl font-extrabold text-ink">
-        ¿Cómo quieres conectar?
-      </h2>
+export function LensPicker({ people }: { people: number }) {
+  const [lens, setLens] = useState<Lens>("romantic");
 
-      <div className="grid gap-2">
-        {OPTIONS.map(({ lens, label, blurb, cls, Icon }) => (
-          <button
-            className={cn(
-              cls,
-              "flex items-center gap-3 rounded-xl px-4 py-3 text-left",
-              "bg-primary text-primary-foreground shadow-toy",
-              "transition-transform",
-              "hover:-translate-y-0.5 hover:shadow-toy-lg active:translate-y-0.5",
-              "focus-visible:outline-2 focus-visible:outline-ink",
-              "focus-visible:outline-offset-2"
-            )}
-            key={lens}
-            name="lens"
-            type="submit"
-            value={lens}
-          >
-            <Icon aria-hidden="true" className="size-5 shrink-0" />
-            <span className="flex-1">
-              <span className="block font-display text-base font-bold">
-                {label}
-              </span>
-              <span className="block font-mono text-[11px] opacity-80 lowercase">
-                {blurb}
-              </span>
-            </span>
-          </button>
-        ))}
+  return (
+    <form
+      action={chooseLensAction}
+      className={cn(
+        `lens-${lens}`,
+        "absolute inset-x-4 top-16 z-20 rounded-[22px] bg-card p-4",
+        "shadow-[0_8px_28px_rgba(0,0,0,0.4)]"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Menu aria-hidden="true" className="size-5 text-ink" />
+        <h1 className="font-display font-bold text-ink text-xl">
+          ¿Cómo quieres conectar?
+        </h1>
       </div>
+
+      <div className="mt-3.5 flex gap-2.5">
+        <LensSelect onChange={setLens} value={lens} />
+        {/* The action reads this, never the listbox's visible label. */}
+        <input name="lens" type="hidden" value={lens} />
+
+        <button
+          className={cn(
+            "shrink-0 rounded-[14px] bg-primary px-6",
+            "font-display font-bold text-[17px] text-primary-foreground",
+            "shadow-toy transition-transform",
+            "hover:-translate-y-px hover:shadow-toy-lg active:translate-y-px",
+            "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+          )}
+          type="submit"
+        >
+          Vamos
+        </button>
+      </div>
+
+      <p className="mt-2 font-mono text-[10.5px] text-ink-faint lowercase">
+        {people === 1 ? "1 persona aquí" : `${people} personas aquí`}
+      </p>
     </form>
   );
 }
