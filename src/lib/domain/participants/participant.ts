@@ -1,10 +1,27 @@
 /**
- * A person in the room.
+ * A person on the demo roster: the id, name and team the impersonation
+ * chooser needs, and nothing else.
  *
- * Real names, deliberately. The Dipia copy rules reserve animal aliases for
- * the room and the ranking -- surfaces where a stranger sees you before you
- * have matched. Impersonation is an internal demo control, so it addresses
- * people by the name they signed up with.
+ * NOT `domain/participant/` (SINGULAR) -- that is the intake aggregate, which
+ * owns consent, the photo, the lens gates and the §0 floor. Both directories
+ * export a type called `Participant`, both compile at any call site, and only
+ * the singular one can be ranked. Import from exactly one and say which.
+ *
+ * Real names, deliberately, on the ranking too. An earlier draft of the copy
+ * rules reserved animal aliases for the room and the ranking; the product
+ * chose real names instead, so the compensating control is VIEWER-SCOPING,
+ * not pseudonymity:
+ *
+ *   - a ranking is only ever rendered for the person who ran it -- the port
+ *     has no `forRoom()`, only `forSubject(subjectId, lens)` (CONTEXT.md §3);
+ *   - anyone below the §0 floor, gate-failed, or not consenting to the active
+ *     lens is ABSENT from the read model, never greyed or counted;
+ *   - no score, band boundary or percentage crosses the port.
+ *
+ * An alias would have hidden the name from someone reading over your shoulder
+ * while leaving the ranking itself just as addressable. Scoping fixes the
+ * disclosure; an alias only dresses it. Do not re-litigate this by reaching
+ * for aliases -- change the scoping if the threat model changes.
  */
 export interface Participant {
   readonly id: string;

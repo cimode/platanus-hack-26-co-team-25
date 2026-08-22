@@ -75,29 +75,29 @@ decided here; apply follows this column, not either source document.
 
 ## Phase U1 — Rank + profile contracts (~300, parallel)
 
-- [ ] 1.1 RED: `src/lib/domain/reveal/rank.test.ts` — `applyRankView` sorts by
+- [x] 1.1 RED: `src/lib/domain/reveal/rank.test.ts` — `applyRankView` sorts by
       `position` and by `name`, filters `high`/`mid`/`all`, is stable, and never
       mutates its input. (AC-RANK-4)
-- [ ] 1.2 GREEN: `src/lib/domain/reveal/rank.ts` — `ViewerId`, `RankBand =
+- [x] 1.2 GREEN: `src/lib/domain/reveal/rank.ts` — `ViewerId`, `RankBand =
       "high" | "mid"` (no `"low"`), `RankReason`, `RankEntry`, `RankedRoom`
       status union, `RankSort`, `applyRankView`. No `rank`/`sim`/percentage
       field. (AC-PORT-3)
-- [ ] 1.3 `src/lib/domain/reveal/profile.ts` — `PersonProfile` with `standing`
+- [x] 1.3 `src/lib/domain/reveal/profile.ts` — `PersonProfile` with `standing`
       reusing `RankBand`/`RankReason`; `tags` are `domain/participant/tags.ts`
       slugs. (AC-PROF-3)
-- [ ] 1.4 `src/lib/ports/ranking.ts` — `RankingPort.forSubject(subjectId, lens)`.
+- [x] 1.4 `src/lib/ports/ranking.ts` — `RankingPort.forSubject(subjectId, lens)`.
       No `forRoom()`. (AC-PORT-2)
-- [ ] 1.5 `src/lib/ports/profile.ts` — `ProfilePort.byId(personId, viewerId,
+- [x] 1.5 `src/lib/ports/profile.ts` — `ProfilePort.byId(personId, viewerId,
       lens)`, returning `PersonProfile | null` for all four suppression cases.
       (AC-PROF-2)
-- [ ] 1.6 `src/lib/ports/latent-source.ts` — `LatentSource.byParticipants(ids)`
+- [x] 1.6 `src/lib/ports/latent-source.ts` — `LatentSource.byParticipants(ids)`
       returning per-id `Partial<Record<LatentName, LatentEstimate>>`. This is the
       #7 seam; do NOT name it `latent-repository.ts`. (AC-PORT-4, AC-PORT-6)
-- [ ] 1.7 `src/lib/domain/reveal/index.ts` — barrel. Import `Lens` from
+- [x] 1.7 `src/lib/domain/reveal/index.ts` — barrel. Import `Lens` from
       `domain/room/layout` only; do not declare a fourth `Lens`.
-- [ ] 1.8 Typecheck guard: add a `// @ts-expect-error` probe asserting a `"low"`
+- [x] 1.8 Typecheck guard: add a `// @ts-expect-error` probe asserting a `"low"`
       band literal is rejected. (AC-PORT-3)
-- [ ] 1.9 Correct the **stale alias comment** in
+- [x] 1.9 Correct the **stale alias comment** in
       `src/lib/domain/participants/participant.ts:1-8` — it still reserves animal
       aliases "for the room and the ranking"; the ranking now shows real names,
       viewer-scoped. State the compensating control so the next reader does not
