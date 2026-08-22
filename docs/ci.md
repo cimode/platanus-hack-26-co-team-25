@@ -1,0 +1,101 @@
+# CI/CD
+
+One workflow: `.github/workflows/ci.yml`. Runs on every PR and on push to `main`.
+
+## Jobs
+
+Seven checks fan out in parallel from a shared npm cache. Wall clock ~90s.
+
+| Job | Runs | Gates merge |
+| --- | --- | --- |
+| `typecheck` | `tsc --noEmit` | ✅ |
+| `biome` | `biome check .` — format + lint + imports | ✅ |
+| `eslint` | Next Core Web Vitals + design-system guardrails | ✅ |
+| `audit` | `npm audit --audit-level=high` | ✅ |
+| `unit` | `vitest run --coverage`, posts a coverage comment | ✅ |
+| `build` | `next build` | ✅ |
+| `e2e` | `playwright test` | ✅ |
+| `deploy-preview` | Vercel preview, PR only | ❌ |
+| `deploy-production` | Vercel production, `main` only | ❌ |
+
+**Concurrency:** a new push to the same ref cancels the in-flight run. No queue
+of stale red checks while three people iterate.
+
+## What CI catches today
+
+Being honest about the thin spots, because two rows look better than they are:
+
+| Fully covered | Thin |
+| --- | --- |
+| Type errors, formatting, import order | **E2E covers only `/` and `/design`** — the demo-path specs are still skipped, so a broken intake flow is not caught because intake does not exist yet |
+| Raw hex, unknown Tailwind classes, conflicting classes | **Visual regression contributes nothing** — see below |
+| Unawaited promises (`noFloatingPromises`) | Coverage is 96% of 50 statements: a number, not a signal |
+| Next Core Web Vitals | |
+| Build + prerender of all routes | |
+
+### Visual snapshots do not gate CI
+
+Playwright namespaces snapshots by platform (`brand-desktop-darwin.png`) and
+Linux renders fonts differently, so all 18 baselines would fail in Actions with
+zero real regressions. The pixel assertions skip themselves when `CI` is set;
+the behavioural assertions in the same spec still run.
+
+To make them gate, generate Linux baselines in the Playwright container and
+commit them:
+
+```bash
+docker run --rm -v $PWD:/w -w /w mcr.microsoft.com/playwright:v1.62.1-noble \
+  npx playwright test --update-snapshots
+```
+
+## Coverage
+
+Reported as a sticky PR comment, scoped to `src/lib/**`. **No threshold.** A
+coverage gate in a 36-hour build either blocks a legitimate PR at hour 30 or
+gets lowered until it asserts nothing. If a gate is ever wanted, put it on
+`src/lib/engine/**` alone — the only path where the number means anything.
+
+## Deploy — one-time setup required
+
+Vercel's Git integration needs its GitHub App installed on the `platanus-hack`
+org, which only the organisers can do. So **this repo cannot be imported in the
+Vercel dashboard** — that is what the root README is warning about.
+
+Deploying from CI with a token sidesteps it entirely: Vercel becomes a deploy
+target of the pipeline rather than a GitHub-integrated app, and **no mirror repo
+is needed**. Preview per PR, production on `main`.
+
+Until `VERCEL_TOKEN` exists, both deploy jobs succeed with every step skipped
+and log a notice — CI stays green rather than red while waiting on setup.
+
+### To enable it
+
+1. Create the Vercel project (once, locally):
+
+   ```bash
+   npx vercel link          # pick the Memora team, create "hookai"
+   cat .vercel/project.json # -> projectId, orgId
+   ```
+
+2. Create a token at <https://vercel.com/account/tokens>.
+
+3. Add three repository secrets under **Settings → Secrets and variables →
+   Actions**:
+
+   | Secret | Value |
+   | --- | --- |
+   | `VERCEL_TOKEN` | the token from step 2 |
+   | `VERCEL_ORG_ID` | `team_Ux9zeur8X6TCGGuRNF3Z3hsY` (team: Memora) |
+   | `VERCEL_PROJECT_ID` | `projectId` from step 1 |
+
+4. Push. The preview URL is commented on the PR.
+
+`.vercel/` is gitignored — it holds local link state, not shared config.
+
+Once production has deployed once, put that URL in `deploy-url` in
+`platanus-hack-project.jsonc`, which is still `<FILL THIS>`.
+
+## Node version
+
+Pinned in `.nvmrc` to major `24` — not an exact patch, since `setup-node` would
+otherwise download a specific build that may not be prebuilt for the runner.

@@ -17,7 +17,8 @@ export default defineConfig({
     exclude: ["node_modules/**", ".next/**", "e2e/**"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      // json-summary is what the CI coverage comment reads.
+      reporter: ["text", "html", "json-summary"],
       // Only the engine is worth a coverage number. UI coverage from unit
       // tests would be a vanity metric here.
       include: ["src/lib/**"],

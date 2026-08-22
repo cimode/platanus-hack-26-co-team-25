@@ -1,0 +1,16 @@
+name: Setup
+description: Node + npm install, with caches shared across jobs.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        # Caches ~/.npm keyed on package-lock.json, which is what makes the
+        # repeated `npm ci` across parallel jobs cheap.
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
