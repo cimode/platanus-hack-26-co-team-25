@@ -1,6 +1,9 @@
 # CONTEXT — Platanus Hack 26 Bogotá / Team 25
 
 > Single source of truth for this project. Read this first in any new session.
+> Companion docs: `RESEARCH-COMPATIBILITY.md` (evidence base), `PILLARS.md` (the pillar
+> taxonomy, weight vectors and admission criteria — supersedes the research doc where they
+> disagree), and `AUDIT.md` (adversarial audit — **read it before pitching any number**).
 > Last updated: 2026-08-22
 
 ---
@@ -177,10 +180,12 @@ throughout. The projector shows a room view during the pitch.
 These are unresolved and should be answered before or during build. Do not
 silently assume.
 
-1. **Personality framework** — established model (Big Five / OCEAN, attachment
-   styles) or a custom question set? Established models give technical
-   credibility and a defensible scoring axis; custom gives better narrative
-   material. Possibly both.
+1. ~~**Personality framework**~~ — **RESOLVED (updated post-audit).** Four measured
+   latents — Regulation, Politeness, Reliability, Agency — plus six zero-block pillars
+   (declared facts, observed room structure, governance). Fixed 15-block
+   desirability-matched forced-choice form with **mixed keying**, scored by Bayesian MAP
+   under a Thurstonian choice model with authored (uncalibrated) parameters. See
+   `PILLARS.md` §2–§3 and `AUDIT.md`.
 2. **Form length** — every extra question costs completion rate, and completion
    rate *is* the demo. What is the minimum viable signal?
 3. **Consent and safety** — real people are being publicly ranked by romantic
