@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { type ConsentState, consentAction } from "@/app/intake/actions";
-import { IntakeDone } from "@/components/intake/intake-done";
 import { StepHeading } from "@/components/intake/step-heading";
 import { Button } from "@/components/ui/button";
 import type { Consent } from "@/lib/domain/participant";
@@ -48,10 +47,10 @@ const SWITCH_CLASS = [
  * all three columns. Nothing here can turn one on: returning to this screen
  * shows the choices that were saved, never a helpful suggestion.
  *
- * The done screen is rendered from `state.saved` -- the action's own answer --
- * rather than from a `?done=1` in the URL, so it is reachable only by having
- * just saved. `useActionState` carries a Server Function's result into the
- * re-render even before hydration, so this holds with JavaScript off too.
+ * Saving hands off to step 4 (the declared round) rather than to a done screen:
+ * #8 closed that deferral, and what was saved is read back from the rows by
+ * reopening `/intake`. `useActionState` is still what carries an error into the
+ * re-render, before hydration and therefore with JavaScript off too.
  */
 export function ConsentStep({
   roomSlug,
@@ -65,10 +64,6 @@ export function ConsentStep({
   consent: Consent;
 }) {
   const [state, formAction, pending] = useActionState(consentAction, INITIAL);
-
-  if (state.saved) {
-    return <IntakeDone consent={state.saved} name={name} photoUrl={photoUrl} />;
-  }
 
   return (
     <form action={formAction} className="flex flex-1 flex-col gap-8">
