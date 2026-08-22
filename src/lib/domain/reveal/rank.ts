@@ -58,39 +58,14 @@ export type RankedRoom =
   | { readonly status: "not-consented"; readonly lens: Lens }
   | { readonly status: "below-floor"; readonly lens: Lens };
 
-/** The two orders the screen offers. Nothing here is a score. */
-export type RankSort = "position" | "name";
-
 /**
- * Accent- and case-insensitive, Spanish. A code-unit comparison puts "Á"
- * (U+00C1) after "B", which misfiles most of a Spanish roster; `sensitivity:
- * "base"` folds the diacritic away and leaves genuine ties to the sort's
- * stability. Built once -- constructing a collator per comparison is the
- * expensive part.
- */
-const NAME_ORDER = new Intl.Collator("es", { sensitivity: "base" });
-
-/**
- * The pure half of the rank screen: filter to a band, order by one of two
- * keys. Keeping it here is what lets `<RankBoard>` be a client island holding
- * two pieces of state and no logic (AC-RANK-4).
+ * `RankSort` and `applyRankView` deliberately do NOT live here.
  *
- * Never mutates `entries` -- the server rendered from that same array -- and
- * always returns a fresh one. `position` is NOT renumbered by filtering: it is
- * this viewer's rank, not an index into the visible row.
+ * This module is the CONTRACT: the shapes issue #10's `prepareResults`
+ * returns and screen 1c paints. Sorting and filtering a row the server already
+ * sent is a view concern with no second implementer, so it sits beside the
+ * board that calls it, in `src/components/rank/view.ts`. Same for the chip's
+ * colour map (`components/simulate/event-tag.ts`) and the fixture
+ * (`components/rank/mock.ts`) -- none of them is a contract, and none of them
+ * should be recreated here.
  */
-export function applyRankView(
-  entries: readonly RankEntry[],
-  view: { sort: RankSort; band: RankBand | "all" }
-): readonly RankEntry[] {
-  const kept =
-    view.band === "all"
-      ? [...entries]
-      : entries.filter((entry) => entry.band === view.band);
-
-  // `Array.prototype.sort` has been stable since ES2019, so equal keys keep
-  // the caller's order rather than the engine's.
-  return view.sort === "name"
-    ? kept.sort((a, b) => NAME_ORDER.compare(a.name, b.name))
-    : kept.sort((a, b) => a.position - b.position);
-}

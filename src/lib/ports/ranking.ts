@@ -8,9 +8,15 @@
  * convention a future caller can forget. Pages take the viewer from the cookie
  * resolver, never from the URL.
  *
- * Today `adapters/reveal/` implements this over a fixture roster and the real
- * pure `rankRoom()`; issue #10's `prepareResults` replaces it by changing one
- * line in `src/lib/composition.ts`.
+ * Nothing implements this yet. Issue #10's `prepareResults` is written to
+ * satisfy it structurally -- that is the whole reason the interface exists
+ * before its implementation, and why the shapes it names are not ours to move.
+ *
+ * Screen 1c paints `RankedRoom` from `src/components/rank/mock.ts` in the
+ * meantime. That mock is deliberately NOT an adapter behind this port: a
+ * fixture with a port in front of it looks like a swap that has already been
+ * designed, when the real swap is #10 landing and one line naming it in
+ * `src/lib/composition.ts`. Deleting a colocated mock is deleting one file.
  */
 
 import type { RankedRoom, ViewerId } from "../domain/reveal/rank";

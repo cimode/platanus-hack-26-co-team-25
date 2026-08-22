@@ -87,3 +87,162 @@ at, and both RED signals were captured before the modules existed.
 ### Remaining
 
 U2–U9, plus every Phase 10 check re-run per unit.
+
+## Batch 2 — Work unit U2 (Timeline view model) — COMPLETE
+
+8/8. Written on `feat/ui-flow-u2-timeline-contracts`. **PR #29 was CLOSED
+unmerged**; its three modules and three test files were rescued into `46a798c`
+on `feat/ui-view-models`, which is where they live now. Full TDD-cycle evidence
+(RED transcripts, probe-liveness mutation table) is in Engram
+`sdd/ui-flow-screens/apply-progress`; it is not reproduced here because the
+branch it describes no longer exists.
+
+What shipped, at post-R9 paths:
+
+- [x] 2.1–2.3 `src/components/simulate/event-tag.{ts,test.ts}` — 16 kinds → 7
+      tokens through an exhaustive `Record` with no `default` branch, plus the
+      `node:fs` drift trap against root `timeline/shared.ts`.
+- [x] 2.4–2.5 `src/components/simulate/offspring.{ts,test.ts}` — the mutual
+      consent gate, pure predicate, no affordance.
+- [x] 2.6–2.7 `src/components/simulate/timeline.{ts,test.ts}` — `SimulatedLife`
+      as a lens-discriminated union; the friendship branch structurally has no
+      `horizonYears` and no `Ending`.
+- [x] ~~2.8 `src/lib/ports/timeline.ts`~~ — written, then deleted by R9.
+
+## Batch 3 — R9 scope change and plan reconciliation
+
+`46a798c` (`refactor(ui): move the reveal read models out of domain/ and ports/`)
+plus `c0e3293` (`main` merged in) on `feat/ui-view-models`. **No PR yet.**
+
+### What changed and why
+
+U1 and U2 shipped four port interfaces — `RankingPort`, `ProfilePort`,
+`LatentSource`, `TimelinePort`. The other team owns that contract:
+`use-cases/prepare-results.test.ts` pins `prepareResults(sessionToken, lens,
+deps)` for issue #10, and `domain/scoring/estimate.ts` for #7 already landed.
+Ours was a **second contract for the same thing**, which is worse than none.
+
+The logic inside them was never domain logic. Picking one of seven colours from
+sixteen event kinds, picking a band, sorting a rank row — that is a view model,
+and it was misfiled from the start. So `46a798c` is a relocation, not a deletion:
+
+| From | To |
+|---|---|
+| `src/lib/domain/reveal/rank.{ts,test.ts}` | `src/components/rank/view.{ts,test.ts}` |
+| `src/lib/domain/reveal/profile.{ts,test.ts}` | `src/components/profile/view.{ts,test.ts}` |
+| U2's three modules (rescued from PR #29) | `src/components/simulate/` |
+
+`git mv` where possible, so `git log --follow` still reaches the reasoning in
+those files. Deleted outright: `ports/{ranking,profile,latent-source}.ts`,
+`domain/reveal/index.ts`, `ports/reveal.test.ts`. Added:
+`src/components/rank/mock.ts` — fixture data colocated with the screen that
+paints it.
+
+### The drift trap fired during the move — as designed
+
+Relocating `event-tag.test.ts` broke its four `../` hops, so the trap read
+`~/Dev/timeline/shared.ts` and threw ENOENT. It is now anchored to the repo root
+via `process.cwd()`, so it fires when the ENGINE moves rather than when we do.
+The assertion is untouched: that loud failure is the whole point of the trap.
+
+### Plan reconciliation (this batch's real deliverable)
+
+`tasks.md` was written against ports that no longer exist. Reconciled in place —
+R8 recorded, R9–R12 added, three phases dissolved:
+
+- **R9** — ports deleted; read models are view models colocated with screens.
+- **R10** — fixtures are colocated `mock.ts`, not `adapters/reveal/*` behind a
+  port. **R5 (composition getters) is void.**
+- **R11** — the viewer is the impersonated participant via `enterRoom`, exactly
+  as `/room` resolves it. **R6 (a new `src/app/viewer.ts`) is void; R7 holds.**
+- **R12** — `mockRankedRoom` takes the real viewer and roster in and fabricates
+  only `position`/`band`/`bond`/`friction`. As written it hardcoded
+  `p-diego-morales`, so 1c would have contradicted whoever 1a picked — and
+  listed them among their own matches.
+
+**U4, U5 and U8 are DISSOLVED**, struck through rather than renumbered, because
+`apply-progress`, six Engram observations and two merged PR bodies cite those
+ids. Surviving tasks folded into their screens: 4.2/5.1/5.2 → 6.0, 5.9 → 10.4,
+8.5 → 9.9. Two new cross-cutting checks: **10.7** (the deleted ports stay
+deleted) and **10.8** (every mock names the issue that deletes it).
+
+Remaining work fell from ~2,450 lines to ~1,220, and every remaining unit is now
+user-visible — the invisible-plumbing units were the ones R9 deleted.
+
+### Verification on the merged tree
+
+`pnpm install` first — #36 added `@aws-sdk/client-s3` and a stale `node_modules`
+fails `typecheck` with TS2307, not a runtime error. Then `pnpm run verify` green:
+typecheck clean, biome clean over 197 files, **151 passed / 22 skipped**.
+`pnpm run build` with `DATABASE_URL` unset green, 14 routes.
+
+## Batch 4 — R13, the correction to R9
+
+Found while opening Batch 3's PR, by reading the two issues R9 claimed to be
+deferring to. **R9's premise was false, and one `gh issue view` away.**
+
+The other team never wrote a competing contract — they adopted ours:
+
+- **#10** (`matching`, draft): *"The read contract is fixed by U1 (merged, PR #27)
+  and this issue implements it, not its own shape."* Cites `ports/ranking.ts` and
+  quotes its docblock, cites `domain/reveal/rank.ts`, cites `ports/latent-source.ts`,
+  and names **`rank.test.ts:136` by line**. Requires `prepareResults` to return
+  `RankedRoom` so it structurally satisfies `RankingPort.forSubject`.
+- **#33** (`simulation`, draft): *"`ports/timeline.ts` and
+  `domain/reveal/timeline.ts` are U2's deliverables. If they exist when this issue
+  starts, they are imported, never edited."*
+
+Those files are on `origin/main` today (PR #27). `46a798c` deleted them, so
+merging Batch 3 as it stood would have deleted a contract two open issues cite —
+and #33's fallback clause would then have recreated the same shapes in the same
+place, producing exactly the duplication R9 claimed to prevent.
+
+### The corrected line
+
+**A thing is contract if someone else implements it; otherwise it is view.**
+
+Restored to `src/lib/domain/reveal/` + `src/lib/ports/`: `RankedRoom`,
+`RankEntry`, `RankReason`, `RankBand`, `ViewerId`, `PersonProfile`,
+`SimulatedLife`, `LifeEvent`, `Ending`, `EventKind`, the four port interfaces,
+the barrel, and the `@ts-expect-error` probes that guard those shapes.
+
+Stayed in `src/components/`: `applyRankView` + `RankSort` + `NAME_ORDER`
+(`rank/view.ts`), `tagFor` / `TAG_TOKENS` / `TimelineTag` (`simulate/event-tag.ts`),
+`offspringVisible` (`simulate/offspring.ts`), `mock.ts`, and the behaviour tests.
+
+`domain/reveal/index.ts` re-exports **types only** — a function in that barrel
+reads as something the engine team must satisfy, and none of them is. Check 10.7
+was inverted to assert this, having previously asserted the opposite.
+
+### Probe liveness re-proven after the split
+
+Both guards were mutated and observed to fire across the new folder boundary:
+
+| Mutation | Guard | Observed |
+|---|---|---|
+| `RankBand` widened to admit `"low"` | AC-PORT-3 | **TS2578** at `domain/reveal/rank.test.ts:38` and `profile.test.ts:47` |
+| 17th `EventKind` member added | AC-PORT-7 | **TS2741** at `components/simulate/event-tag.ts:47`, inside `tagFor`'s `Record` — exactly as the AC words it — plus TS2322 on the `CoversEveryKind` guard |
+
+Both reverted, `pnpm run verify` green after each.
+
+**vitest reported 159 passed during the `EventKind` mutation.** The type gate is
+`tsc` and only `tsc`; this is the third independent confirmation.
+
+### One citation drifted, stated plainly
+
+#10 names `rank.test.ts:136`; the probe now sits at `rank.test.ts:38`, because
+the `applyRankView` behaviour tests that preceded it moved to
+`components/rank/view.test.ts`. Same file, same assertion, same property. A line
+number in an issue body was always going to drift; the file and the guarantee are
+what #10 depends on.
+
+### Verification
+
+`pnpm run verify` green: typecheck clean, biome clean over 205 files,
+**159 passed / 22 skipped** (up from 151 — the restored `ports/reveal.test.ts`
+and `domain/reveal/*.test.ts` add 8).
+
+### Remaining
+
+U3, U6, U7, U9, plus every Phase 10 check re-run per unit. Next dependency-ready:
+**U3** (`useDragScroll`), which unblocks both U6 and U9.
