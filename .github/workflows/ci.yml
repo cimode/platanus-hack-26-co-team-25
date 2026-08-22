@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: npm run typecheck
+      - run: pnpm run typecheck
 
   biome:
     name: biome (format + lint)
@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: npm run check
+      - run: pnpm run check
 
   audit:
     name: dependency audit
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       # Only high and critical. Anything lower is noise we would learn to ignore.
-      - run: npm audit --audit-level=high
+      - run: pnpm audit --audit-level=high
 
   # -- unit tests + coverage comment -----------------------------------------
 
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: npm run test:cov
+      - run: pnpm run test:cov
 
       # Report-only, no threshold. A coverage gate in a 36h build either blocks
       # a legitimate PR at hour 30 or gets lowered until it asserts nothing.
@@ -112,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: npm run build
+      - run: pnpm run build
 
   e2e:
     name: playwright e2e
@@ -136,18 +136,18 @@ jobs:
 
       - name: Install Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Install system deps for cached browsers
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+        run: pnpm exec playwright install-deps chromium
 
       # GitHub sets CI=true, which makes the visual snapshot assertions skip
       # themselves. Playwright namespaces snapshots by platform (-darwin.png)
       # and Linux renders fonts differently, so all 18 baselines would fail here
       # with no real regression. See docs/testing.md for the Docker recipe that
       # generates Linux baselines if we ever want them gating.
-      - run: npm run test:e2e
+      - run: pnpm run test:e2e
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -214,9 +214,9 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         id: deploy
         run: |
-          npx --yes vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
-          npx --yes vercel@latest build --token="$VERCEL_TOKEN"
-          url=$(npx --yes vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN" | tail -1)
+          pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
+          url=$(pnpm dlx vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN" | tail -1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -269,8 +269,8 @@ jobs:
       - name: Deploy to Vercel (production)
         if: steps.gate.outputs.ready == 'true'
         run: |
-          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

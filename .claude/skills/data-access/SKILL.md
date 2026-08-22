@@ -136,9 +136,9 @@ drifts within a day, and the drift is silent. The intake form's
 generate → commit → migrate, in that order and in one commit:
 
 ```bash
-npm run db:generate     # drizzle/NNNN_<name>.sql + drizzle/meta/
+pnpm run db:generate     # drizzle/NNNN_<name>.sql + drizzle/meta/
 git add drizzle src/lib/adapters/db/schema
-npm run db:migrate      # applies it to the branch in .env
+pnpm run db:migrate      # applies it to the branch in .env
 ```
 
 A pushed schema has no history, so it cannot replay on a fresh CI branch and

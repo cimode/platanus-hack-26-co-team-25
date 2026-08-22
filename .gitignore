@@ -63,7 +63,7 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 
-# Duplicate of .claude/skills/** written by `npx skills add` for other agent tools.
+# Duplicate of .claude/skills/** written by `pnpm dlx skills add` for other agent tools.
 .agents/
 
 # Timeline layer — secrets and installs

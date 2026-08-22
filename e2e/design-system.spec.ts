@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
  *
  * When a design change is intentional:
  *
- *     npm run test:e2e -- --update-snapshots
+ *     pnpm run test:e2e -- --update-snapshots
  *
  * Review the resulting image diff in the PR before accepting it. A snapshot
  * updated without looking is worse than no snapshot at all.
@@ -28,7 +28,7 @@ import { expect, test } from "@playwright/test";
  * container and commit them:
  *
  *   docker run --rm -v $PWD:/w -w /w mcr.microsoft.com/playwright:v1.62.1-noble \
- *     npx playwright test --update-snapshots
+ *     pnpm exec playwright test --update-snapshots
  */
 const VISUAL = !process.env.CI;
 

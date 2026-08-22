@@ -2,7 +2,7 @@ import { describe, it } from "vitest";
 
 /**
  * neon-http InstrumentRepository and the instruments seed (issue #13,
- * docs/domain.md D2, D15, §3, §8): `npm run db:seed` mirrors INSTRUMENT into
+ * docs/domain.md D2, D15, §3, §8): `pnpm run db:seed` mirrors INSTRUMENT into
  * the `instruments` table keyed by version -- insert when absent, no-op when
  * present with the same hash, refuse when present with a different hash.
  * Integration tests, guarded by ./test-db.ts; AC-2 writes the mismatching row

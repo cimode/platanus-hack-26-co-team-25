@@ -311,12 +311,12 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
 
 ## 8. Migrations and environments
 
-- `npm run db:generate` emits `drizzle/NNNN_<name>.sql` + `meta/`, committed with the
-  schema change that produced it. `npm run db:migrate` applies. `npm run db:check` guards
+- `pnpm run db:generate` emits `drizzle/NNNN_<name>.sql` + `meta/`, committed with the
+  schema change that produced it. `pnpm run db:migrate` applies. `pnpm run db:check` guards
   history and needs no database. `db:push` no longer exists.
 - **Locally:** against the Neon branch in `.neon` (`dev-domain` today). `neon diff` before
   committing.
-- **Seed (`npm run db:seed`):** creates the demo room if absent. That is all it does.
+- **Seed (`pnpm run db:seed`):** creates the demo room if absent. That is all it does.
 - **CI (I2).** One long-lived, PII-free branch `ci-base` (empty schema) is the parent of
   everything automated; `production` is never a parent.
   - *Pull request:* `neondatabase/create-branch-action@v6` creates or returns
