@@ -1,0 +1,89 @@
+# openspec/config.yaml — written by sdd-init
+# Project: platanus-hack-26-co-team-25 (Engram project key; matches package.json "name")
+schema: spec-driven
+
+artifact_store: hybrid # openspec files + Engram; both writes must succeed
+
+context: |
+  Next.js 16.3.2 / React 19.2.8 / TS 5 / Tailwind 4, pnpm@10.32.1 pinned via packageManager.
+  Ports & Adapters: src/lib is the hexagon (domain, ports, use-cases, adapters, composition.ts).
+  biome.json mechanically blocks src/lib/{domain,use-cases,ports}/** from importing adapters,
+  composition, SDKs, next/* or react. Biome is the ONLY linter — ESLint was removed (3ed804a).
+  Persistence: Drizzle + Neon HTTP. db.transaction() THROWS at runtime; use db.batch().
+  Testing: Vitest (node env, src/**/*.test.ts + test/**) and Playwright (e2e/, port 3000).
+  Team split: the OTHER team owns intake, scoring and matching. WE OWN THE UI ONLY.
+  Every screen reaches data through a port so a mocked adapter swaps for the real one.
+
+session:
+  execution_mode: auto
+  delivery_strategy: auto-chain
+  chain_strategy: unset # ask before the first chained apply
+
+strict_tdd: true
+# Rationale: a runner exists (Vitest), AND the project mandates test-first independently —
+# docs/testing.md stage 1 of /work requires every AC to have a test that fails on an
+# assertion, and forbids stages 2 and 3 from touching a test file.
+
+testing:
+  test_command: pnpm run test # vitest run
+  test_watch: pnpm run test:watch
+  coverage_command: pnpm run test:cov # v8, scoped to src/lib/**, NO threshold, never gates
+  e2e_command: pnpm run test:e2e # playwright, port 3000, reuseExistingServer
+  verify_command: pnpm run verify # typecheck && check && test — excludes e2e on purpose
+  typecheck_command: pnpm run typecheck # next typegen && tsc --noEmit
+  lint_command: pnpm run check # biome check . (format + lint + import order)
+  format_command: pnpm run format # biome format --write .
+  build_command: pnpm run build # next build
+  framework: vitest
+  e2e_framework: playwright
+  unit: true
+  integration: true # src/lib/adapters/db/*.test.ts — SKIP SILENTLY without DATABASE_URL
+  e2e: true
+  coverage: true
+  coverage_threshold: 0
+
+rules:
+  proposal:
+    - State explicitly whether the change is UI-only. If it touches intake, scoring or matching,
+      it belongs to the other team — stop and say so.
+    - Name the port every screen reads through, and the mock adapter that backs it today.
+    - Include a rollback plan; the demo is ~24h out.
+  specs:
+    - Use Given/When/Then scenarios and RFC 2119 keywords (MUST, SHALL, SHOULD, MAY).
+    - Give every criterion an AC-id. It must appear verbatim in the issue and at the FRONT of
+      the test name, so `rg -n "AC-2" e2e src` is the traceability check.
+    - Require happy, sad AND edge paths. `kind: safety` criteria are never written as skipped.
+    - Assert behaviour — roles and visible text. NEVER class names.
+    - A screen's data requirement is stated as a port method signature, never as a query.
+  design:
+    - Show the dependency direction: app -> use-cases -> ports <- adapters.
+    - A port earns its place only at a real external boundary. fake + real counts as two
+      implementations; wrapping a pure function does not.
+    - Name the mock adapter and where it is wired (src/lib/composition.ts only).
+  tasks:
+    - Group by phase, hierarchical numbering, each task completable in one session.
+    - Pair every UI task with the port it consumes, so nothing reaches for getDb().
+  apply:
+    tdd: true
+    test_command: pnpm run test
+    notes:
+      - STRICT TDD. RED first — the failure must be an assertion, not `Cannot find module`.
+      - Never edit src/components/ui/** (shadcn-owned, lint-exempt). Compose it.
+      - No raw hex, no invented Tailwind utilities. Tokens in src/app/globals.css only —
+        this is NOT machine-checked since ESLint was removed. Grep globals.css.
+      - '"use client" on the smallest component that needs it, never on a page.'
+      - Mutations go through a Server Action calling a use case. useActionState, not useFormState.
+      - Every interactive element has an accessible name, or the test writer cannot target it.
+      - pnpm ONLY. A mixed npm/pnpm node_modules breaks Playwright with
+        "Playwright Test did not expect test.describe() to be called here".
+  verify:
+    test_command: pnpm run test
+    verify_command: pnpm run verify
+    build_command: pnpm run build
+    e2e_command: pnpm run test:e2e
+    coverage_threshold: 0
+    notes:
+      - Treat a skipped DB integration test as UNVERIFIED, not as passing. Without DATABASE_URL
+        they skip silently; set DB_REQUIRED=1 to turn a missing database into a failure.
+  archive:
+    - Warn before merging destructive deltas into openspec/specs/.
