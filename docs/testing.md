@@ -18,7 +18,7 @@ unrelated testing problems, and conflating them is how a 36-hour team wastes an 
 | `pnpm test`            | Vitest once                                       |
 | `pnpm run test:watch`  | Vitest in watch mode                              |
 | `pnpm run test:cov`    | Coverage over `src/lib/**`                        |
-| `pnpm run test:e2e`    | Playwright, boots its own dev server on **:3100** |
+| `pnpm run test:e2e`    | Playwright, on **:3000** — reuses a running `pnpm run dev` |
 | `pnpm run test:e2e:ui` | Playwright UI mode — best for debugging a flake   |
 | `pnpm run verify`      | typecheck → lint → format:check → Vitest          |
 
@@ -111,7 +111,7 @@ change a prompt, read the number, decide.
 
 ## E2E
 
-Playwright boots its own dev server on **:3100**, so a running `pnpm run dev` on :3000 does
+Playwright runs on **:3000** with `reuseExistingServer`, so a running `pnpm run dev` is reused rather than fought. It used to boot its own on :3100, but Next 16 refuses a second dev server for the same directory whatever port you pass, so that setup failed outright whenever anyone had the app running. This does
 not collide.
 
 Two projects, both Chromium:
@@ -154,7 +154,7 @@ no snapshot.
 - **each lens recolours its subtree** — all four contexts (pre-lens cyan + three lenses) must
   resolve `--primary` to four distinct values. If this breaks, every screen silently loses
   its accent.
-- **the app is dark-only** — if `dark` falls off `<html>`, every surface inverts and nobody
+- **the app is light-only** — `globals.css` still declares the `dark` variant (the shadcn primitives carry 44 `dark:` utilities and an undeclared variant fails the build), but nothing may apply the class. If it ever lands on `<html>`, every surface inverts and nobody
   notices until it is projected.
 
 ## Acceptance criteria become tests
