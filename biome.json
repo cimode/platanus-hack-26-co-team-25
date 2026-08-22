@@ -22,7 +22,8 @@
       "!CONTEXT.md",
       "!project-description.md",
       "!public",
-      "!coverage"
+      "!coverage",
+      "!timeline"
     ]
   },
   "formatter": {
@@ -75,7 +76,8 @@
       "includes": [
         "src/lib/domain/**",
         "src/lib/use-cases/**",
-        "src/lib/ports/**"
+        "src/lib/ports/**",
+        "!**/*.test.ts"
       ],
       "linter": {
         "rules": {

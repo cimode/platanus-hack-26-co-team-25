@@ -35,5 +35,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // timeline/ is a separate package (own package.json, own deps -- notably
+  // zod ^3 against this project's ^4) run standalone via
+  // `node --experimental-strip-types`. It resolves against timeline/node_modules,
+  // not ours, so typechecking it from here can only ever produce false errors.
+  "exclude": ["node_modules", "timeline"]
 }
