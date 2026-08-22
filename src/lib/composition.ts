@@ -1,6 +1,7 @@
 import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
 import { createGeneratedBlockRepository } from "./adapters/db/generated-block-repository";
+import { createLatentRepository } from "./adapters/db/latent-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
@@ -9,12 +10,19 @@ import { rosterParticipants } from "./adapters/participants/roster";
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
+import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
 import type { PhotoStore } from "./ports/photo-store";
+import type { ProfilePort } from "./ports/profile";
+import type { RankingPort } from "./ports/ranking";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
+import { prepareProfile } from "./use-cases/prepare-profile";
+import type { PrepareResultsDeps } from "./use-cases/prepare-results";
+import { prepareResults } from "./use-cases/prepare-results";
+import { scoreParticipant } from "./use-cases/score-participant";
 
 /**
  * The composition root: the ONLY module allowed to know which adapter
@@ -49,7 +57,12 @@ export interface Deps {
   participants: ParticipantRepository;
   rooms: RoomRepository;
   responses: ResponseRepository;
+  latents: LatentRepository;
   photos: PhotoStore;
+  /** `prepareResults`, with its repositories already bound (issue #10). */
+  ranking: RankingPort;
+  /** `prepareProfile`, likewise. Screens name the port, never the use case. */
+  profiles: ProfilePort;
 }
 
 export type ServerDeps = Pick<
@@ -61,7 +74,10 @@ export type ServerDeps = Pick<
   | "participants"
   | "rooms"
   | "responses"
+  | "latents"
   | "photos"
+  | "ranking"
+  | "profiles"
 >;
 
 let cachedLlm: LlmPort | undefined;
@@ -78,6 +94,37 @@ function getLlm(): LlmPort {
 /** Test seam: drops the memoised LLM client so a test can swap the model. */
 export function resetLlm(): void {
   cachedLlm = undefined;
+}
+
+/**
+ * What `prepareResults` and `prepareProfile` rank through (issue #10).
+ *
+ * Built per call rather than memoised, like every other database-backed member:
+ * a repository over `getDb()` is a closure, not a connection. `scoreParticipant`
+ * arrives pre-bound because the ranking use cases hold it as a function, not as
+ * a port — which is what lets a test count its invocations.
+ */
+function rankingDeps(): PrepareResultsDeps {
+  const db = getDb();
+  const latents = createLatentRepository(db);
+  const responses = createResponseRepository(db);
+  const generatedBlocks = createGeneratedBlockRepository(db);
+  return {
+    participants: createParticipantRepository(db),
+    latents,
+    responses,
+    rooms: createRoomRepository(db),
+    scoreParticipant: (input) =>
+      scoreParticipant(input, {
+        responses,
+        generatedBlocks,
+        latents,
+        // One clock, read inside the scorer, so a participant's four rows
+        // always share a `computed_at` and #10's freshness comparison is
+        // against one instant rather than four.
+        now: () => new Date(),
+      }),
+  };
 }
 
 /**
@@ -122,6 +169,22 @@ export function serverDeps(): ServerDeps {
     },
     get responses() {
       return createResponseRepository(getDb());
+    },
+    get latents() {
+      return createLatentRepository(getDb());
+    },
+    get ranking(): RankingPort {
+      const deps = rankingDeps();
+      return {
+        forSubject: (subjectId, lens) => prepareResults(subjectId, lens, deps),
+      };
+    },
+    get profiles(): ProfilePort {
+      const deps = rankingDeps();
+      return {
+        byId: (personId, viewerId, lens) =>
+          prepareProfile(personId, viewerId, lens, deps),
+      };
     },
     get photos() {
       return process.env.AWS_ENDPOINT_URL_S3
