@@ -1,2 +1,9 @@
 # Local agent tooling
 .atl/
+
+# Timeline layer — secrets and installs
+timeline/.env
+timeline/node_modules/
+timeline/.env
+.env
+node_modules/
