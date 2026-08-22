@@ -30,10 +30,17 @@ import * as schema from "./schema";
  * When the adapter lands, the body is replaced by the integration test the
  * AC describes, through the `test-db.ts` guard (skips without DATABASE_URL,
  * fails under DB_REQUIRED=1): a room created by #4's createRoomRepository at
- * INSTRUMENT.version, participants A and B, B pre-seeded with four rows, A
- * holding 15 quiz_responses; `scoreParticipant({ participantId: A, room })`
- * twice with the real adapters; then A has exactly four rows with means in
- * [0, 1], se > 0 and scorer_version "map-luce-v1", B's rows are byte-equal,
+ * INSTRUMENT.version (the Room it returns is the input to scoreParticipant),
+ * participants A and B, B pre-seeded with four rows; A's 15 blocks saved
+ * first through createGeneratedBlockRepository(db).saveBatch
+ * (INSTRUMENT.blocks as StoredBlock[] -- docs/domain.md D16: scoring reads
+ * the participant's generated_blocks rows, never the constant) and then A's
+ * 15 quiz_responses through createResponseRepository(db);
+ * `scoreParticipant({ participantId: A, room }, { responses, generatedBlocks,
+ * latents, now })` twice with the real createResponseRepository,
+ * createGeneratedBlockRepository and createLatentRepository adapters; then A
+ * has exactly four rows with means in [0, 1], se > 0 and scorer_version
+ * "map-luce-v1", B's rows are byte-equal including computed_at,
  * `byParticipant(A)` exposes only mean and se per pillar, and
  * `byParticipants([A, B])` returns both in one query with the same values.
  * The room is deleted at the end so the cascade removes everything.
@@ -66,7 +73,10 @@ function latentEstimatesTable(): PgTable | undefined {
 
 describe("safety invariants", () => {
   // Runs today, on purpose. Vacuously true until #7 lands -- no table, no
-  // adapter -- and it keeps holding as each of those arrives.
+  // adapter -- and it keeps holding as each of those arrives. The blocks A
+  // is scored on come from generated_blocks (already in the schema barrel),
+  // which this test neither writes nor inspects: the invariant is about
+  // latent_estimates alone.
   it("AC-9 · scoring A twice leaves exactly four rows for A and B's rows untouched", () => {
     // 1. The table's primary key is the idempotency mechanism.
     const table = latentEstimatesTable();

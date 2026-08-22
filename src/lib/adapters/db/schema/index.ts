@@ -21,5 +21,6 @@
 export * from "./enums.ts";
 export * from "./gates.ts";
 export * from "./participants.ts";
+export * from "./quiz.ts";
 export * from "./responses.ts";
 export * from "./rooms.ts";

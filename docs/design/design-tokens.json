@@ -1,422 +1,308 @@
 {
   "$schema": "https://tr.designtokens.org/format/",
-  "$description": "hookai design tokens. Generated from src/app/globals.css -- that file is the source of truth; this is a portable mirror for design tools. Dark-only: there is no light theme. All colours are OKLCH.",
+  "$description": "Dipia design tokens. Generated from src/app/globals.css -- that file is the source of truth; this is a portable mirror for design tools. Light-only: there is no dark theme, and `--dark` below is a surface, not a mode. All colours are sRGB hex.",
   "meta": {
     "product": "hookai",
+    "system": "Dipia",
     "tagline": "A simulation engine for human relationships.",
     "wordmark": "hookai (always lowercase, one word, tight tracking -- the wordmark IS the logo)",
-    "stack": "Next.js 16 App Router / React 19 / Tailwind CSS v4 / shadcn-ui radix-nova on Radix primitives / lucide icons",
-    "colorSpace": "oklch",
-    "themes": ["dark"],
-    "lightTheme": "intentionally not built",
-    "targetViewport": "390x844 (mobile-web PWA), plus a projected desktop room view",
+    "world": "Life-sim, warm and playful: pixel-art sprites over clean modern UI. The pixel lives in the ART -- avatars, venue, board. Type and controls stay crisp.",
+    "stack": "Next.js 16 App Router, React 19, Tailwind CSS v4 (CSS-first @theme, no config file), shadcn/ui on Radix, lucide icons",
     "source": "src/app/globals.css",
-    "category": "Brands",
-    "surface": "web",
-    "hexNote": "Hex values in the brand spec are LOSSY sRGB renderings of these OKLCH tokens, not source. Measured deltas vs the built CSS: brand #00bbc3 vs actual #00bcc5, muted #a3a3a3 vs #a1a1a1, business #8d56ff vs #8d54ff, friendship #f69e00 vs #f99c00. OKLCH is authoritative -- never round-trip a design tool's hex back into globals.css."
+    "livingReference": "/design -- every token, every lens, every component state, rendered",
+    "replaces": "The dark hookai system (brand cyan, OKLCH, Instrument Serif + Geist, .glow). Removed in commit d6e0d4d. Nothing from it is current."
   },
-  "font": {
-    "$type": "fontFamily",
-    "narrative": {
-      "$value": [
-        "Instrument Serif",
-        "Instrument Serif Fallback",
-        "Georgia",
-        "Times New Roman",
-        "serif"
-      ],
-      "$description": "A life being told. Canonical timeline events, display headlines. Deliberately RARE -- roughly 3 appearances per screen -- so a timeline event reads as special.",
-      "weights": [400],
-      "tailwindUtility": "font-narrative"
-    },
-    "sans": {
-      "$value": [
-        "Geist",
-        "Geist Fallback",
-        "ui-sans-serif",
-        "system-ui",
-        "sans-serif"
-      ],
-      "$description": "The interface. Body copy, form labels, navigation.",
-      "tailwindUtility": "font-sans",
-      "weights": [400, 500, 600]
-    },
-    "heading": {
-      "$value": [
-        "Geist",
-        "Geist Fallback",
-        "ui-sans-serif",
-        "system-ui",
-        "sans-serif"
-      ],
-      "$description": "Geist, NOT the serif -- this is deliberate. shadcn's CardTitle, DialogTitle, SheetTitle and AlertDialogTitle all consume font-heading. Card titles are furniture; keeping them sans is what preserves the serif's signal.",
-      "tailwindUtility": "font-heading"
-    },
-    "mono": {
-      "$value": [
-        "Geist Mono",
-        "Geist Mono Fallback",
-        "ui-monospace",
-        "monospace"
-      ],
-      "$description": "The engine reporting. Compatibility scores, years, personality dimension values, IDs.",
-      "tailwindUtility": "font-mono",
-      "weights": [400, 500]
-    }
+
+  "theme": {
+    "mode": "light-only",
+    "$description": "There is no `.dark` block. The `dark` custom-variant stays DECLARED because the shadcn primitives in src/components/ui/** carry 44 `dark:` utilities and an undeclared variant is a build error -- with no `.dark` ancestor they simply never match, which is what a light-only theme wants. Never add a dark palette without deciding it as a product change first."
   },
+
   "color": {
-    "$type": "color",
-    "brand": {
-      "default": {
-        "$value": "oklch(0.72 0.15 200)",
-        "$description": "Cyan. Means hookai ITSELF -- the engine. Used on pre-lens surfaces (intake, loading, shell) and on the wordmark dot. NEVER follows a lens.",
-        "tailwindUtility": "bg-brand / text-brand",
-        "knownIssue": "Leans slightly green ('pool water'). oklch(0.71 0.13 210) reads cooler and more instrument-like. Under review."
-      },
-      "foreground": {
-        "$value": "oklch(0.18 0.03 200)",
-        "$description": "Text/icon colour on top of brand cyan fills."
-      }
-    },
-    "base": {
-      "$description": "Pure neutral, deliberately colourless. All colour in the product is meaningful -- cyan means hookai, an accent means a lens. If a surface needs a colour, the design is wrong.",
+    "surface": {
       "background": {
-        "$value": "oklch(0.145 0 0)"
-      },
-      "foreground": {
-        "$value": "oklch(0.985 0 0)"
+        "$value": "#f7f1e3",
+        "$description": "Warm cream. The ground for every screen."
       },
       "card": {
-        "$value": "oklch(0.205 0 0)"
+        "$value": "#fffdf7",
+        "$description": "Raised surface. Barely lighter than the ground -- separation comes from the shadow, not from contrast."
       },
-      "cardForeground": {
-        "$value": "oklch(0.985 0 0)"
+      "popover": { "$value": "#fffdf7" },
+      "surface-alt": {
+        "$value": "#efe4cf",
+        "$description": "Recessed / secondary fill: muted chips, inactive tabs, sprite tiles."
       },
-      "popover": {
-        "$value": "oklch(0.205 0 0)"
-      },
-      "popoverForeground": {
-        "$value": "oklch(0.985 0 0)"
-      },
-      "secondary": {
-        "$value": "oklch(0.269 0 0)"
-      },
-      "secondaryForeground": {
-        "$value": "oklch(0.985 0 0)"
-      },
-      "muted": {
-        "$value": "oklch(0.269 0 0)"
-      },
-      "mutedForeground": {
-        "$value": "oklch(0.708 0 0)"
-      },
-      "border": {
-        "$value": "oklch(1 0 0 / 10%)",
-        "$description": "Hairline. The resting state of every surface."
-      },
-      "input": {
-        "$value": "oklch(1 0 0 / 15%)"
-      },
-      "destructive": {
-        "$value": "oklch(0.704 0.191 22.216)"
+      "dark": {
+        "$value": "#171512",
+        "$description": "NOT a theme. The room's night canvas (screen 1b) -- the one deliberately dark surface in the product."
       }
     },
-    "contextual": {
-      "$description": "CRITICAL MECHANISM. --primary defaults to the brand cyan and every .lens-* class overrides it. So `primary` always means 'the accent of the current context': cyan before a lens is chosen, the lens hue inside one. All 23 components inherit this for free -- no variant props, no conditional classNames, no per-lens components.",
+
+    "ink": {
+      "foreground": {
+        "$value": "#33261d",
+        "$description": "Warm dark brown, never black. Body and headings."
+      },
+      "ink-soft": {
+        "$value": "#4a3b2e",
+        "$description": "Lede paragraphs, secondary prose."
+      },
+      "ink-muted": {
+        "$value": "#7a6a58",
+        "$description": "Captions, helper text, metadata."
+      },
+      "ink-faint": {
+        "$value": "#a99680",
+        "$description": "Eyebrows, disabled labels, the quietest legible step."
+      }
+    },
+
+    "accent": {
       "primary": {
-        "$value": "oklch(0.72 0.15 200)",
-        "$description": "Default (pre-lens) value == brand cyan. Overridden by lens classes."
+        "$value": "#d95f4b",
+        "$description": "Coral. CTAs, accents, selected state."
       },
-      "primaryForeground": {
-        "$value": "oklch(0.18 0.03 200)"
+      "primary-foreground": { "$value": "#fffdf7" },
+      "primary-shadow": {
+        "$value": "#a8422f",
+        "$description": "The toy shadow's colour. Follows the lens -- this is what makes the whole depth system retint for free."
       },
-      "accent": {
-        "$value": "oklch(0.269 0 0)"
+      "primary-tint": {
+        "$value": "#fbe3de",
+        "$description": "Quiet fill for secondary buttons and pills."
       },
-      "accentForeground": {
-        "$value": "oklch(0.985 0 0)"
+      "brand": {
+        "$value": "#d95f4b",
+        "$description": "Deliberately the same coral as --primary. Use --brand for a mark that must NOT follow the lens."
       },
+      "brand-foreground": { "$value": "#fffdf7" },
+      "secondary": { "$value": "#efe4cf" },
+      "secondary-foreground": { "$value": "#33261d" },
+      "muted": { "$value": "#efe4cf" },
+      "muted-foreground": { "$value": "#7a6a58" },
+      "accent": { "$value": "#fbe3de" },
+      "accent-foreground": { "$value": "#a8422f" }
+    },
+
+    "semantic": {
+      "destructive": {
+        "$value": "#9a2b1e",
+        "$description": "Distinct from coral on purpose: a destructive action must not read as a primary one when both are warm reds."
+      },
+      "friction": {
+        "$value": "#e0a13f",
+        "$description": "Amber. The timeline's 'roce' family. Reserved -- see rules.frictionIsAmber."
+      },
+      "friction-tint": { "$value": "#f4cf9a" },
+      "friction-deep": { "$value": "#c8842f" }
+    },
+
+    "line": {
+      "border": {
+        "$value": "rgb(51 38 29 / 0.14)",
+        "$description": "Hairline, tinted with the ink hue rather than grey."
+      },
+      "input": { "$value": "rgb(51 38 29 / 0.14)" },
       "ring": {
-        "$value": "oklch(0.72 0.15 200)",
+        "$value": "#d95f4b",
         "$description": "Focus ring. Follows the lens."
-      }
+      },
+      "divider": { "$value": "rgb(51 38 29 / 0.1)" }
     },
-    "lens": {
-      "$description": "Put one of these classes on ANY subtree and every token inside retakes its temperature. Custom properties resolve from the nearest declaring ancestor, so this nests correctly. Declared after .dark so they win at equal specificity. Cool brand vs warm lenses is deliberate: the engine never competes with the emotion.",
-      "romantic": {
-        "$extensions": {
-          "cssClass": ".lens-romantic",
-          "hue": "rose",
-          "icon": "lucide/Heart",
-          "meaning": "romantic compatibility"
-        },
-        "primary": {
-          "$value": "oklch(0.645 0.246 16.439)"
-        },
-        "primaryForeground": {
-          "$value": "oklch(0.985 0 0)"
-        },
-        "ring": {
-          "$value": "oklch(0.645 0.246 16.439)"
-        },
-        "accent": {
-          "$value": "oklch(0.28 0.06 16.439)"
-        },
-        "accentForeground": {
-          "$value": "oklch(0.97 0.02 16.439)"
-        }
-      },
-      "business": {
-        "$extensions": {
-          "cssClass": ".lens-business",
-          "hue": "violet",
-          "icon": "lucide/Briefcase",
-          "meaning": "partnership / cofounder fit"
-        },
-        "primary": {
-          "$value": "oklch(0.606 0.25 292.717)"
-        },
-        "primaryForeground": {
-          "$value": "oklch(0.985 0 0)"
-        },
-        "ring": {
-          "$value": "oklch(0.606 0.25 292.717)"
-        },
-        "accent": {
-          "$value": "oklch(0.28 0.07 292.717)"
-        },
-        "accentForeground": {
-          "$value": "oklch(0.97 0.02 292.717)"
-        }
-      },
-      "friendship": {
-        "$extensions": {
-          "cssClass": ".lens-friendship",
-          "hue": "amber",
-          "icon": "lucide/Handshake",
-          "meaning": "friendship compatibility"
-        },
-        "primary": {
-          "$value": "oklch(0.769 0.188 70.08)"
-        },
-        "primaryForeground": {
-          "$value": "oklch(0.205 0 0)",
-          "$description": "Dark, because amber is light. The only lens whose foreground is not near-white."
-        },
-        "ring": {
-          "$value": "oklch(0.769 0.188 70.08)"
-        },
-        "accent": {
-          "$value": "oklch(0.3 0.06 70.08)"
-        },
-        "accentForeground": {
-          "$value": "oklch(0.98 0.02 70.08)"
-        }
-      }
+
+    "tag": {
+      "$description": "Timeline event types. All desaturated to the same level so none shouts louder than another in a long list.",
+      "hito": { "$value": "#e6e0f2", "foreground": "#5a4a8a" },
+      "mudanza": { "$value": "#dce8f4", "foreground": "#33539e" },
+      "mascota": { "$value": "#e2efdc", "foreground": "#4a7a3a" },
+      "roce": { "$value": "#f9e3c8", "foreground": "#a8641f" },
+      "ritual": { "$value": "#fbe3de", "foreground": "#b8452f" },
+      "viaje": { "$value": "#dcf0ee", "foreground": "#2a7a72" },
+      "peque": { "$value": "#f9dfe9", "foreground": "#a83a68" }
     }
   },
+
+  "lens": {
+    "$description": "The three compatibility lenses. Put the class on any subtree and every token inside it retakes its temperature -- INCLUDING shadow-toy, because that shadow reads from --primary-shadow. One class, no conditional rules.",
+    "mechanism": ".lens-romantic | .lens-business | .lens-friendship redefine --primary, --primary-foreground, --primary-shadow, --primary-tint, --ring, --accent and --accent-foreground.",
+    "romantic": {
+      "primary": "#d95f4b",
+      "primary-shadow": "#a8422f",
+      "primary-tint": "#fbe3de",
+      "$description": "Resolves to the same coral as :root by design -- coral IS the romantic accent in this system, not a separate brand hue."
+    },
+    "business": {
+      "primary": "#5a4a8a",
+      "primary-shadow": "#3f3363",
+      "primary-tint": "#e6e0f2",
+      "$description": "Violet, lifted from the timeline's HITO tag."
+    },
+    "friendship": {
+      "primary": "#4a7a3a",
+      "primary-shadow": "#35592a",
+      "primary-tint": "#e2efdc",
+      "$description": "Green, lifted from the timeline's MASCOTA tag. Deliberately NOT amber -- see rules.frictionIsAmber."
+    }
+  },
+
+  "font": {
+    "display": {
+      "$value": "\"Baloo 2\", ui-rounded, system-ui, sans-serif",
+      "weight": [500, 700, 800],
+      "$description": "Rounded, heavy, friendly. Headings, the wordmark, CTAs. --font-heading points here too, so shadcn's Card, Dialog and Sheet titles inherit the display voice for free. h1/h2/h3 get font-display + font-extrabold + tracking-tight in @layer base, so a bare heading is already right."
+    },
+    "sans": {
+      "$value": "\"Nunito Sans\", ui-sans-serif, system-ui, sans-serif",
+      "weight": [400, 600, 700],
+      "$description": "Body, labels, option text. Set on html in @layer base."
+    },
+    "mono": {
+      "$value": "ui-monospace, \"SFMono-Regular\", \"Menlo\", monospace",
+      "$description": "Data, ids, option keys, eyebrow labels. No webfont -- the system stack is deliberate."
+    }
+  },
+
   "radius": {
-    "$type": "dimension",
-    "$description": "Derived multiplicatively from --radius. Known issue: the scale is very wide -- sm reads nearly square next to 2xl reading nearly circular. Under review.",
-    "base": {
-      "$value": "1rem",
-      "$extensions": {
-        "cssVar": "--radius"
-      }
+    "$base": "1rem",
+    "$description": "Every step derives from --radius, so changing one value rescales the whole system.",
+    "sm": "calc(var(--radius) * 0.6)",
+    "md": "calc(var(--radius) * 0.8)",
+    "lg": "var(--radius)",
+    "xl": "calc(var(--radius) * 1.4)",
+    "2xl": "calc(var(--radius) * 1.8)",
+    "3xl": "calc(var(--radius) * 2.2)",
+    "4xl": "calc(var(--radius) * 2.6)"
+  },
+
+  "shadow": {
+    "$description": "THE SIGNATURE OF THIS SYSTEM. A hard offset block: no blur, no spread. It does not imitate light, it imitates one physical object resting on another. toy and toy-lg read from --primary-shadow, so they retint with the lens.",
+    "toy": {
+      "$value": "0 4px 0 var(--primary-shadow)",
+      "$description": "Buttons, selected cards, the brand dot."
     },
-    "sm": {
-      "$value": "0.6rem",
-      "$extensions": {
-        "calc": "calc(var(--radius) * 0.6)"
-      }
+    "toy-lg": {
+      "$value": "0 6px 0 var(--primary-shadow)",
+      "$description": "Raised / hovered surfaces."
     },
-    "md": {
-      "$value": "0.8rem",
-      "$extensions": {
-        "calc": "calc(var(--radius) * 0.8)"
-      }
+    "card": {
+      "$value": "0 4px 0 var(--divider)",
+      "$description": "Neutral resting depth for cards that are not selected."
     },
-    "lg": {
-      "$value": "1rem",
-      "$extensions": {
-        "calc": "var(--radius)"
-      }
-    },
-    "xl": {
-      "$value": "1.4rem",
-      "$extensions": {
-        "calc": "calc(var(--radius) * 1.4)"
-      }
-    },
-    "2xl": {
-      "$value": "1.8rem",
-      "$extensions": {
-        "calc": "calc(var(--radius) * 1.8)"
-      }
-    },
-    "3xl": {
-      "$value": "2.2rem",
-      "$extensions": {
-        "calc": "calc(var(--radius) * 2.2)"
-      }
+    "press": {
+      "$description": "Not a token -- a pattern. A pressed control moves down and loses its shadow, so the object touches the table: translateY(4px) + 0 0 0 var(--primary-shadow)."
     }
   },
-  "effect": {
-    "$description": "Glow is for ACTIVE / SELECTED / FOCUSED surfaces ONLY -- never ambient. Everything at rest stays flat with a hairline border, and that contrast is what makes the glow mean something. .glow reads from --primary, so it inherits the surrounding lens automatically.",
-    "glow": {
-      "$extensions": {
-        "tailwindUtility": "glow",
-        "readsFrom": "--primary"
-      },
-      "borderColor": "color-mix(in oklab, var(--primary) 55%, transparent)",
-      "boxShadow": "0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent), 0 0 28px -6px color-mix(in oklab, var(--primary) 50%, transparent)"
+
+  "spacing": {
+    "baseline": "8px",
+    "$description": "Layout rhythm lands on multiples of 8px: section gaps, card padding, stack spacing. In Tailwind's 4px scale that means EVEN steps -- gap-2 (8), gap-4 (16), gap-6 (24), gap-8 (32), p-4, space-y-6. 4px steps are allowed only for optical detail inside a component: the gap between an icon and its label, a badge's inner padding.",
+    "warning": "--spacing is deliberately NOT redefined. Tailwind v4 derives the whole scale from it, so setting it to 0.5rem would double every existing p-* and gap-* in the app at once."
+  },
+
+  "pixelArt": {
+    "$description": "Sprites are authored at small pixel dimensions and scaled up. Without image-rendering: pixelated the browser smooths them into mush and the whole visual premise dies.",
+    "pixelated": "image-rendering: pixelated",
+    "sprite": "image-rendering: pixelated; filter: drop-shadow(0 3px 2px rgb(0 0 0 / 0.3))"
+  },
+
+  "motion": {
+    "$description": "The room is alive or it is a screenshot. Both beats are decoration, so both stop entirely under prefers-reduced-motion -- a room that jitters is not worth a vestibular migraine.",
+    "idle-hop": {
+      "$value": "pickme 3.6s ease-in-out infinite",
+      "$description": "Idle hop, 2.4-4.5s, staggered per sprite so the crowd never pulses in unison. The stagger comes from the placement -- each Placement carries its own idleDelay."
     },
-    "glowBrand": {
-      "$extensions": {
-        "tailwindUtility": "glow-brand",
-        "readsFrom": "--brand",
-        "usage": "pre-lens surfaces: intake, loading, shell"
-      },
-      "borderColor": "color-mix(in oklab, var(--brand) 55%, transparent)",
-      "boxShadow": "0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent), 0 0 28px -6px color-mix(in oklab, var(--brand) 50%, transparent)"
-    },
-    "glowSm": {
-      "$extensions": {
-        "tailwindUtility": "glow-sm",
-        "readsFrom": "--primary"
-      },
-      "boxShadow": "0 0 16px -6px color-mix(in oklab, var(--primary) 55%, transparent)"
-    },
-    "resting": {
-      "$description": "The default. No shadow, no glow. Hairline border only.",
-      "borderColor": "var(--border)",
-      "boxShadow": "none"
+    "hop-big": {
+      "$value": "hopbig 0.55s ease-out",
+      "$description": "A bigger hop on hover -- the sprite saying 'pick me'."
     }
   },
+
   "components": {
-    "$description": "23 shadcn/ui components installed and themed. Prefer composing these over introducing new primitives -- 36h build, 3 developers.",
+    "$description": "shadcn/ui on Radix, in src/components/ui/**. That directory is shadcn-owned and lint-exempt: never edit it. Compose these into src/components/<feature>/.",
     "installed": [
-      "button",
-      "card",
-      "input",
-      "label",
-      "textarea",
-      "field",
-      "select",
-      "radio-group",
-      "slider",
-      "checkbox",
+      "alert-dialog",
       "avatar",
       "badge",
-      "progress",
-      "separator",
-      "skeleton",
-      "sheet",
+      "button",
+      "card",
+      "checkbox",
       "dialog",
-      "alert-dialog",
-      "tabs",
-      "scroll-area",
-      "tooltip",
       "dropdown-menu",
-      "sonner"
+      "field",
+      "input",
+      "label",
+      "progress",
+      "radio-group",
+      "scroll-area",
+      "select",
+      "separator",
+      "sheet",
+      "skeleton",
+      "slider",
+      "sonner",
+      "tabs",
+      "textarea",
+      "tooltip"
     ],
-    "notes": {
-      "form": "There is NO `form` component. The current shadcn registry replaced it with `field` (Field, FieldLabel, FieldDescription, FieldError, FieldGroup, FieldSet, FieldLegend, FieldSeparator, FieldContent, FieldTitle).",
-      "formStack": "react-hook-form + @hookform/resolvers + zod v4",
-      "fontHeadingConsumers": "CardTitle, DialogTitle, SheetTitle, AlertDialogTitle all use font-heading (Geist, not the serif).",
-      "avatarSizing": "Avatar has no size prop -- control with Tailwind classes (e.g. className=\"size-9\").",
-      "animation": "No animation library installed. tw-animate-css is available for CSS enter/exit. `motion` (framer-motion) is NOT installed."
-    },
-    "gaps": {
-      "navigation": "The brand spec expects the kit to cover Button, Card, Form (field) and NAVIGATION. There is no navigation component yet -- no app shell, no tab bar, no header. Needed before the multi-screen demo path exists."
-    }
-  },
-  "rules": {
-    "$description": "Non-negotiable. Violating these is what makes a design system drift.",
-    "value": [
-      "Tokens are the only styling source. No raw hex, no arbitrary spacing, no one-off radius in any component.",
-      "If a surface needs a colour that is not a token, propose a NEW TOKEN -- do not inline a value.",
-      "Never swap the three type roles: serif narrates a life, sans runs the interface, mono is the engine reporting.",
-      "The serif must stay rare (~3 appearances per screen) or it stops meaning anything.",
-      "Glow is active state only. Never ambient.",
-      "Flat at rest: hairline border, no shadow.",
-      "Colour is meaningful: cyan = hookai the engine, accent = the current lens. Neutral everywhere else.",
-      "--brand never follows a lens. --primary always does.",
-      "Dark only. No light theme, no toggle.",
-      "All colour values in OKLCH."
+    "notInstalled": ["form -- the registry replaced it with `field`"],
+    "featureComponents": [
+      "src/components/impersonate/**",
+      "src/components/room/**"
     ]
   },
-  "openProblems": {
-    "$description": "Undesigned or unresolved. These are the actual asks -- see CLAUDE_DESIGN_BRIEF.md section 5 for full framing.",
-    "p1_roomGraph": "The projected room view: ~24-40 real people as nodes, compatibility as edges, under one lens. Does not exist. It is the pitch climax and must read from the back of a lit room in ~20s on a dark background.",
-    "p2_babyReveal": "The AI-generated child's face merged from two real photos. The comedic peak. Does not exist.",
-    "p3_timelineMotion": "The timeline is static. Needs choreography -- stagger, what lands when, how the serif enters.",
-    "p4_intakeFlow": "Multi-step mobile form + photo capture + per-lens consent. Completion rate literally IS the demo.",
-    "p5_lensSelection": "The moment of picking romantic/business/friendship. Undesigned. The only place all three accents may legitimately co-appear.",
-    "p6_latency": "Generation takes real seconds. Loading must be a designed moment that sells technical depth, not a spinner.",
-    "constraint_consent": "Real people publicly ranked by romantic compatibility with photos in front of 100 peers. Per-lens opt-in at intake; rankings private to the person who ran them; only MUTUAL matches surfaced publicly. Must be legible in the UI, not fine print.",
-    "constraint_projector": "Dark-only was chosen knowing projected dark loses contrast in a lit room. A 'stage mode' built from the same tokens is welcome."
-  },
-  "spacing": {
-    "$description": "8px baseline grid. Layout rhythm uses EVEN Tailwind steps (gap-2=8px, gap-4=16px, gap-6=24px, p-4, space-y-6). 4px steps are permitted only for optical detail inside a component, e.g. an icon-to-label gap. --spacing is deliberately NOT redefined: Tailwind v4 derives the whole scale from it, so changing it would rescale every existing p-*/gap-*.",
-    "baseline": {
-      "$value": "8px",
-      "$type": "dimension"
+
+  "rules": [
+    {
+      "id": "noRawHex",
+      "rule": "No raw hex anywhere in app code. Not in a style prop, not in an arbitrary value like bg-[#0ff]. Tokens in src/app/globals.css are the only styling source. ESLint errors on it."
     },
-    "tailwindBase": {
-      "$value": "0.25rem",
-      "$description": "--spacing, unchanged"
-    }
-  },
-  "brand": {
-    "$description": "Voice, vocabulary and imagery direction. Copy and visual review should hold to this.",
-    "adjectives": [
-      "dark-first",
-      "instrument-grade",
-      "coherent",
-      "narrative",
-      "consent-legible"
-    ],
-    "tone": "Cool engine against warm lenses. Geist and Geist Mono do the reporting -- scores, years, dimension values, IDs. A deliberately rare Instrument Serif narrates the canonical events of a life being told. Copy states events and evidence; it never editorialises.",
-    "messagingPillars": [
-      "The people who would matter to each other are already in the same room -- hookai surfaces them before the night ends.",
-      "Coherence is the product: every canonical event stays true to both profiles and to every event before it.",
-      "The machinery stays visible -- the engine reporting, not an LLM's opinion.",
-      "Consent is legible: per-lens opt-in, rankings private to the person who ran them, only mutual matches surfaced publicly."
-    ],
-    "vocabulary": {
-      "use": [
-        "canonical event",
-        "lens",
-        "avatar",
-        "intake",
-        "room graph",
-        "the engine reporting"
-      ],
-      "avoid": [
-        "dating app",
-        "chatbot",
-        "swipe",
-        "hot-or-not",
-        "free-form fiction"
-      ]
+    {
+      "id": "noInventedUtilities",
+      "rule": "eslint-plugin-better-tailwindcss reads globals.css as the Tailwind v4 entry point, so bg-brand-500 fails if the token is not real."
     },
-    "imagery": {
-      "style": "Dark stage, life-sim aesthetic -- a timeline of canonical events playing out so you watch a life unfold rather than read a chat log.",
-      "subjects": [
-        "life timeline with canonical events",
-        "room-wide compatibility graph",
-        "AI-generated offspring reveal",
-        "avatars built from real room photos"
-      ],
-      "treatment": "Flat at rest with hairline borders; glow reserved for active, selected, or focused surfaces. Serif kept rare (~3 appearances per screen) for canonical events; mono for scores and years.",
-      "avoid": [
-        "chat interface framing",
-        "dating profile cards",
-        "ambient glow",
-        "light theme",
-        "hand-drawn people"
-      ]
+    {
+      "id": "frictionIsAmber",
+      "rule": "Amber (#e0a13f) means friction / 'roce' on the timeline. Never reuse it for a lens or a positive state -- friendship is green precisely so the warmest relationship does not read as conflict."
+    },
+    {
+      "id": "destructiveIsNotCoral",
+      "rule": "Destructive is #9a2b1e, not the coral. Two warm reds that mean opposite things must not be the same value."
+    },
+    {
+      "id": "shadowIsHard",
+      "rule": "Depth is a hard offset block. No blur, no spread, no soft drop shadows anywhere in the UI. The one blurred shadow in the system is on pixel sprites, and that is art, not chrome."
+    },
+    {
+      "id": "flatAtRest",
+      "rule": "A card at rest carries shadow-card (neutral) or nothing. shadow-toy is for the selected, hovered or active state -- it is how the system says 'this one'."
+    },
+    {
+      "id": "lensThreadsThrough",
+      "rule": "Never hard-code a lens colour. Put .lens-* on the subtree and let the tokens cascade, so shadows, rings and tints all move together."
+    },
+    {
+      "id": "lightOnly",
+      "rule": "There is no dark theme. --dark is the room's night canvas, a surface. Do not add a .dark palette without deciding it as a product change."
+    },
+    {
+      "id": "pixelInArtOnly",
+      "rule": "Pixel rendering belongs to sprites and illustration. Type, controls and layout stay crisp -- the contrast between the two is the whole look."
     }
-  }
+  ],
+
+  "openProblems": [
+    {
+      "id": "quizBlockCard",
+      "problem": "The quiz option card is text-only since D14 cancelled per-option images. The 2x2 grid was art-directed around illustrations; what a text card looks like at that size, with four of them on a 390px phone, is not settled. See CLAUDE_DESIGN_QUIZ_BLOCK.md."
+    },
+    {
+      "id": "roomDensity",
+      "problem": "The room canvas (--dark) has to hold ~100 sprites on a phone without becoming noise. Placement, scale and idle stagger are the levers."
+    },
+    {
+      "id": "babyReveal",
+      "problem": "The AI-offspring reveal has no design yet. It is the emotional peak of the demo and currently a blank."
+    }
+  ]
 }
