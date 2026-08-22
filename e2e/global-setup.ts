@@ -18,6 +18,13 @@ import { createRoomRepository } from "../src/lib/adapters/db/room-repository";
  * Playwright does not read `.env`; `next dev` does. So this file loads it the
  * same guarded way `scripts/seed.ts` and `vitest.config.mts` do -- variables
  * already in the environment win, and CI has no `.env` at all.
+ *
+ * The guard mirrors `src/lib/adapters/db/test-db.ts` (docs/domain.md §8).
+ * Without `DATABASE_URL` no room is created and the specs that register into
+ * it skip themselves on the same variable, so the rest of the suite -- the
+ * safety tests that only load pages -- still runs. `DB_REQUIRED=1` turns that
+ * skip into a failure: CI sets it once #5 gives every run a migrated Neon
+ * branch, so a missing database there can never hide behind a green job.
  */
 try {
   process.loadEnvFile(".env");
@@ -25,14 +32,34 @@ try {
   // No .env in this checkout (CI, or a clone that never ran `neon link`).
 }
 
-const MISSING_URL =
+const SKIP_NOTICE =
+  "DATABASE_URL is not set, so e2e/global-setup.ts did not create the " +
+  "`e2e-<run>` room and the specs that register into it (e2e/intake.spec.ts) " +
+  "are skipped. Point .env at a migrated Neon branch " +
+  "(`neon checkout dev-domain`) to run them, or set DB_REQUIRED=1 to make a " +
+  "missing database a failure.";
+
+const REQUIRED_NOTICE =
   "DATABASE_URL is not set, so e2e/global-setup.ts cannot create the " +
-  "`e2e-<run>` room the intake specs register into. Point .env at a migrated " +
-  "Neon branch (`neon checkout dev-domain`).";
+  "`e2e-<run>` room the intake specs register into -- and DB_REQUIRED is " +
+  "set. CI runs those specs against a migrated Neon branch; a silent skip " +
+  "there is a green build over tests that never touched a table. Point .env " +
+  "at a migrated Neon branch (`neon checkout dev-domain`).";
+
+/** The same reading as test-db.ts: set, and not an explicit "0" or "false". */
+function dbRequired(env: NodeJS.ProcessEnv = process.env): boolean {
+  const required = env.DB_REQUIRED;
+  return !!required && required !== "0" && required !== "false";
+}
 
 export default async function globalSetup(): Promise<void> {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error(MISSING_URL);
+  if (!url) {
+    if (dbRequired()) throw new Error(REQUIRED_NOTICE);
+    // A GitHub Actions annotation when it runs there, a plain line elsewhere.
+    console.log(`::warning title=e2e database skipped::${SKIP_NOTICE}`);
+    return;
+  }
 
   const run = `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
   const slug = `e2e-${run}`;

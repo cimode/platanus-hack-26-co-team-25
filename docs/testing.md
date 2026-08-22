@@ -18,7 +18,7 @@ unrelated testing problems, and conflating them is how a 36-hour team wastes an 
 | `pnpm test`            | Vitest once                                       |
 | `pnpm run test:watch`  | Vitest in watch mode                              |
 | `pnpm run test:cov`    | Coverage over `src/lib/**`                        |
-| `pnpm run test:e2e`    | Playwright, boots its own dev server on **:3100** |
+| `pnpm run test:e2e`    | Playwright, boots its own dev server on **:3000** |
 | `pnpm run test:e2e:ui` | Playwright UI mode — best for debugging a flake   |
 | `pnpm run verify`      | typecheck → lint → format:check → Vitest          |
 
@@ -111,8 +111,15 @@ change a prompt, read the number, decide.
 
 ## E2E
 
-Playwright boots its own dev server on **:3100**, so a running `pnpm run dev` on :3000 does
-not collide.
+Playwright boots its own dev server on **:3000** — the same port as `pnpm run dev`, on
+purpose: Next 16 refuses a second dev server for the same directory whatever the port, so
+locally `reuseExistingServer` picks up a running one instead of fighting it. Before any test
+runs, `e2e/global-setup.ts` creates the `e2e-<run>` room the intake specs register into.
+It is guarded the same way as the Vitest integration suites (`src/lib/adapters/db/test-db.ts`):
+with no `DATABASE_URL` it prints one `::warning` and creates nothing, and the specs that need
+the room (`e2e/intake.spec.ts`) skip on that same variable while the page-only safety tests
+keep running. `DB_REQUIRED=1` makes the missing database a failure instead — CI sets it
+once #5 gives every run a migrated Neon branch, so the skip can never hide a regression there.
 
 Two projects, both Chromium:
 
