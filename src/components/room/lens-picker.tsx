@@ -1,86 +1,96 @@
-import { Briefcase, Handshake, Heart } from "lucide-react";
+"use client";
+
+import { Menu } from "lucide-react";
+import { useState } from "react";
 import { chooseLensAction } from "@/app/actions";
-import type { Lens } from "@/lib/domain/room/layout";
+import { LENSES, type Lens } from "@/lib/domain/room/layout";
 import { cn } from "@/lib/utils";
 
-const OPTIONS: readonly {
-  lens: Lens;
-  label: string;
-  blurb: string;
-  cls: string;
-  Icon: typeof Heart;
-}[] = [
-  {
-    lens: "romantic",
-    label: "Románticamente",
-    blurb: "una vida juntos",
-    cls: "lens-romantic",
-    Icon: Heart,
-  },
-  {
-    lens: "business",
-    label: "Trabajando",
-    blurb: "socios, cofundadores",
-    cls: "lens-business",
-    Icon: Briefcase,
-  },
-  {
-    lens: "friendship",
-    label: "De amigos",
-    blurb: "la gente que te queda",
-    cls: "lens-friendship",
-    Icon: Handshake,
-  },
-];
+const LABEL: Record<Lens, string> = {
+  romantic: "Románticamente",
+  business: "Trabajando",
+  friendship: "De amigos",
+};
 
 /**
  * "¿Cómo quieres conectar?" -- the only action on screen 1b.
  *
- * A Server Component with a plain form: three submit buttons sharing one
- * `name`, so the browser posts the lens the user actually pressed. No client
- * JavaScript, which means the choice still works while the room's islands are
- * still hydrating on venue wifi.
+ * A real `<select>`, not a custom dropdown. It is keyboard- and
+ * screen-reader-correct for free, it opens as the native wheel on a phone, and
+ * the form still submits with JavaScript disabled -- which matters on venue
+ * wifi, where hydration is the slowest thing on the page.
  *
- * Each button wears its own `lens-*` class, so its coral / violet / green comes
- * from `--primary` -- including the toy shadow, which reads `--primary-shadow`.
- * That is the whole point of the lens system: no conditional colour anywhere.
+ * The only reason this is a Client Component at all is the live preview: the
+ * card wears `lens-{selected}`, so choosing "Trabajando" turns the dot AND the
+ * Vamos button violet before you commit. That is the lens system paying for
+ * itself -- there is not one conditional colour in here.
  */
-export function LensPicker() {
-  return (
-    <form action={chooseLensAction} className="space-y-3">
-      <h2 className="font-display text-xl font-extrabold text-ink">
-        ¿Cómo quieres conectar?
-      </h2>
+export function LensPicker({ people }: { people: number }) {
+  const [lens, setLens] = useState<Lens>("romantic");
 
-      <div className="grid gap-2">
-        {OPTIONS.map(({ lens, label, blurb, cls, Icon }) => (
-          <button
-            className={cn(
-              cls,
-              "flex items-center gap-3 rounded-xl px-4 py-3 text-left",
-              "bg-primary text-primary-foreground shadow-toy",
-              "transition-transform",
-              "hover:-translate-y-0.5 hover:shadow-toy-lg active:translate-y-0.5",
-              "focus-visible:outline-2 focus-visible:outline-ink",
-              "focus-visible:outline-offset-2"
-            )}
-            key={lens}
+  return (
+    <form
+      action={chooseLensAction}
+      className={cn(
+        `lens-${lens}`,
+        "absolute inset-x-4 top-16 z-20 rounded-[22px] bg-card p-4",
+        "shadow-[0_8px_28px_rgba(0,0,0,0.4)]"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Menu aria-hidden="true" className="size-5 text-ink" />
+        <h1 className="font-display font-bold text-ink text-xl">
+          ¿Cómo quieres conectar?
+        </h1>
+      </div>
+
+      <div className="mt-3.5 flex gap-2.5">
+        <div
+          className={cn(
+            "flex flex-1 items-center gap-2 rounded-[14px] border-2 border-border",
+            "bg-background px-3.5 py-2.5",
+            "focus-within:border-primary focus-within:ring-4 focus-within:ring-ring/25"
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className="size-2.5 shrink-0 rounded-full bg-primary"
+          />
+          <label className="sr-only" htmlFor="lens">
+            Tipo de conexión
+          </label>
+          <select
+            className="w-full cursor-pointer bg-transparent font-bold text-[15px] text-ink outline-none"
+            id="lens"
             name="lens"
-            type="submit"
+            onChange={(event) => setLens(event.target.value as Lens)}
             value={lens}
           >
-            <Icon aria-hidden="true" className="size-5 shrink-0" />
-            <span className="flex-1">
-              <span className="block font-display text-base font-bold">
-                {label}
-              </span>
-              <span className="block font-mono text-[11px] opacity-80 lowercase">
-                {blurb}
-              </span>
-            </span>
-          </button>
-        ))}
+            {LENSES.map((option) => (
+              <option key={option} value={option}>
+                {LABEL[option]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          className={cn(
+            "shrink-0 rounded-[14px] bg-primary px-6",
+            "font-display font-bold text-[17px] text-primary-foreground",
+            "shadow-toy transition-transform",
+            "hover:-translate-y-px hover:shadow-toy-lg active:translate-y-px",
+            "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+          )}
+          type="submit"
+        >
+          Vamos
+        </button>
       </div>
+
+      <p className="mt-2 font-mono text-[10.5px] text-ink-faint lowercase">
+        {people === 1 ? "1 persona aquí" : `${people} personas aquí`}
+      </p>
     </form>
   );
 }
