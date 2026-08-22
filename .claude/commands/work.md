@@ -79,8 +79,13 @@ WT="../.hookai-worktrees/issue-$N"
 git worktree add -b "feat/$N-<short-slug>" "$WT" HEAD
 
 # A fresh worktree has no node_modules, and every stage runs `npm run verify`.
-# Symlink rather than reinstall: 599 packages per issue is minutes of nothing.
-ln -s "$(git rev-parse --show-toplevel)/node_modules" "$WT/node_modules"
+# Symlink when the issue has no e2e ACs: typecheck, Biome, ESLint and Vitest
+# all follow it. Turbopack does NOT -- `next dev` aborts with "Symlink
+# [project]/node_modules is invalid, it points out of the filesystem root", so
+# Playwright cannot boot its server in a symlinked worktree. If any AC lives in
+# e2e/*.spec.ts, install for real instead (~1 min, cached tarballs).
+if grep -q "e2e/" <<< "$AC"; then (cd "$WT" && npm ci --prefer-offline); \
+else ln -s "$(git rev-parse --show-toplevel)/node_modules" "$WT/node_modules"; fi
 # Same for the env the db scripts read, and the Neon branch pin.
 ln -s "$(git rev-parse --show-toplevel)/.env"  "$WT/.env"
 ln -s "$(git rev-parse --show-toplevel)/.neon" "$WT/.neon"

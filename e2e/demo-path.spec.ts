@@ -71,9 +71,36 @@ test.describe("safety invariants", () => {
   // These are the tests that matter most for a live demo in front of the
   // people being ranked. They are worth writing before the features exist.
 
-  // TODO: un-skip when rankings exist.
-  test.skip("a ranking is visible only to the person who ran it", async () => {});
+  // Runs today (kind: safety, issue #4). A viewer holding no hookai_session
+  // cookie never sees anyone's ranking. Vacuous while /results/[lens] is a
+  // 404; when #10 lands, a subject-less request is sent to /intake instead of
+  // rendering a ranking, and #10 replaces this body with its fixture-backed
+  // version under the same name.
+  test("AC-10 · a ranking is visible only to the person who ran it", async ({
+    page,
+  }) => {
+    for (const lens of ["romantic", "business", "friendship"]) {
+      await page.goto(`/results/${lens}`);
+      await expect(
+        page.getByRole("heading", { name: /ranked|your matches|top matches/i })
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("listitem").filter({ hasText: /\d+\s?%/ })
+      ).toHaveCount(0);
+    }
+  });
 
-  // TODO: un-skip when the room graph exists.
-  test.skip("only mutual matches appear in the public room view", async () => {});
+  // Runs today (kind: safety, issue #4). The room view shows mutual pairs
+  // only -- never scores, drivers, friction or flags -- and nothing at all to
+  // a viewer without the operator credential. Vacuous while /room is a 404;
+  // it stays true when the operator-gated projected view lands at that path.
+  test("AC-11 · only mutual matches appear in the public room view", async ({
+    page,
+  }) => {
+    await page.goto("/room");
+    await expect(
+      page.getByText(/\b(score|driver|friction|flag)s?\b/i)
+    ).toHaveCount(0);
+    await expect(page.getByRole("listitem")).toHaveCount(0);
+  });
 });
