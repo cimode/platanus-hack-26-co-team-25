@@ -64,24 +64,30 @@ congested wifi.
 
 ## 4. Never edit `src/components/ui/**`
 
-That directory is shadcn-owned and deliberately lint-exempt in `biome.json` and
-`eslint.config.mjs`. Compose those primitives into `src/components/<feature>/`.
+That directory is shadcn-owned and deliberately lint-exempt in `biome.json`.
+Compose those primitives into `src/components/<feature>/`.
 Editing them means the next `shadcn add` silently reverts your work, and the
 exemption hides the damage from CI.
 
 ## 5. Tokens only, and the lens must thread through
 
 - No raw hex. Not in a `style` prop, not in an arbitrary value like `bg-[#0ff]`.
-  ESLint errors on it, because tokens in `src/app/globals.css` are the only
-  styling source.
-- No invented utilities. `eslint-plugin-better-tailwindcss` reads `globals.css`
-  as the Tailwind v4 entry point, so `bg-brand-500` fails if the token is not
-  real.
-- `lens-romantic` / `lens-business` / `lens-friendship` recolour `--primary` on
-  a subtree. A component that hardcodes its accent instead of inheriting breaks
-  the ranking's entire visual language, and `e2e/design-system.spec.ts` asserts
-  all four contexts resolve to distinct values.
-- The app is dark-only; `dark` stays on `<html>`. There is a test.
+  Tokens in `src/app/globals.css` are the only styling source.
+- No invented utilities. `bg-brand-500` is not a token; check `globals.css`
+  before you type a utility you have not seen in this codebase.
+- **These two are no longer machine-checked.** ESLint (and with it
+  `no-unknown-classes` and the raw-hex ban) was removed in favour of Biome
+  alone, and Biome has no equivalent rule. A dead token does not error -- it
+  silently renders unstyled. Grep `globals.css` rather than trusting CI.
+- `lens-romantic` / `lens-business` / `lens-friendship` recolour `--primary`
+  (and `--primary-shadow`, so `shadow-toy` follows) on a subtree. A component
+  that hardcodes its accent instead of inheriting breaks the ranking's entire
+  visual language. `e2e/design-system.spec.ts` asserts the three lenses are
+  mutually distinct; romantic deliberately EQUALS the `:root` coral, because
+  coral is the romantic accent in Dipia rather than a separate brand hue.
+- The app is light-only (warm cream). `globals.css` still declares the `dark`
+  variant -- the shadcn primitives carry 44 `dark:` utilities and an undeclared
+  variant fails the build -- but nothing may apply the class. There is a test.
 
 ## 6. Accessible names are a testing requirement
 

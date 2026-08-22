@@ -63,7 +63,7 @@ editing one interface is slower than one agent doing both.
 npm run verify
 ```
 
-Typecheck, Biome, ESLint and the full Vitest suite. Every previously-failing
+Typecheck, Biome and the full Vitest suite. Every previously-failing
 test for this issue now passes, and **nothing that passed before now fails**.
 E2E is stage 3's problem, not yours.
 

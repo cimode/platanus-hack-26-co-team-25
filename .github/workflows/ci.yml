@@ -34,16 +34,6 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run check
 
-  eslint:
-    name: eslint (next + design guards)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      # Warnings are acceptable; errors are not. The design-system guardrails
-      # (no raw hex, no unknown classes, no conflicting classes) are errors.
-      - run: npm run lint
-
   audit:
     name: dependency audit
     runs-on: ubuntu-latest
@@ -196,7 +186,7 @@ jobs:
   deploy-preview:
     name: deploy preview
     if: github.event_name == 'pull_request'
-    needs: [typecheck, biome, eslint, unit, build]
+    needs: [typecheck, biome, unit, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,7 +245,7 @@ jobs:
   deploy-production:
     name: deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [typecheck, biome, eslint, unit, build, e2e]
+    needs: [typecheck, biome, unit, build, e2e]
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}

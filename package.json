@@ -11,14 +11,12 @@
     "check:fix": "biome check --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "verify": "npm run typecheck && npm run check && npm run lint && npm run test",
+    "verify": "npm run typecheck && npm run check && npm run test",
     "prepare": "lefthook install",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
@@ -48,7 +46,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
-    "@next/eslint-plugin-next": "^16.3.2",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -56,12 +53,9 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.11",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^9",
-    "eslint-plugin-better-tailwindcss": "^4.7.0",
     "lefthook": "^2.1.10",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.11"
   }
 }

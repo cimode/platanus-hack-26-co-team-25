@@ -11,7 +11,7 @@ Your value is in routing, not repair.
 ## Run everything
 
 ```bash
-npm run verify        # typecheck, biome, eslint, vitest
+npm run verify        # typecheck, biome, vitest
 npm run test:e2e      # playwright -- boots its own server on :3100
 ```
 

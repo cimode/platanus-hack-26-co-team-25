@@ -3,12 +3,14 @@
  *
  * Entry points:
  *   narrate(beats, persons, lens, opts)      — approach A/B: prose for pre-sampled beats
+ *                                              (live = one PARALLEL call per beat)
  *   nominate(a, b, score, lens, grammar, o)  — approach B: LLM-proposed bonus arc
  *   fullGenerate(a, b, score, lens, o, sk)   — approach C: arcs + events in one call
  *   getClient(live)                          — the memoized gateway client itself
  *
  * Live path: Vercel AI SDK v5 ('ai') through the Vercel AI Gateway, model ids from
- * the research phase (primary moonshotai/kimi-k2.5). API key read MANUALLY from
+ * the research phase (primary deepseek/deepseek-v4-pro — see MODEL_PRIMARY for why
+ * it is no longer kimi). API key read MANUALLY from
  * timeline/.env (KEY=VALUE lines; gitignored). Explicit key via createGateway —
  * "Direct API key configuration takes precedence over environment variables"
  * (ai-sdk.dev AI Gateway provider docs).
@@ -24,7 +26,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import type { Person, PairScore, Lens, TermName } from '../../matching/engine.ts';
+import type { Person, PairScore, Lens, TermName } from '../../src/lib/domain/matching/engine.ts';
 import type {
   Arc, Beat, EventKind, NarrationMode, StateDelta, TimelineEvent, TimelineOpts,
 } from '../shared.ts';
@@ -37,12 +39,69 @@ import {
 // Model ids — research phase result (Vercel AI Gateway catalog, 2026-08-22)
 // ---------------------------------------------------------------------------
 
-// LOCKED (2026-08-22 model-off): kimi-k2.5 -> deepseek-v4-pro -> glm-4.7-flash -> mock.
-export const MODEL_PRIMARY = 'moonshotai/kimi-k2.5';
+/**
+ * RE-LOCKED 2026-08-22 (latency probe): deepseek-v4-pro -> glm-4.7-flash -> mock.
+ *
+ * The earlier lock put kimi-k2.5 first on prose quality, measured when kimi and
+ * deepseek were within a second of each other end-to-end (116s vs 115s). That
+ * tie no longer holds. On a REAL beat prompt, solo and sequential — so neither
+ * concurrency nor the gateway is a variable:
+ *
+ *   kimi-k2.5        52.8s   3,481 reasoning tokens for ONE sentence
+ *   deepseek-v4-pro   8.6s   1,524 reasoning tokens
+ *   glm-4.7-flash     0.5s   no reasoning
+ *
+ * kimi spends thousands of reasoning tokens deliberating over a single
+ * sentence, and it cannot be turned off: reasoningEffort:'low' was tried under
+ * the moonshotai, gateway, and openai provider-option namespaces, and an
+ * explicit "answer immediately, do not deliberate" instruction was added to the
+ * prompt — all four still burned 3.3k-4.7k reasoning tokens (49-88s per beat).
+ * A richer prompt makes it worse, which is why the old thin per-beat prompt
+ * looked acceptable and both the batch and coherent-parallel prompts did not.
+ *
+ * kimi is therefore OFF the demo path entirely rather than left as a fallback,
+ * where a single stall would cost 45s. It stays reachable for prose comparison
+ * via TIMELINE_MODEL=moonshotai/kimi-k2.5.
+ *
+ * Measured end-to-end on one pair (sofia x diego, romantic, seed 11), 11 beats:
+ *   kimi primary, concurrency 4    narration 140-185s   total 200-236s
+ *   deepseek primary, unbounded    narration  40.8s     total  66.8s
+ *   deepseek primary, concurrency 6 narration 35.0s     total  54.0s  <- shipped
+ */
+export const MODEL_PRIMARY = 'deepseek/deepseek-v4-pro';
 export const MODEL_FALLBACKS: readonly string[] = [
-  'deepseek/deepseek-v4-pro',
   'zai/glm-4.7-flash',
 ];
+
+/**
+ * The fastest reachable model (measured 2026-08-22: 0.75s solo, vs 5.9s kimi
+ * and 2.7s deepseek — and unlike those two it has never stalled out a ceiling).
+ *
+ * Use it for calls whose output carries NO prose: nominate() picks three values
+ * from fixed enums plus a claim string that code verifies, so the model-off's
+ * prose ranking simply does not apply to it. Narration keeps the locked
+ * quality order for prose.
+ */
+export const MODEL_FAST = 'zai/glm-4.7-flash';
+
+/**
+ * DISCARDED 2026-08-22 — kept only as a named constant so nobody re-adds it
+ * from memory of the old model-off.
+ *
+ * It lost on latency AND on prose. A blind eval (same pair, seeds 11 and 22,
+ * identical beats, labels shuffled and the key sealed until after judging)
+ * ranked deepseek first on BOTH seeds and kimi LAST on both — the opposite of
+ * the "best prose by a clear margin" the earlier lock recorded. Its timelines
+ * carried incoherent sentences ("Diary: no rock climbing gear packed, only
+ * independence on hand"), caps artifacts, and an invented car model.
+ *
+ * A caveat honoured: both kimi runs were MIXED (kimi+glm), because it times out
+ * on beats and fails over, so some of the worst sentences may have been glm's.
+ * An attempt to get a clean kimi-only run at concurrency 2 took 300s for ONE
+ * timeline and STILL came back mixed. A model that cannot complete a timeline
+ * has no prose quality to defend.
+ */
+export const MODEL_DELIBERATE = 'moonshotai/kimi-k2.5';
 
 /**
  * TIMELINE_MODEL override — process env wins over timeline/.env, else the
@@ -54,6 +113,100 @@ export const MODEL_FALLBACKS: readonly string[] = [
 export function resolveModel(env: Record<string, string>): string {
   const override = (process.env.TIMELINE_MODEL ?? env.TIMELINE_MODEL ?? '').trim();
   return override || MODEL_PRIMARY;
+}
+
+/**
+ * TIMELINE_TRACE=1 → per-beat wall time and winning model on stderr. Latency,
+ * not cost, is what discriminates narration shapes, and a whole-run number
+ * hides which beat stalled — this is how the parallel path stays measurable.
+ * Off by default; never touches stdout, so demo output is unaffected.
+ */
+export function traceEnabled(): boolean {
+  return (process.env.TIMELINE_TRACE ?? '').trim() !== '';
+}
+function trace(line: string): void {
+  if (traceEnabled()) process.stderr.write(`[narrator:trace] ${line}\n`);
+}
+
+/**
+ * How many beat calls may be in flight at once on the parallel path.
+ *
+ * Unbounded fan-out is the obvious implementation and measurably not the best
+ * one. On the same 11-beat pair, deepseek primary:
+ *
+ *   unbounded (11 in flight)   narration 40.8s   1 call timed out and failed over
+ *   6 in flight                narration 35.0s   0 timeouts
+ *
+ * Past ~6 concurrent requests the per-call latency degrades faster than the
+ * extra parallelism buys back, and a stalled call costs a full ceiling before
+ * it can even change model. Six is where this account measured best.
+ *
+ * Override with TIMELINE_CONCURRENCY=<n>; 0 or less means unbounded.
+ */
+export const DEFAULT_NARRATE_CONCURRENCY = 6;
+
+/**
+ * Per-call ceilings, in ms. The flat 60s default is far too generous for the
+ * small calls: measured 2026-08-22, a healthy single-sentence or single-object
+ * call answers in 0.7-6s solo and 16-49s under a concurrency of 4, while an
+ * UNhealthy one (kimi stalls on these regularly right now) just burns the
+ * whole ceiling before failing over to a model that answers in seconds.
+ * Every second of the ceiling is dead time on the demo path, so each call type
+ * gets a ceiling sized to its own measured distribution, not one shared number.
+ */
+export const BEAT_TIMEOUT_MS = 45_000;
+export const NOMINATE_TIMEOUT_MS = 25_000;
+
+/** Fast-first, because nominate()'s output is enum picks, not prose. */
+export const NOMINATE_CHAIN: readonly string[] = [MODEL_FAST, MODEL_PRIMARY, ...MODEL_FALLBACKS];
+export function resolveConcurrency(env: Record<string, string>): number {
+  const raw = (process.env.TIMELINE_CONCURRENCY ?? env.TIMELINE_CONCURRENCY ?? '').trim();
+  if (raw === '') return DEFAULT_NARRATE_CONCURRENCY;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || Number.isNaN(n)) return DEFAULT_NARRATE_CONCURRENCY;
+  return n <= 0 ? Number.POSITIVE_INFINITY : Math.floor(n);
+}
+
+/**
+ * Run `task` over every item with at most `limit` in flight, preserving input
+ * order in the results. Workers pull from a shared cursor, so a slow item
+ * never blocks a free worker (which a chunked Promise.all would).
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      out[i] = await task(items[i], i);
+    }
+  };
+  const workers = Math.max(1, Math.min(items.length, limit));
+  await Promise.all(Array.from({ length: workers }, worker));
+  return out;
+}
+
+/**
+ * How the live path issues its calls. 'parallel' (default) fires one call per
+ * beat concurrently; 'batch' writes every sentence in a single call.
+ *
+ * Batch LOST the 2026-08-22 re-measurement it was introduced to win: one call
+ * writing ~11 sentences took 207s, then 257s after the timeout was widened,
+ * because kimi and deepseek both time out on a response that long and the run
+ * silently demoted to a weaker fallback model. Per-beat calls answer in
+ * seconds; beats are pre-sampled with full state, so they are independent and
+ * parallelize cleanly. Batch is kept reachable via TIMELINE_NARRATION=batch
+ * for comparison runs only.
+ */
+export type LiveNarrationShape = 'parallel' | 'batch';
+export function resolveNarrationShape(env: Record<string, string>): LiveNarrationShape {
+  const raw = (process.env.TIMELINE_NARRATION ?? env.TIMELINE_NARRATION ?? '').trim().toLowerCase();
+  return raw === 'batch' ? 'batch' : 'parallel';
 }
 
 // ---------------------------------------------------------------------------
@@ -166,13 +319,33 @@ function isRateLimit(e: unknown): boolean {
   const err = e as { name?: string; statusCode?: number };
   return err?.name === 'GatewayRateLimitError' || err?.statusCode === 429;
 }
-/** Try primary then fallbacks; returns null (and warns once) when every model fails. */
+/**
+ * The order of models one call will try, deduplicated.
+ *
+ * An operator's TIMELINE_MODEL override wins outright: the chain becomes
+ * [override, ...MODEL_FALLBACKS minus duplicates] and nothing re-adds the
+ * default primary, so pinning a reachable model never burns requests on models
+ * the account cannot access (the original free-tier reason for the override).
+ * Absent an override, a caller-supplied `chain` picks the tradeoff — see
+ * NOMINATE_CHAIN — and the default is the locked prose-quality order.
+ */
+export function resolveChain(clientModel: string, chain?: readonly string[]): string[] {
+  const order = clientModel !== MODEL_PRIMARY
+    ? [clientModel, ...MODEL_FALLBACKS]
+    : (chain ?? [MODEL_PRIMARY, ...MODEL_FALLBACKS]);
+  return [...new Set(order)];
+}
+
+/**
+ * Try the chain in order; returns null (and warns once) when every model fails.
+ */
 async function generateWithFallback(
   client: LiveClient,
   build: (modelId: string) => Record<string, unknown>,
+  chain?: readonly string[],
 ): Promise<{ object: unknown; model: string } | null> {
   let lastError = 'unknown error';
-  for (const modelId of [client.model, ...MODEL_FALLBACKS.filter((m) => m !== client.model)]) {
+  for (const modelId of resolveChain(client.model, chain)) {
     for (let retry = 0; ; retry++) {
       try {
         const { object } = await client.generateObject({
@@ -191,6 +364,7 @@ async function generateWithFallback(
         return { object, model: modelId };
       } catch (e) {
         if (isRateLimit(e) && retry < RATE_LIMIT_RETRIES) {
+          trace(`${modelId}: rate limited, backing off ${RATE_LIMIT_BASE_MS * (retry + 1)}ms`);
           await sleep(RATE_LIMIT_BASE_MS * (retry + 1));
           continue; // same model again after backoff
         }
@@ -201,6 +375,7 @@ async function generateWithFallback(
           .trim()
           .slice(0, 160);
         lastError = `${err?.name ?? 'Error'}: ${msg}`;
+        trace(`${modelId} failed (${lastError}) — next model`);
         break; // next model in the chain
       }
     }
@@ -347,22 +522,36 @@ export function mockNarrateBeat(beat: Beat, a: Person, b: Person, seed: number, 
 // ---------------------------------------------------------------------------
 // narrate() — approaches A & B: prose for a pre-sampled beat list.
 //
-// LIVE PATH = ONE BATCH CALL. The 2026-08-22 model-off measured ~2-minute
-// timelines caused by sequential per-beat calling; a single kimi call answers
-// in seconds. The batch prompt carries person facts ONCE, the safety rules,
-// the full ordered beat list with each beat's established-state facts, and an
-// explicit ESTABLISHED STATE inventory (guard against invented state — a dog
-// appeared in live prose with no pet event). Validation: exact sentence count,
-// per-sentence banned/survival scan, length cap; one retry, then the per-beat
-// MOCK path (unchanged — tests depend on mock determinism).
+// LIVE PATH = ONE CALL PER BEAT, ALL IN PARALLEL (narrateParallelLive).
+// Sequential per-beat was ~116s (12 x ~10s); batching all sentences into one
+// call was worse (207-257s, both big models timing out mid-response and
+// demoting the run to a weak fallback). Beats are pre-sampled with full state,
+// so the calls are independent — Promise.all collapses the wall time to about
+// one call.
+//
+// Every prompt (both shapes) carries person facts, the safety rules, the whole
+// ordered timeline, and an explicit ESTABLISHED STATE inventory. Seeing the
+// whole story is what keeps independent writers coherent; parallel carries it
+// as a compact outline plus its OWN state line, because the batch rendering
+// repeats a state line per beat and that block would otherwise appear N times
+// in each of N prompts. The invented-state pet guard (a dog appeared in live
+// prose with no pet event) runs on both shapes.
+//
+// Failure granularity differs: batch is all-or-nothing (retry once, then the
+// whole timeline goes mock), parallel degrades per beat — a beat that fails
+// twice takes its deterministic mock sentence and is counted in
+// meta.mockFallbacks, while its neighbours stay live. Only when EVERY beat
+// fails does the run report narration = 'mock'.
 // ---------------------------------------------------------------------------
 
 export interface NarrateResult {
   texts: string[];             // one per beat, same order
   narration: NarrationMode;
   model?: string;
-  /** Live batch only: sentences replaced because they referenced a pet no event established. */
+  /** Live only: sentences replaced because they referenced a pet no event established. */
   petGuardReplacements?: number;
+  /** Live parallel only: beats whose own call failed twice and fell back to mock prose. */
+  mockFallbacks?: number;
 }
 
 /** Max chars per narrated sentence — mirrors the zod cap for stubbed clients. */
@@ -411,6 +600,73 @@ export function mentionsPet(text: string): boolean {
 }
 
 /**
+ * Capitalized for grammar, not because they name a person or place. Anything
+ * capitalized and NOT accounted for is treated as an invented name.
+ */
+const CAPITALIZED_ALLOW = new Set([
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+  'september', 'october', 'november', 'december',
+]);
+
+/** Tokens the prose is entitled to use: the two people plus everything the beats establish. */
+export function allowedNames(
+  a: Person, b: Person, inventory: StateInventory, beats: readonly Beat[],
+): Set<string> {
+  const out = new Set<string>(CAPITALIZED_ALLOW);
+  const add = (phrase: string): void => {
+    for (const w of phrase.split(/[^A-Za-z']+/)) if (w.length > 0) out.add(w.toLowerCase());
+  };
+  add(a.name); add(b.name);
+  for (const x of [...inventory.locations, ...inventory.kids, ...inventory.pets, ...inventory.jobs]) add(x);
+  if (inventory.venture !== null) add(inventory.venture);
+  for (const bt of beats) { add(bt.hint); add(bt.domain); }
+  for (const p of [a, b]) for (const t of p.declared.tags) add(t);
+  return out;
+}
+
+/**
+ * Capitalized words the story never established — an invented NAME.
+ *
+ * Observed live 2026-08-22: a beat whose established state said only "their
+ * first kid" came back as "...leaves Luis in the car seat...". Giving a real
+ * attendee's simulated child a fabricated name is worse than a dull sentence,
+ * so this errs toward false positives: the cost of one is a deterministic mock
+ * sentence, the cost of a miss is a fabricated person in the demo.
+ *
+ * Sentence-initial words are skipped (capitalized by grammar), as is "I".
+ */
+export function unknownNames(text: string, allowed: ReadonlySet<string>): string[] {
+  const found: string[] = [];
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    const words = sentence.match(/[A-Za-z][A-Za-z']*/g) ?? [];
+    for (const [i, w] of words.entries()) {
+      if (i === 0) continue;                       // capitalized because it starts a sentence
+      if (!/^[A-Z][a-z]{2,}$/.test(w)) continue;   // not a name-shaped token
+      if (allowed.has(w.toLowerCase())) continue;
+      if (!found.includes(w)) found.push(w);
+    }
+  }
+  return found;
+}
+
+/**
+ * One sentence's content rules, shared by both live shapes so batch and
+ * parallel reject exactly the same prose: non-empty, under the length cap,
+ * clean under scanBanned + scanSurvivalClaims.
+ */
+export function validateSentenceText(
+  raw: unknown,
+): { ok: true; text: string } | { ok: false; reason: string } {
+  const text = String(raw ?? '').trim();
+  if (text.length === 0) return { ok: false, reason: 'empty sentence text' };
+  if (text.length > MAX_SENTENCE_CHARS) return { ok: false, reason: 'sentence over length cap' };
+  if (scanBanned(text).length > 0) return { ok: false, reason: 'banned content in a sentence' };
+  if (scanSurvivalClaims(text).length > 0) return { ok: false, reason: 'survival claim in a sentence' };
+  return { ok: true, text };
+}
+
+/**
  * Batch response validation: exact count, index bijection (1..n, tolerating a
  * 0-based model), non-empty text under the length cap, and every sentence
  * clean under scanBanned + scanSurvivalClaims. Returns the texts in beat
@@ -435,14 +691,196 @@ export function validateBatch(
   if (!oneBased && !zeroBased) return { ok: false, reason: 'sentence indexes are not 1..n' };
   const byBeat = new Array<string>(beatCount);
   for (const s of sentences) {
-    const text = (s.text ?? '').trim();
-    if (text.length === 0) return { ok: false, reason: 'empty sentence text' };
-    if (text.length > MAX_SENTENCE_CHARS) return { ok: false, reason: 'sentence over length cap' };
-    if (scanBanned(text).length > 0) return { ok: false, reason: 'banned content in a sentence' };
-    if (scanSurvivalClaims(text).length > 0) return { ok: false, reason: 'survival claim in a sentence' };
-    byBeat[(s.index as number) - (oneBased ? 1 : 0)] = text;
+    const v = validateSentenceText(s.text);
+    if (!v.ok) return { ok: false, reason: v.reason };
+    byBeat[(s.index as number) - (oneBased ? 1 : 0)] = v.text;
   }
   return { ok: true, texts: byBeat };
+}
+
+/**
+ * Prompt scaffolding shared by both live shapes — built ONCE per timeline and
+ * reused by every parallel call, so the two shapes narrate from an identical
+ * picture of the story.
+ *
+ * `beatList` is the complete ordered timeline. Batch needs it to write every
+ * sentence; parallel needs it so an independent writer of beat i still knows
+ * what came before and after — that context is the coherence the single batch
+ * call was supposed to buy.
+ */
+export function buildNarrationContext(
+  beats: readonly Beat[],
+  a: Person,
+  b: Person,
+  lens: Lens,
+): { inventory: StateInventory; beatList: string; beatOutline: string; perBeat: string[]; preamble: string[] } {
+  const inventory = buildInventory(beats);
+  const perBeat = establishedFactsPerBeat(beats);
+  const beatList = beats
+    .map((bt, i) =>
+      `${i + 1}. year ${bt.year} · kind ${bt.kind} · domain ${bt.domain} · what happens: ${bt.hint}\n` +
+      `   established state: ${perBeat[i]}`)
+    .join('\n');
+  // Compact rendering for the parallel path. The full list above repeats an
+  // established-state line for EVERY beat inside EVERY per-beat prompt — 12
+  // copies of the same block, and input size is what these models are slowest
+  // on (measured: beats stalling out the 60s ceiling with the full list).
+  // A writer of beat i needs the whole ARC for continuity but only its own
+  // state line, which the caller appends.
+  const beatOutline = beats
+    .map((bt, i) => `${i + 1}. year ${bt.year} · ${bt.kind} · ${bt.hint}`)
+    .join('\n');
+  const inventoryBlock = [
+    'ESTABLISHED STATE inventory (the complete cast of this story):',
+    `  locations: ${inventory.locations.join(', ')}`,
+    `  kids: ${inventory.kids.join(', ') || 'none'}`,
+    `  pets: ${inventory.pets.join(', ') || 'none'}`,
+    `  jobs: ${inventory.jobs.join(', ')}`,
+    `  venture: ${inventory.venture ?? 'none'}`,
+    'HARD RULE: no person, pet, or place may appear in any sentence unless it is in this inventory or in the beat list below. If pets is "none", no animal lives with them and none may be mentioned.',
+    'HARD RULE: never invent a name. Children and pets are referred to exactly as this inventory words them; the only names you may write are the two people\'s own.',
+  ].join('\n');
+  const preamble = [
+    `You are narrating a simulated shared ${lens} timeline between two real people. The structure is fixed; you only write the prose.`,
+    personFacts('Person A', a),
+    personFacts('Person B', b),
+    inventoryBlock,
+  ];
+  return { inventory, beatList, beatOutline, perBeat, preamble };
+}
+
+/** Grounding instruction appended to every narration prompt, both shapes. */
+const GROUNDING_RULE =
+  "Ground each sentence in the two people's tags and declared facts where natural, and only within the established state above.";
+
+export interface ParallelNarration {
+  texts: string[];
+  model: string;
+  petGuardReplacements: number;
+  mockFallbacks: number;
+}
+
+/**
+ * The live PARALLEL path — the default, and the reason narration takes seconds
+ * instead of minutes. One generateObject call per beat, all issued at once.
+ *
+ * Per beat: up to two attempts (mirroring batch's single retry), each walking
+ * the model chain through generateWithFallback. A beat that still has no valid
+ * sentence takes its deterministic mock and is counted in mockFallbacks — its
+ * neighbours are unaffected, which is the point of per-beat granularity.
+ * Returns null only when EVERY beat failed, so the caller reports mock.
+ *
+ * The pet guard is carried over from the batch path and matters MORE here:
+ * parallel writers cannot see each other's sentences, so invented state has
+ * one fewer thing stopping it. A pet-word sentence written while the inventory
+ * holds no pet is replaced with that beat's mock sentence and counted.
+ */
+export async function narrateParallelLive(
+  client: LiveClient,
+  beats: readonly Beat[],
+  a: Person,
+  b: Person,
+  lens: Lens,
+  opts: TimelineOpts,
+): Promise<ParallelNarration | null> {
+  const { z } = client;
+  // Single-field schema: one sentence, one call. Kept loose for the same reason
+  // the batch schema is — content rules live in validateSentenceText(), where a
+  // near-miss costs one retry instead of burning the whole model chain.
+  const schema = z.object({ text: z.string() });
+  const { inventory, beatOutline, perBeat, preamble } = buildNarrationContext(beats, a, b, lens);
+  const allowed = allowedNames(a, b, inventory, beats);
+
+  const narrateOne = async (
+    beat: Beat,
+    i: number,
+  ): Promise<{ text: string; model: string | null; petGuarded: boolean }> => {
+    const mockText = (): string => mockNarrateBeat(beat, a, b, opts.seed, i);
+    const started = performance.now();
+    const elapsed = (): string => `${Math.round(performance.now() - started)}ms`;
+    // Hand each sentence to the UI the moment it exists, whatever order the
+    // beats finish in — the caller renders into the slot it already drew from
+    // onStructure. A throwing callback must never cost us a narrated beat.
+    const emit = <T extends { text: string }>(r: T): T => {
+      try {
+        opts.onSentence?.(i, r.text);
+      } catch { /* a broken renderer is not a narration failure */ }
+      return r;
+    };
+    const prompt = [
+      ...preamble,
+      `Below is the COMPLETE ordered outline of this timeline, for continuity. You are writing beat ${i + 1} ONLY.`,
+      beatOutline,
+      `State established by the end of beat ${i + 1} — ${perBeat[i]}.`,
+      // The response SHAPE has to be spelled out, not left to the schema:
+      // measured 2026-08-22, the same models answer a single-sentence request
+      // in 0.7-6s WITH this line and fail schema validation without it — a
+      // failure that costs the full model chain per beat and made the first
+      // parallel run slower than the sequential path it replaced.
+      `Write beat ${i + 1} — year ${beat.year}, ${beat.kind}, what happens: ${beat.hint}. One or two sentences, under 300 characters. Do not narrate any other beat and do not number your answer.`,
+      'Respond with a JSON object having exactly one key, "text", whose value is that sentence and nothing else.',
+      GROUNDING_RULE,
+      SAFETY_RULES,
+    ].join('\n\n');
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await generateWithFallback(client, (modelId) => ({
+        model: client.gateway(modelId),
+        schema,
+        prompt,
+        __timeoutMs: BEAT_TIMEOUT_MS,
+      }));
+      if (result === null) {
+        trace(`beat ${i + 1}: model chain exhausted after ${elapsed()}`);
+        break; // whole chain failed for this beat; mock just this one
+      }
+      const v = validateSentenceText((result.object as { text?: unknown })?.text);
+      if (!v.ok) {
+        trace(`beat ${i + 1}: attempt ${attempt + 1} invalid (${v.reason}) at ${elapsed()}`);
+        continue; // retry ONCE, then mock this beat
+      }
+      if (inventory.pets.length === 0 && mentionsPet(v.text)) {
+        trace(`beat ${i + 1}: ${elapsed()} via ${result.model} (pet-guarded)`);
+        return emit({ text: mockText(), model: result.model, petGuarded: true });
+      }
+      const invented = unknownNames(v.text, allowed);
+      if (invented.length > 0) {
+        trace(`beat ${i + 1}: ${elapsed()} via ${result.model} (invented name: ${invented.join(', ')})`);
+        return emit({ text: mockText(), model: result.model, petGuarded: true });
+      }
+      trace(`beat ${i + 1}: ${elapsed()} via ${result.model}`);
+      return emit({ text: v.text, model: result.model, petGuarded: false });
+    }
+    trace(`beat ${i + 1}: mock fallback after ${elapsed()}`);
+    return emit({ text: mockText(), model: null, petGuarded: false });
+  };
+
+  const limit = resolveConcurrency(readEnvFile());
+  const runStart = performance.now();
+  const settled = await mapWithConcurrency(beats, limit, narrateOne);
+  trace(`${beats.length} beats, ${limit === Number.POSITIVE_INFINITY ? 'unbounded' : limit} in flight: ${Math.round(performance.now() - runStart)}ms total`);
+  const models = [...new Set(settled.map((r) => r.model).filter((m): m is string => m !== null))];
+  if (models.length === 0) {
+    warnLiveFellBackToMock('every beat failed live narration (model chain or validation)');
+    return null;
+  }
+  const mockFallbacks = settled.filter((r) => r.model === null).length;
+  if (mockFallbacks > 0) {
+    // Partial degradation must be visible: the run still reports 'live', and a
+    // silent mix of live and template prose is exactly the kind of thing that
+    // gets mistaken for the model's own voice.
+    process.stderr.write(
+      `[narrator] ${mockFallbacks}/${beats.length} beats fell back to mock prose; the rest are live.\n`,
+    );
+  }
+  return {
+    texts: settled.map((r) => r.text),
+    // Beats race independently down the chain, so a throttled run can land on
+    // more than one model. Report every model that actually wrote a sentence.
+    model: models.join('+'),
+    petGuardReplacements: settled.filter((r) => r.petGuarded).length,
+    mockFallbacks,
+  };
 }
 
 /**
@@ -474,30 +912,12 @@ export async function narrateBatchLive(
     })),
   });
 
-  const inventory = buildInventory(beats);
-  const perBeat = establishedFactsPerBeat(beats);
-  const beatList = beats
-    .map((bt, i) =>
-      `${i + 1}. year ${bt.year} · kind ${bt.kind} · domain ${bt.domain} · what happens: ${bt.hint}\n` +
-      `   established state: ${perBeat[i]}`)
-    .join('\n');
-  const inventoryBlock = [
-    'ESTABLISHED STATE inventory (the complete cast of this story):',
-    `  locations: ${inventory.locations.join(', ')}`,
-    `  kids: ${inventory.kids.join(', ') || 'none'}`,
-    `  pets: ${inventory.pets.join(', ') || 'none'}`,
-    `  jobs: ${inventory.jobs.join(', ')}`,
-    `  venture: ${inventory.venture ?? 'none'}`,
-    'HARD RULE: no person, pet, or place may appear in any sentence unless it is in this inventory or in the beat list below. If pets is "none", no animal lives with them and none may be mentioned.',
-  ].join('\n');
+  const { inventory, beatList, preamble } = buildNarrationContext(beats, a, b, lens);
   const prompt = [
-    `You are narrating a simulated shared ${lens} timeline between two real people. The structure is fixed; you only write the prose.`,
-    personFacts('Person A', a),
-    personFacts('Person B', b),
-    inventoryBlock,
+    ...preamble,
     `Write exactly ${beats.length} sentences in ONE response — the sentences array must have exactly ${beats.length} items, index running 1..${beats.length}, where sentence i narrates beat i below. Keep each text under 300 characters.`,
     beatList,
-    'Ground each sentence in the two people\'s tags and declared facts where natural, and only within the established state above.',
+    GROUNDING_RULE,
     SAFETY_RULES,
   ].join('\n\n');
 
@@ -544,13 +964,21 @@ export async function narrate(
     return { texts: mockAll(), narration: 'mock' };
   }
 
-  const live = await narrateBatchLive(client, beats, a, b, lens, opts);
+  // Default PARALLEL; TIMELINE_NARRATION=batch reaches the one-call shape for
+  // comparison runs. Both return null only when the run is a total loss, in
+  // which case the whole timeline takes deterministic mock prose.
+  const shape = resolveNarrationShape(readEnvFile());
+  const live = shape === 'batch'
+    ? await narrateBatchLive(client, beats, a, b, lens, opts)
+    : await narrateParallelLive(client, beats, a, b, lens, opts);
   if (live === null) return { texts: mockAll(), narration: 'mock' };
+  const mockFallbacks = 'mockFallbacks' in live ? live.mockFallbacks : 0;
   return {
     texts: live.texts,
     narration: 'live',
     model: live.model,
     ...(live.petGuardReplacements > 0 ? { petGuardReplacements: live.petGuardReplacements } : {}),
+    ...(mockFallbacks > 0 ? { mockFallbacks } : {}),
   };
 }
 
@@ -620,6 +1048,11 @@ export async function nominate(
     `Their pair score: ${scoreFacts(score)}`,
     `Pick exactly one pattern from [${grammar.patterns.join(', ')}], one domain from [${grammar.domains.join(', ')}], one outcome from [${grammar.outcomes.join(', ')}].`,
     'triggerClaim must name the score component that justifies the arc, formatted "driver:<term>", "friction:<term>", or "flag:<flagName>" using the terms listed above. Your claim will be verified against the actual scores by code; unjustified arcs are rejected.',
+    // Same lesson as the per-beat prompt: spell out the response shape instead
+    // of trusting the schema alone. Measured 2026-08-22 — without this line
+    // kimi burned the FULL 60s per-call ceiling on this call and the run lost
+    // three minutes before narration even started.
+    'Respond with a JSON object having exactly these four keys: "pattern", "domain", "outcome", "triggerClaim".',
     SAFETY_RULES,
   ].join('\n\n');
 
@@ -627,7 +1060,11 @@ export async function nominate(
     model: client.gateway(modelId),
     schema,
     prompt,
-  }));
+    // One small structured pick. It runs BEFORE narration, so a stall here is
+    // pure dead time at the front of the demo — measured 2026-08-22, kimi ate
+    // the full 60s default on this call every run before failing over.
+    __timeoutMs: NOMINATE_TIMEOUT_MS,
+  }), NOMINATE_CHAIN);
   if (!result) return { nomination: mock(), narration: 'mock' };
   return { nomination: result.object as Nomination, narration: 'live', model: result.model };
 }

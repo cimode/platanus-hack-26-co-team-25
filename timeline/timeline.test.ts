@@ -29,6 +29,11 @@
  *       live batch path retries exactly once on invalid counts then yields
  *       null (mock fallback); the invented-state pet guard replaces pet-word
  *       sentences with their deterministic mock when no pet is established
+ *   V13 parallel narration (the DEFAULT live shape): calls are concurrent and
+ *       carry the whole beat list; a beat that fails twice degrades to mock
+ *       ALONE while its neighbours stay live; the pet guard is carried over;
+ *       an all-fail run yields null; TIMELINE_NARRATION picks the shape,
+ *       TIMELINE_CONCURRENCY caps how many beat calls are in flight
  *
  * Run: node --experimental-strip-types --experimental-test-module-mocks timeline/timeline.test.ts
  *
@@ -50,8 +55,8 @@ import {
   LENS_CONSTRAINTS, checkFrictionArc, checkKidGates, checkCoherence,
   isDegradedPair, scanBanned, scanSurvivalClaims, validateTimeline,
 } from './shared.ts';
-import type { Gender } from '../matching/engine.ts';
-import { scorePair } from '../matching/engine.ts';
+import type { Gender } from '../src/lib/domain/matching/engine.ts';
+import { scorePair } from '../src/lib/domain/matching/engine.ts';
 import { generateTimeline as genA } from './approach-a/index.ts';
 import { generateTimeline as genB } from './approach-b/index.ts';
 import { generateTimeline as genC } from './approach-c/index.ts';
@@ -841,4 +846,343 @@ test('V12d: pet guard — pet-word sentence with pets:none → deterministic moc
   // Guard word list sanity.
   for (const s of ['their dog', 'two cats', 'a new puppy', 'the pup', 'a kitten', 'their pet']) assert.ok(mentionsPet(s), s);
   for (const s of ['a carpet on the floor', 'they adopt a routine', 'puppet show', 'catalog of rituals']) assert.ok(!mentionsPet(s), s);
+});
+
+// ---------------------------------------------------------------------------
+// V13 — PARALLEL narration (the default live shape). Same no-network rule as
+// V12: a stub LiveClient answers per-prompt, so nothing here touches a gateway.
+// The point of these tests is the failure GRANULARITY that batch cannot have —
+// one bad beat must not take the timeline down with it.
+// ---------------------------------------------------------------------------
+
+/** Which beat a parallel prompt is asking for (1-based), from its own instruction line. */
+function promptBeatIndex(prompt: string): number {
+  const m = /You are writing beat (\d+) ONLY/.exec(prompt);
+  assert.ok(m, 'parallel prompt must name the beat it is writing');
+  return Number(m![1]);
+}
+
+/**
+ * Stub LiveClient answering per beat. `answer(beatIndex, attemptForThatBeat)`
+ * returns the object to hand back, or throws to simulate a model error.
+ * Records call starts/ends so concurrency can be asserted.
+ */
+async function stubParallelClient(
+  answer: (beatIndex: number, attempt: number) => unknown,
+) {
+  const { z } = await import('zod');
+  const attempts = new Map<number, number>();
+  let started = 0, finished = 0, maxInFlight = 0;
+  const client = {
+    mode: 'live' as const,
+    model: 'stub/primary',
+    z,
+    gateway: (id: string) => id,
+    generateObject: async (args: Record<string, unknown>) => {
+      const i = promptBeatIndex(String(args.prompt));
+      const attempt = (attempts.get(i) ?? 0) + 1;
+      attempts.set(i, attempt);
+      started++;
+      maxInFlight = Math.max(maxInFlight, started - finished);
+      // Yield twice so every sibling call gets to start before any resolves.
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      finished++;
+      return { object: answer(i, attempt) };
+    },
+  };
+  return { client, stats: () => ({ started, maxInFlight }), attempts };
+}
+
+test('V13a: narrateParallelLive — one call per beat, concurrent, texts in beat order', async () => {
+  const { narrateParallelLive } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const { client, stats } = await stubParallelClient((i) => ({ text: `Sentence for beat ${i}.` }));
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', opts(5));
+  assert.ok(res !== null);
+  assert.deepEqual(res?.texts, ['Sentence for beat 1.', 'Sentence for beat 2.']);
+  assert.equal(res?.model, 'stub/primary');
+  assert.equal(res?.mockFallbacks, 0);
+  assert.equal(res?.petGuardReplacements, 0);
+  const { started, maxInFlight } = stats();
+  assert.equal(started, beats.length, 'exactly one call per beat on the happy path');
+  assert.equal(maxInFlight, beats.length, 'all beat calls must be in flight at once — that is the whole fix');
+});
+
+test('V13b: every parallel prompt carries the whole outline but only its OWN state line', async () => {
+  const { narrateParallelLive } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const prompts: string[] = [];
+  const { z } = await import('zod');
+  const client = {
+    mode: 'live' as const, model: 'stub/primary', z, gateway: (id: string) => id,
+    generateObject: async (args: Record<string, unknown>) => {
+      prompts.push(String(args.prompt));
+      return { object: { text: 'A clean sentence.' } };
+    },
+  };
+  await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', opts(5));
+  assert.equal(prompts.length, 2);
+  for (const [i, p] of prompts.entries()) {
+    // Continuity: an independent writer still sees the whole arc.
+    for (const b of beats) assert.ok(p.includes(b.hint), `prompt must include every beat hint (missing: ${b.hint})`);
+    assert.ok(p.includes('ESTABLISHED STATE inventory'), 'prompt must carry the invented-state inventory');
+    assert.ok(p.includes(ana.name) && p.includes(bruno.name), 'prompt must carry both people');
+    assert.ok(p.includes(`You are writing beat ${i + 1} ONLY`), 'prompt must name its own beat');
+    // Compaction: exactly ONE established-state line, this beat's own. Carrying
+    // one per beat meant N copies of the same block in every one of N prompts,
+    // and input size is what these models are slowest on.
+    assert.equal(
+      (p.match(/established state:/g) ?? []).length + (p.match(/State established by the end of beat/g) ?? []).length,
+      1,
+      'exactly one state line per prompt — the writer\'s own',
+    );
+  }
+});
+
+test('V13c: a beat failing validation twice degrades ALONE — neighbours stay live', async () => {
+  const { narrateParallelLive, mockNarrateBeat } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const o = opts(5);
+  // Beat 2 returns empty text on both attempts; beat 1 is fine.
+  const { client, attempts } = await stubParallelClient((i) =>
+    i === 2 ? { text: '   ' } : { text: 'An easy first month lands.' });
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', o);
+  assert.ok(res !== null, 'one bad beat must NOT null the whole timeline (batch would have)');
+  assert.equal(res?.texts[0], 'An easy first month lands.', 'the healthy beat stays live');
+  assert.equal(res?.texts[1], mockNarrateBeat(beats[1] as never, ana, bruno, o.seed, 1), 'the failing beat takes its deterministic mock');
+  assert.equal(res?.mockFallbacks, 1);
+  assert.equal(attempts.get(1), 1, 'a valid beat is generated once');
+  assert.equal(attempts.get(2), 2, 'a failing beat retries exactly once');
+});
+
+test('V13d: every beat failing → null, so narrate() reports mock', async () => {
+  const { narrateParallelLive } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const { client } = await stubParallelClient(() => { throw new Error('gateway down'); });
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', opts(5));
+  assert.equal(res, null, 'a total loss must yield null — narration must not claim to be live');
+});
+
+test('V13e: pet guard is carried over to the parallel path', async () => {
+  const { narrateParallelLive, mockNarrateBeat, buildInventory } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  assert.deepEqual(buildInventory(beats as never).pets, []);
+  const o = opts(5);
+  const { client } = await stubParallelClient((i) =>
+    i === 2 ? { text: 'Their dog claims the couch during the standing plan.' } : { text: 'An easy first month lands.' });
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', o);
+  assert.ok(res !== null);
+  assert.equal(res?.petGuardReplacements, 1, 'an unestablished pet must be replaced, not narrated');
+  assert.equal(res?.texts[1], mockNarrateBeat(beats[1] as never, ana, bruno, o.seed, 1));
+  assert.equal(res?.mockFallbacks, 0, 'a pet-guarded sentence is not a failed call');
+
+  // With the pet established, the same sentence passes untouched.
+  const petBeats = [
+    { year: 1, kind: 'pet', domain: 'home', hint: 'a rescue arrives', delta: { addPet: 'a rescue dog' } },
+    { ...V12_BEATS[1] },
+  ];
+  const { client: client2 } = await stubParallelClient((i) =>
+    i === 2 ? { text: 'The dog joins the standing plan.' } : { text: 'A rescue dog moves in.' });
+  const res2 = await narrateParallelLive(client2 as never, petBeats as never, ana, bruno, 'romantic', o);
+  assert.equal(res2?.petGuardReplacements, 0);
+  assert.equal(res2?.texts[1], 'The dog joins the standing plan.');
+});
+
+test('V13f: parallel sentences obey the same content rules as batch', async () => {
+  const { narrateParallelLive, validateSentenceText, MAX_SENTENCE_CHARS } = await import('./lib/narrator.ts');
+
+  // validateSentenceText is the one shared gate.
+  assert.equal(validateSentenceText('  ').ok, false);
+  assert.equal(validateSentenceText('x'.repeat(MAX_SENTENCE_CHARS + 1)).ok, false);
+  const poison = 'A moment of ' + 'con' + 'tempt' + ' colors the week.'; // constructed, never literal here
+  assert.equal(validateSentenceText(poison).ok, false);
+  assert.equal(validateSentenceText('They beat 3 of 4 odds.').ok, false);
+  const good = validateSentenceText('  A clean sentence.  ');
+  assert.ok(good.ok && good.text === 'A clean sentence.', 'valid text is trimmed and returned');
+
+  // A banned sentence must never survive into a parallel timeline.
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const { client } = await stubParallelClient((i) => (i === 1 ? { text: poison } : { text: 'A clean sentence.' }));
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', opts(5));
+  assert.ok(res !== null);
+  assert.notEqual(res?.texts[0], poison);
+  assert.equal(res?.mockFallbacks, 1);
+  for (const t of res!.texts) assert.equal(scanBanned(t).length, 0);
+});
+
+test('V13g: resolveNarrationShape — parallel by default, batch only when asked', async () => {
+  const { resolveNarrationShape } = await import('./lib/narrator.ts');
+  const prev = process.env.TIMELINE_NARRATION;
+  try {
+    delete process.env.TIMELINE_NARRATION;
+    assert.equal(resolveNarrationShape({}), 'parallel', 'default live shape must be parallel');
+    assert.equal(resolveNarrationShape({ TIMELINE_NARRATION: 'batch' }), 'batch', '.env can select batch');
+    assert.equal(resolveNarrationShape({ TIMELINE_NARRATION: 'nonsense' }), 'parallel');
+    process.env.TIMELINE_NARRATION = 'BATCH';
+    assert.equal(resolveNarrationShape({}), 'batch', 'process env wins, case-insensitively');
+    process.env.TIMELINE_NARRATION = 'parallel';
+    assert.equal(resolveNarrationShape({ TIMELINE_NARRATION: 'batch' }), 'parallel', 'process env beats .env');
+  } finally {
+    if (prev === undefined) delete process.env.TIMELINE_NARRATION;
+    else process.env.TIMELINE_NARRATION = prev;
+  }
+});
+
+test('V13h: mapWithConcurrency — order preserved, in-flight capped, cursor-shared (a slow item blocks nobody)', async () => {
+  const { mapWithConcurrency } = await import('./lib/narrator.ts');
+  const items = [0, 1, 2, 3, 4, 5, 6, 7];
+  let inFlight = 0, maxInFlight = 0;
+  const out = await mapWithConcurrency(items, 3, async (n, i) => {
+    assert.equal(n, i, 'index must match the item');
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    // Item 0 is deliberately the slowest: workers pull from a shared cursor, so
+    // the other two must chew through the rest instead of waiting on it.
+    const ticks = n === 0 ? 12 : 1;
+    for (let t = 0; t < ticks; t++) await new Promise((r) => setImmediate(r));
+    inFlight--;
+    return n * 10;
+  });
+  assert.deepEqual(out, [0, 10, 20, 30, 40, 50, 60, 70], 'results must come back in input order');
+  assert.equal(maxInFlight, 3, 'never more than the limit in flight');
+
+  // Fewer items than the limit → all at once; limit below 1 is clamped to 1.
+  let peak = 0, live = 0;
+  await mapWithConcurrency([1, 2], 8, async () => {
+    live++; peak = Math.max(peak, live);
+    await new Promise((r) => setImmediate(r));
+    live--; return null;
+  });
+  assert.equal(peak, 2);
+  assert.deepEqual(await mapWithConcurrency([], 4, async () => 1), []);
+});
+
+test('V13i: resolveConcurrency — default, explicit cap, unbounded, junk', async () => {
+  const { resolveConcurrency, DEFAULT_NARRATE_CONCURRENCY } = await import('./lib/narrator.ts');
+  const prev = process.env.TIMELINE_CONCURRENCY;
+  try {
+    delete process.env.TIMELINE_CONCURRENCY;
+    assert.equal(resolveConcurrency({}), DEFAULT_NARRATE_CONCURRENCY);
+    assert.equal(resolveConcurrency({ TIMELINE_CONCURRENCY: '6' }), 6);
+    assert.equal(resolveConcurrency({ TIMELINE_CONCURRENCY: '0' }), Number.POSITIVE_INFINITY, '0 means unbounded');
+    assert.equal(resolveConcurrency({ TIMELINE_CONCURRENCY: '-2' }), Number.POSITIVE_INFINITY);
+    assert.equal(resolveConcurrency({ TIMELINE_CONCURRENCY: 'lots' }), DEFAULT_NARRATE_CONCURRENCY, 'junk falls back to the default');
+    process.env.TIMELINE_CONCURRENCY = '2';
+    assert.equal(resolveConcurrency({ TIMELINE_CONCURRENCY: '9' }), 2, 'process env beats .env');
+  } finally {
+    if (prev === undefined) delete process.env.TIMELINE_CONCURRENCY;
+    else process.env.TIMELINE_CONCURRENCY = prev;
+  }
+});
+
+test('V13j: resolveChain — locked order by default, fast-first for nominate, override wins outright', async () => {
+  const { resolveChain, MODEL_PRIMARY, MODEL_FALLBACKS, MODEL_FAST, NOMINATE_CHAIN } =
+    await import('./lib/narrator.ts');
+
+  // No override, no chain → the locked prose-quality order.
+  assert.deepEqual(resolveChain(MODEL_PRIMARY), [MODEL_PRIMARY, ...MODEL_FALLBACKS]);
+
+  // No override + nominate's chain → fastest first, deduplicated.
+  const nom = resolveChain(MODEL_PRIMARY, NOMINATE_CHAIN);
+  assert.equal(nom[0], MODEL_FAST, 'nominate must try the fast model first — its output is enum picks, not prose');
+  assert.deepEqual(nom, [...new Set(nom)], 'no model may be tried twice');
+  for (const m of [MODEL_PRIMARY, ...MODEL_FALLBACKS]) assert.ok(nom.includes(m), `${m} must stay reachable`);
+
+  // TIMELINE_MODEL override wins outright and never re-adds the default primary
+  // (the free-tier reason the override exists: never burn calls on unreachable models).
+  const pinned = resolveChain('zai/glm-4.7-flash');
+  assert.equal(pinned[0], 'zai/glm-4.7-flash');
+  assert.ok(!pinned.includes(MODEL_PRIMARY), 'an override must not fall back to the default primary');
+  assert.deepEqual(pinned, [...new Set(pinned)]);
+
+  // An override beats a caller-supplied chain too.
+  const pinnedWithChain = resolveChain('some/other-model', NOMINATE_CHAIN);
+  assert.equal(pinnedWithChain[0], 'some/other-model');
+  assert.ok(!pinnedWithChain.includes(MODEL_PRIMARY));
+});
+
+test('V13k: progressive hooks — structure first, one sentence per beat, output identical either way', async () => {
+  const { narrateParallelLive } = await import('./lib/narrator.ts');
+  const beats = V12_BEATS.map((b) => ({ ...b }));
+  const seen: Array<[number, string]> = [];
+  const o = { ...opts(5), onSentence: (i: number, t: string) => { seen.push([i, t]); } };
+  const { client } = await stubParallelClient((i) => ({ text: `Sentence ${i}.` }));
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', o as never);
+  assert.equal(seen.length, 2, 'exactly one emission per beat');
+  assert.deepEqual([...seen].sort((x, y) => x[0] - y[0]), [[0, 'Sentence 1.'], [1, 'Sentence 2.']]);
+  // Every emitted sentence is the one that ends up in the timeline.
+  for (const [i, t] of seen) assert.equal(res?.texts[i], t, 'emitted text must match the final text');
+
+  // A pet-guarded beat emits the REPLACEMENT, never the sentence we rejected.
+  const guard: Array<[number, string]> = [];
+  const o2 = { ...opts(5), onSentence: (i: number, t: string) => { guard.push([i, t]); } };
+  const { client: c2 } = await stubParallelClient((i) =>
+    i === 2 ? { text: 'Their dog claims the couch.' } : { text: 'A clean sentence.' });
+  const res2 = await narrateParallelLive(c2 as never, beats as never, ana, bruno, 'romantic', o2 as never);
+  assert.ok(!guard.some(([, t]) => /dog/i.test(t)), 'a guarded sentence must never reach the UI');
+  for (const [i, t] of guard) assert.equal(res2?.texts[i], t);
+
+  // A throwing callback must not cost a narrated beat.
+  const o3 = { ...opts(5), onSentence: () => { throw new Error('renderer exploded'); } };
+  const { client: c3 } = await stubParallelClient((i) => ({ text: `Sentence ${i}.` }));
+  const res3 = await narrateParallelLive(c3 as never, beats as never, ana, bruno, 'romantic', o3 as never);
+  assert.deepEqual(res3?.texts, ['Sentence 1.', 'Sentence 2.'], 'a broken renderer is not a narration failure');
+});
+
+test('V13l: onStructure fires before narration, with the beats the timeline ships', async () => {
+  // Offline (mock narration): the structure hook is what makes the demo feel
+  // instant, so it must fire even when no model is involved.
+  const calls: Array<readonly unknown[]> = [];
+  const t = await genB(ana, bruno, scorePair(ana, bruno, 'romantic'), 'romantic', {
+    ...opts(7),
+    onStructure: (beats) => { calls.push(beats); },
+  } as never);
+  assert.equal(calls.length, 1, 'onStructure fires exactly once');
+  const published = calls[0] as Array<{ year: number; kind: string }>;
+  assert.equal(published.length, t.events.length, 'the published skeleton must cover every event');
+  assert.deepEqual(published.map((b) => b.year), t.events.map((e) => e.year), 'years must line up with the shipped events');
+  assert.deepEqual(published.map((b) => b.kind), t.events.map((e) => e.kind), 'kinds must line up too');
+
+  // Hooks must not change the result: same seed, with and without them.
+  const withHooks = await genB(ana, bruno, scorePair(ana, bruno, 'romantic'), 'romantic', { ...opts(7), onStructure: () => {} } as never);
+  const without = await genB(ana, bruno, scorePair(ana, bruno, 'romantic'), 'romantic', opts(7));
+  assert.deepEqual(withHooks.events, without.events, 'progressive hooks must be observation-only');
+});
+
+test('V13m: invented-name guard — the live "Luis" regression, and no false positives on real prose', async () => {
+  const { unknownNames, allowedNames, buildInventory, narrateParallelLive, mockNarrateBeat } =
+    await import('./lib/narrator.ts');
+  const beats = [
+    { year: 1, kind: 'move', domain: 'home', hint: 'they move in together', delta: { location: 'a small place with good light' } },
+    { year: 3, kind: 'kid', domain: 'kids', hint: 'their first kid arrives', delta: { addKid: 'their first kid' } },
+  ];
+  const inv = buildInventory(beats as never);
+  const allowed = allowedNames(ana, bruno, inv as never, beats as never);
+
+  // The exact shape of the observed regression: a fabricated child's name.
+  assert.deepEqual(unknownNames('Bruno insists on a time that leaves Luis in the car seat.', allowed), ['Luis']);
+
+  // Real sentences from the live run must NOT trip it.
+  for (const clean of [
+    `${ana.name} circles the climbing gyms while ${bruno.name} points out the startup clusters.`,
+    'On Sunday evenings they roll out the sushi mat while their first kid naps.',
+    'Their first kid arrives in the small place with good light, and every schedule bends around it.',
+    'By January the ritual is law.',
+  ]) {
+    assert.deepEqual(unknownNames(clean, allowed), [], `false positive on: ${clean}`);
+  }
+
+  // Sentence-initial capitals are grammar, not names.
+  assert.deepEqual(unknownNames('Boxes fill the hallway. Maps cover the table.', allowed), []);
+
+  // End to end: an invented name is replaced with the beat's deterministic mock.
+  const o = opts(5);
+  const { client } = await stubParallelClient((i) =>
+    i === 2 ? { text: 'They strap Luis into the car seat before dawn.' } : { text: 'A clean sentence.' });
+  const res = await narrateParallelLive(client as never, beats as never, ana, bruno, 'romantic', o);
+  assert.ok(res !== null);
+  assert.ok(!/Luis/.test(res!.texts.join(' ')), 'an invented name must never reach the timeline');
+  assert.equal(res?.texts[1], mockNarrateBeat(beats[1] as never, ana, bruno, o.seed, 1));
+  assert.equal(res?.petGuardReplacements, 1, 'the replacement is counted like any invented-state guard');
 });
