@@ -129,6 +129,21 @@ Rules: `mostKey ≠ leastKey`; one response per `(participant, position)` — re
 updates the row; the 15th distinct position sets `quizCompletedAt` in the same write.
 Blocks 1–5, 6–10, 11–15 are delivered as three batches; the batch is derived, never stored.
 
+**Stored with the answer (D15, issue #13)** — resolved by the server, never sent by the client:
+`instrumentVersion` (`v1`), `scenario`, `mostText`, `leastText`. So the row for the first
+answer above reads, on its own:
+
+```json
+{ "position": 1, "mostKey": "c", "leastKey": "b", "shownOrder": "cbad",
+  "instrumentVersion": "v1",
+  "scenario": "Tu amigo movió la perilla del horno y el pollo lleva una hora crudo. Los invitados ya están tocando el timbre.",
+  "mostText": "Tomo el mando: pedimos pizza y listo",
+  "leastText": "Anuncio que la cena está oficialmente arruinada" }
+```
+
+The question set itself lives once per version in `instruments.blocks` (with each option's
+pillar and keying, which never appear on an answer row).
+
 ## 7. What is stored — the aggregate
 
 ```ts
