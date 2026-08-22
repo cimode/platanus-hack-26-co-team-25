@@ -288,8 +288,13 @@ test.describe("1b · the room", () => {
     await page.getByRole("option", { name: /trabajando/i }).click();
     await page.getByRole("button", { name: /vamos/i }).click();
     await expect(page).toHaveURL(/\/rank$/);
+    // "trabajando", not "negocios". This assertion was written against the
+    // /rank STUB, whose heading read "Rank de Negocios"; U6 replaced that screen
+    // and its heading now echoes the words on the picker you just clicked
+    // ("Trabajando"), so the two screens speak the same language. The intent of
+    // the test is unchanged: the lens must survive the navigation and be named.
     await expect(
-      page.getByRole("heading", { name: /negocios/i })
+      page.getByRole("heading", { name: /trabajando/i })
     ).toBeVisible();
   });
 });
