@@ -7,6 +7,7 @@
 | `ui-composition` | same | Server/Client boundary, Server Actions, shadcn, tokens, lens theming, accessible names. |
 | `issue-status` | `/work` and any agent moving an issue | The five status labels and the legal transitions between them. |
 | `quest-skill` | `create_quest` workflow | Authoring quiz blocks. |
+| `neon-object-storage` | `code-writer`, `adversarial-reviewer` on #25 (`neon.ts`, `adapters/storage/**`) | Neon Object Storage: `neon.ts` buckets, `neon deploy` / `neon env pull`, the `AWS_*` env, path-style S3 access. Vendored verbatim from `neondatabase/agent-skills`. |
 
 `docs/architecture.md` records what is hookai-specific and what the linter
 enforces; the skills say how to work inside it.
