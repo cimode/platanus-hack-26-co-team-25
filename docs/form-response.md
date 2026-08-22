@@ -231,3 +231,104 @@ pillar and keying that the scorer (issue #7) reads; the text is never stored twi
 
 Where the types live: `src/lib/domain/participant/participant.ts`, `gates.ts`, `tags.ts`;
 `src/lib/domain/quiz/response.ts`, `instrument.ts`. Tables: `docs/domain.md` §3.
+
+## 10. The receiving contract (zod) — what each Server Action accepts
+
+The client sends **keys**, never text. The server resolves the question and the chosen
+option texts from `INSTRUMENT` and stores them with the answer (D15). This is the shape
+`src/lib/domain/intake/contract.ts` takes in issues #6 / #8 / #9:
+
+```ts
+import { z } from "zod";
+import { TAGS } from "../participant/tags";
+
+const band = z.number().int().min(0).max(3);
+const gender = z.enum(["M", "F", "NB"]);
+const optionKey = z.enum(["a", "b", "c", "d"]);
+
+// 1 · register — identity is NOT in the payload; it is born here as the httpOnly cookie
+export const RegisterInput = z.object({
+  room: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  team: z.string().trim().max(80).optional(),
+  track: z.string().trim().max(80).optional(),
+});
+
+// 3 · consent — everything off by default
+export const ConsentInput = z.object({
+  romantic: z.boolean().default(false),
+  business: z.boolean().default(false),
+  friendship: z.boolean().default(false),
+});
+
+// 4 · declared round — saved per screen, hence partial/nullable
+export const DeclaredInput = z
+  .object({
+    moneyPosture: band.nullable(),
+    rootedness: band.nullable(),
+    familyGravity: band.nullable(),
+    capacityHoursBand: band.nullable(),
+    distanceBand: band.nullable(),
+    chronotype: band.nullable(),
+    tags: z.array(z.enum(TAGS)).max(12).default([]),
+  })
+  .partial();
+
+// 5 · gates — accepted only when consent.<lens> is true (the use case refuses otherwise)
+export const RomanticGateInput = z.object({
+  gender,
+  interestedIn: z.array(gender).min(1),
+  single: z.boolean(),
+  ageBand: band,
+  wantsKids: z.boolean(),
+});
+export const BusinessGateInput = z.object({
+  riskPosture: z.number().int().min(0).max(2),
+  exitHorizon: z.number().int().min(0).max(2),
+  redlinesOk: z.boolean(),
+});
+
+// 6 · one block answer — ×15
+export const AnswerBlockInput = z
+  .object({
+    position: z.number().int().min(1).max(15),
+    mostKey: optionKey,
+    leastKey: optionKey.nullable(), // null under the single-pick fallback
+    shownOrder: z.string().regex(/^[abcd]{4}$/),
+  })
+  .refine((r) => r.leastKey !== r.mostKey, { message: "leastKey must differ from mostKey" })
+  .refine((r) => new Set(r.shownOrder).size === 4, { message: "shownOrder is a permutation of abcd" });
+```
+
+What the server derives and stores per answer — none of it comes from the client:
+
+```ts
+{
+  participantId: fromCookie("hookai_session"),
+  instrumentVersion: INSTRUMENT.version,                  // "v1"
+  position, mostKey, leastKey, shownOrder,                // as received
+  scenario: block.scenario,                               // block = INSTRUMENT.blocks[position - 1]
+  mostText: block.options.find((o) => o.key === mostKey).text,
+  leastText: leastKey ? block.options.find((o) => o.key === leastKey).text : null,
+  answeredAt: now,
+}
+```
+
+The composite, for reading the whole thing as one object (it is never submitted as one —
+the form is seven submissions, and the database fills step by step):
+
+```ts
+export const IntakeSubmission = z.object({
+  register: RegisterInput,
+  consent: ConsentInput,
+  declared: DeclaredInput,
+  romanticGate: RomanticGateInput.optional(), // only when consent.romantic
+  businessGate: BusinessGateInput.optional(), // only when consent.business
+  answers: z
+    .array(AnswerBlockInput)
+    .max(15)
+    .refine((a) => new Set(a.map((x) => x.position)).size === a.length, {
+      message: "one answer per block",
+    }),
+});
+```
