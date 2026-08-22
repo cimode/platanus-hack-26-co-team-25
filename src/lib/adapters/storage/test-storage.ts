@@ -24,14 +24,15 @@ export type IntegrationStorage =
 const SKIP_NOTICE =
   "AWS_ENDPOINT_URL_S3 is not set, so the object-storage integration tests " +
   "are skipped. Run `neon deploy` and `neon env pull` on the branch this " +
-  "checkout is linked to (docs/storage.md) to run them, or set DB_REQUIRED=1 " +
+  "checkout is linked to (docs/storage.md) to run them, or set STORAGE_REQUIRED=1 " +
   "to make a missing bucket a failure.";
 
 const REQUIRED_NOTICE =
-  "DB_REQUIRED is set but AWS_ENDPOINT_URL_S3 is not. CI runs the " +
-  "object-storage integration tests against a branch whose photos bucket " +
-  "exists; a silent skip there is a green build over tests that uploaded " +
-  "nothing.";
+  "STORAGE_REQUIRED is set but AWS_ENDPOINT_URL_S3 is not. Set it only where " +
+  "the branch's photos bucket has been provisioned (neon deploy) and its " +
+  "AWS_* credentials pulled; a silent skip there would be a green build over " +
+  "tests that uploaded nothing. DB_REQUIRED deliberately does NOT cover " +
+  "storage: the CI branch has a database but no bucket.";
 
 /**
  * Reads the environment (never a module-scope snapshot of it) and decides
@@ -50,7 +51,7 @@ export function integrationStorage(
     };
   }
 
-  const required = env.DB_REQUIRED;
+  const required = env.STORAGE_REQUIRED;
   if (required && required !== "0" && required !== "false") {
     throw new Error(REQUIRED_NOTICE);
   }

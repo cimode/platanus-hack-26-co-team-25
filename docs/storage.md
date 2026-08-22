@@ -78,7 +78,7 @@ Credentials are branch-scoped and valid for that branch **and all its descendant
 `AWS_ENDPOINT_URL_S3` is the single switch: `src/lib/composition.ts` hands out the Neon
 adapter when it is set and the fake `data:` store when it is not, and
 `src/lib/adapters/storage/test-storage.ts` skips the storage integration tests on the
-same variable (loudly, under `DB_REQUIRED=1`). That is why Playwright uploads nothing:
+same variable (loudly, under `STORAGE_REQUIRED=1`). That is why Playwright uploads nothing:
 `e2e/` runs with no endpoint.
 
 ## Vercel
@@ -112,7 +112,7 @@ Per-PR branches are created from `ci-base` and **inherit its buckets on creation
 - `neon deploy --branch preview/pr-<n>` (with `NEON_API_KEY`) whenever `neon.ts` itself
   changes — inheritance happens at branch creation, not at every push.
 - the branch's four `AWS_*` variables in the `unit` job's environment if the storage
-  integration tests are to run there; without them they skip, and `DB_REQUIRED=1` turns
+  integration tests are to run there; without them they skip, and `STORAGE_REQUIRED=1` turns
   that skip into a failure. Decide one or the other deliberately — a green `unit` job
   that skipped every upload test is what this whole issue is about.
 
@@ -134,3 +134,5 @@ is indistinguishable from any other misconfigured branch service.
   URL. Recorded as the stricter alternative; `public_read` is what D11 chose.
 - **Deleting the object on withdrawal.** Still in `docs/domain.md` §9's not-in-this-split
   list.
+
+> `DB_REQUIRED=1` (what CI sets) does **not** cover storage on purpose: the per-PR Neon branch has a migrated database but no provisioned bucket, so the storage integration tests skip there with a notice. Set `STORAGE_REQUIRED=1` only where `neon deploy` ran and the `AWS_*` credentials are present.
