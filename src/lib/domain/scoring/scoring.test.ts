@@ -2,8 +2,20 @@
  * scoring.test.ts — property tests for src/lib/domain/scoring/ (issue #7).
  *
  * Bayesian MAP scoring of a Thurstonian choice model with fixed, authored
- * item parameters (AUDIT.md S8) — `estimateLatents(responses)` turns the 15
- * block responses into one posterior per pillar, `map-luce-v1`.
+ * item parameters (AUDIT.md S8) — `estimateLatents(responses, items)` turns
+ * up to 15 block responses into one posterior per pillar, `map-luce-v1`.
+ *
+ * Under docs/domain.md D16 every participant answers their own generated
+ * form, so `items` is never a constant: it is `itemParametersOf(blocks)` over
+ * that participant's stored blocks, a pure projection of each option's
+ * `pillar` and `keyed` — scenario text is never read. What every form shares
+ * is the structure — 15 positions, the 4/4/4/3 focus-pillar rotation of
+ * `assignmentsFor`, four pillars once each, one reversed option on the focus
+ * pillar — and that is what these tests simulate over: respondent n answers
+ * `structuralBlocksFor("participant-" + n)`, a different key↔pillar layout
+ * and domain set per person, the same structure. Levels are recovered on one
+ * common metric across 200 different forms because the likelihood reads
+ * pillar and keying and never text (PILLARS.md §7.2).
  *
  * Zero runtime dependencies, plain assertions, erasable-types-only syntax,
  * in the style of src/lib/domain/matching/engine.test.ts. Every respondent
@@ -12,7 +24,7 @@
  *
  * Acceptance criteria covered (issue #7):
  *   AC-1  determinism + shape: same input, identical object; mean = Φ(theta)
- *   AC-2  levels recovered: r(true, est) > 0.80 per pillar, sum r > 0.85
+ *   AC-2  levels recovered across 200 forms: r > 0.80 per pillar, r(sum) > 0.85
  *   AC-3  all-positive keying loses levels (AUDIT F1): sum of thetas ≈ 0
  *   AC-4  fewer responses → wider posterior: seTheta(5) > seTheta(15)
  *   AC-5  most-only responses still score; least widens nothing
@@ -28,33 +40,34 @@ import { bandOf, normCdf } from "../matching/engine.ts";
 describe("estimateLatents", () => {
   // TODO: un-skip when estimateLatents exists.
   // Blocked on: src/lib/domain/scoring/estimate.ts (estimateLatents),
-  // simulate.ts (mulberry32, simulateRespondent), items.ts (ITEM_PARAMETERS)
-  // and INSTRUMENT (#4).
-  it.skip("AC-1 · scores the same 15 responses to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {});
+  // items.ts (itemParametersOf over the respondent's own blocks) and
+  // simulate.ts (mulberry32, simulateRespondent, structuralBlocksFor).
+  it.skip("AC-1 · scores 15 responses on the form structuralBlocksFor(participant-1) twice to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {});
 
   // TODO: un-skip when estimateLatents exists.
   // Blocked on: src/lib/domain/scoring/estimate.ts (estimateLatents),
-  // simulate.ts (mulberry32, simulateRespondent), items.ts (ITEM_PARAMETERS)
-  // and INSTRUMENT (#4).
-  it.skip("AC-2 · recovers levels over 200 respondents from mulberry32(42): r > 0.80 per pillar, r(sum) > 0.85", () => {});
+  // items.ts (itemParametersOf, one ItemParameters per respondent) and
+  // simulate.ts (mulberry32, simulateRespondent, structuralBlocksFor).
+  it.skip("AC-2 · recovers levels over 200 respondents, each on their own structuralBlocksFor form, from mulberry32(42): r > 0.80 per pillar, r(sum) > 0.85", () => {});
 
   // TODO: un-skip when estimateLatents and itemParametersOf exist.
   // Blocked on: src/lib/domain/scoring/estimate.ts (estimateLatents),
-  // items.ts (itemParametersOf over an all-positive copy of INSTRUMENT),
-  // simulate.ts (mulberry32, simulateRespondent) and INSTRUMENT (#4).
-  it.skip("AC-3 · all-positive keying pins every respondent's theta sum to zero while contrasts survive (AUDIT F1)", () => {});
+  // items.ts (itemParametersOf over an all-positive copy of each
+  // respondent's own blocks) and simulate.ts (mulberry32,
+  // simulateRespondent, structuralBlocksFor).
+  it.skip("AC-3 · all-positive keying of each respondent's own blocks pins the theta sum to zero while contrasts survive (AUDIT F1)", () => {});
 
   // TODO: un-skip when estimateLatents exists.
   // Blocked on: src/lib/domain/scoring/estimate.ts (estimateLatents),
-  // simulate.ts (mulberry32, simulateRespondent), items.ts (ITEM_PARAMETERS)
-  // and INSTRUMENT (#4).
-  it.skip("AC-4 · scoring positions 1..5 instead of all 15 widens seTheta on every pillar for every respondent", () => {});
+  // items.ts (itemParametersOf) and simulate.ts (mulberry32,
+  // simulateRespondent, structuralBlocksFor).
+  it.skip("AC-4 · scoring positions 1..5 instead of all 15 against the same items widens seTheta on every pillar for every respondent", () => {});
 
   // TODO: un-skip when estimateLatents exists.
   // Blocked on: src/lib/domain/scoring/estimate.ts (estimateLatents),
-  // simulate.ts (mulberry32, simulateRespondent with and without least),
-  // items.ts (ITEM_PARAMETERS) and INSTRUMENT (#4).
-  it.skip("AC-5 · most-only responses still yield four finite estimates, wider than most+least for 90 of 100", () => {});
+  // items.ts (itemParametersOf) and simulate.ts (mulberry32,
+  // simulateRespondent with and without least, structuralBlocksFor).
+  it.skip("AC-5 · most-only responses against the respondent's own items still yield four finite estimates, wider than most+least for 90 of 100", () => {});
 });
 
 describe("safety invariants", () => {
@@ -124,10 +137,13 @@ describe("safety invariants", () => {
   //      the route by which a stray NaN would be irreproducible.
   //
   // When src/lib/domain/scoring/estimate.ts lands, `scoredToday` becomes the
-  // ScoredLatents of estimateLatents over the adversarial respondent (most =
-  // the block's reversed option, least = the lowest-key positive option, all
-  // 15 blocks), the 200 mulberry32(42) respondents of AC-2 and their
-  // 5-response truncations; `expectWellFormed` runs on each unchanged.
+  // ScoredLatents of estimateLatents over the adversarial respondent on
+  // structuralBlocksFor("adversary") (most = the block's single reversed
+  // option, least = the lowest-key positive option, all 15 blocks), the 200
+  // mulberry32(42) respondents of AC-2 on their own forms and their
+  // 5-response truncations — every one scored against itemParametersOf(their
+  // own blocks), never a shared constant; `expectWellFormed` runs on each
+  // unchanged.
   it("AC-8 · no estimate is NaN or infinite: mean in [0, 1], se > 0, |theta| <= 4", () => {
     // 1. Why a non-finite estimate must be impossible, not merely unlikely.
     expect(bandOf(Number.NaN)).toBe("high");
