@@ -7,7 +7,7 @@ import { createRoomRepository } from "./adapters/db/room-repository";
 import { createGatewayLlm } from "./adapters/llm/gateway";
 import { rosterParticipants } from "./adapters/participants/roster";
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
-import { createVercelBlobPhotoStore } from "./adapters/storage/vercel-blob-photo-store";
+import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
@@ -93,10 +93,14 @@ export function resetLlm(): void {
  * Like the database members it is a getter, so a page that needs neither a model
  * nor a connection opens neither.
  *
- * `photos` is chosen by the presence of `BLOB_READ_WRITE_TOKEN` rather than by
+ * `photos` is chosen by the presence of `AWS_ENDPOINT_URL_S3` rather than by
  * `NODE_ENV`: Playwright boots a real dev server, so an environment check would
- * have to be right about "dev but under test". No token, no upload -- which is
- * why no test writes to Vercel Blob (docs/domain.md D11).
+ * have to be right about "dev but under test". No endpoint, no upload -- which
+ * is why no e2e run writes to the bucket (docs/domain.md D11 as amended by #25,
+ * docs/storage.md). It is deliberately NOT a getter over a memoised client:
+ * the variable is read per call so a test can swap the choice, and an
+ * `S3Client` is inert until a command is sent, so building one costs nothing
+ * and -- unlike every database-backed member above -- opens no connection.
  */
 export function serverDeps(): ServerDeps {
   return {
@@ -120,8 +124,9 @@ export function serverDeps(): ServerDeps {
       return createResponseRepository(getDb());
     },
     get photos() {
-      const token = process.env.BLOB_READ_WRITE_TOKEN;
-      return token ? createVercelBlobPhotoStore(token) : createFakePhotoStore();
+      return process.env.AWS_ENDPOINT_URL_S3
+        ? createNeonObjectStoragePhotoStore()
+        : createFakePhotoStore();
     },
   };
 }

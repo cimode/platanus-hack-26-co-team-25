@@ -24,15 +24,16 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "db:seed": "node --env-file=.env scripts/seed.ts",
+    "db:seed": "node --env-file-if-exists=.env scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "issues:ready": "node scripts/ready.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.62",
+    "@aws-sdk/client-s3": "^3.1116.0",
     "@hookform/resolvers": "^5.9.1",
+    "@neon/config": "^1.0.1",
     "@neondatabase/serverless": "^1.1.0",
-    "@vercel/blob": "^2.8.0",
     "ai": "^7.0.77",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

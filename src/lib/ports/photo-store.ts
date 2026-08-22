@@ -1,9 +1,9 @@
 /**
  * The photo storage port (docs/domain.md D11), owned by the core.
  *
- * Photos go to Vercel Blob in production and to the fake `data:` adapter in
- * tests and in a local checkout without `BLOB_READ_WRITE_TOKEN`; the use case
- * knows neither. `src/lib/composition.ts` decides which adapter implements
+ * Photos go to Neon Object Storage in production (D11 as amended by #25;
+ * `docs/storage.md`) and to the fake `data:` adapter in tests and in a local
+ * checkout without `AWS_ENDPOINT_URL_S3`; the use case knows neither. `src/lib/composition.ts` decides which adapter implements
  * this, and nothing under `src/lib/{domain,use-cases,ports}` may import one.
  */
 import type { ParticipantId } from "../domain/participant";

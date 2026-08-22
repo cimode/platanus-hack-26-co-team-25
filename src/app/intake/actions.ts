@@ -8,7 +8,6 @@ import {
   setSessionCookie,
 } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
-import type { Consent } from "@/lib/domain/participant";
 import {
   RegisterParticipantError,
   registerParticipant,
@@ -35,14 +34,13 @@ import { SetPhotoError, setPhoto } from "@/lib/use-cases/set-photo";
  * off" true by construction rather than by a step counter someone has to keep
  * in sync.
  *
- * Consent is the exception: it returns its result instead of redirecting,
- * because "you have just saved" is not a state the rows can express in this
- * issue (there is no `consent_saved_at` column, and #8's `declared_at` is the
- * one that finally carries it). Carrying it in the URL instead -- `?done=1` --
- * would make the confirmation a bookmarkable, shareable link that shows
- * "You're in / Romantic off / Business off / Friendship off" to someone who was
- * never asked. `useActionState` threads the returned value into the re-render
- * even before hydration, so the no-JavaScript path sees the same screen.
+ * Consent redirects too, and to the next STEP rather than back to `/intake`:
+ * issue #8 gave the flow a step 4, so `consent -> declared round` (§0) is a
+ * navigation now instead of a done screen the rows could not express. The
+ * saved switches stay visible where they always were -- on `/intake` itself,
+ * which resolves to step 3 until a band is tapped. `useActionState` still
+ * carries the error case into the re-render before hydration, so a phone whose
+ * bundle never arrived sees the same screen.
  */
 
 /** Only types are exported beside the actions -- they erase at compile time. */
@@ -58,14 +56,7 @@ export type RegisterState = {
 
 export type PhotoState = { error?: string };
 
-export type ConsentState = {
-  error?: string;
-  /**
-   * Present only on a save that actually happened, and it carries what was
-   * written -- so the done screen reports the row rather than the form.
-   */
-  saved?: Consent;
-};
+export type ConsentState = { error?: string };
 
 const RegisterInput = z.object({
   room: z.string().min(1),
@@ -218,9 +209,12 @@ function photoCopy(error: SetPhotoError): string {
  * Step 3. Saving with every switch off is a valid answer and stores three noes
  * (docs/domain.md §5): consent is opt-in, so silence is a no, not a prompt.
  *
- * Returns rather than redirects. The done screen is what a save produced, not a
- * place: `/intake` on its own resolves to step 3 with the saved switches, and
- * there is no URL that shows "You're in" to someone who has not been asked.
+ * Hands off to the declared round, which is the deferral #6 wrote down and #8
+ * closes: the flow is `consent -> declared round` (docs/domain.md §0), and the
+ * temporary "You're in" screen is gone. What was saved is still visible -- it
+ * is read back from the rows by reopening `/intake?room=...`, where the three
+ * switches show what is stored, rather than from a screen only a fresh save
+ * could reach.
  */
 export async function consentAction(
   _previous: ConsentState,
@@ -240,18 +234,18 @@ export async function consentAction(
   if (!parsed.success) return { error: "That didn't save — try again." };
 
   try {
-    const saved = await setConsent(
+    await setConsent(
       { sessionToken: token, consent: parsed.data },
       serverDeps()
     );
-    // `/intake` is a dynamic render -- it reads the session cookie on every
-    // request -- so the next visit reads the row it just wrote with no
-    // revalidation, and nothing in the app client-navigates to it.
-    return { saved };
   } catch (error) {
     if (error instanceof SetConsentError) {
       return { error: "Your session expired — start again." };
     }
     throw error;
   }
+
+  // Outside the try: `redirect` signals by throwing, and catching it here would
+  // swallow the navigation and re-render step 3 over a saved row.
+  redirect("/intake/declared");
 }

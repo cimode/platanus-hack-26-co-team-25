@@ -11,8 +11,8 @@
  * Idempotent by design: run it on every deploy, on every CI branch, twice in a
  * row -- the second run is a read and a no-op.
  *
- * Runs under bare Node (`node --env-file=.env scripts/seed.ts`) -- no runner,
- * no bundler, no extra devDependency. That is why every relative import along
+ * Runs under bare Node (`node --env-file-if-exists=.env scripts/seed.ts`) -- no
+ * runner, no bundler, no extra devDependency. That is why every relative import along
  * this file's import path carries an explicit `.ts` extension and the three
  * instrument JSON files carry `with { type: "json" }`: Node's ESM resolver
  * does no extension guessing and requires the import attribute, and
@@ -27,10 +27,11 @@ import { INSTRUMENT } from "../src/lib/domain/quiz/index.ts";
 const DEFAULT_SLUG = "platanus-hack-26-bogota";
 const DEFAULT_NAME = "Platanus Hack 26 · Bogotá";
 
-// `pnpm run db:seed` passes `--env-file=.env`, which is how a developer gets
-// their branch URL. This guarded second read is what lets `node
-// scripts/seed.ts` work with no flag at all -- CI has DATABASE_URL in the
-// environment and no `.env` file, and `--env-file` throws on a missing file.
+// `pnpm run db:seed` passes `--env-file-if-exists=.env`, which is how a
+// developer gets their branch URL. The flag tolerates a missing file (plain
+// `--env-file` exits 9 without one) and this guarded second read is what lets
+// `node scripts/seed.ts` work with no flag at all -- CI has DATABASE_URL in
+// the environment and no `.env` file at all.
 // Variables already in the environment win, so the two never fight.
 try {
   process.loadEnvFile(".env");

@@ -118,8 +118,10 @@ runs, `e2e/global-setup.ts` creates the `e2e-<run>` room the intake specs regist
 It is guarded the same way as the Vitest integration suites (`src/lib/adapters/db/test-db.ts`):
 with no `DATABASE_URL` it prints one `::warning` and creates nothing, and the specs that need
 the room (`e2e/intake.spec.ts`) skip on that same variable while the page-only safety tests
-keep running. `DB_REQUIRED=1` makes the missing database a failure instead — CI sets it
-once #5 gives every run a migrated Neon branch, so the skip can never hide a regression there.
+keep running. `DB_REQUIRED=1` makes the missing database a failure instead — CI sets it on
+every run that got a migrated Neon branch (#5), so there the skip can never hide a
+regression; on a repo with no `NEON_API_KEY` the suite runs without it and skips, rather
+than the whole job disappearing.
 
 Two projects, both Chromium:
 
