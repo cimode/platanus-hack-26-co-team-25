@@ -8,6 +8,18 @@ import { listParticipants } from "@/lib/use-cases/list-participants";
  * A Server Component: it calls the use case, hands the roster down, and stays
  * off the wire. `"use client"` lives on the form island, not here.
  */
+/**
+ * Server Actions take the *page's* `maxDuration`, not their own (see the Next
+ * docs for the route-segment config). `impersonateAction` schedules block
+ * authoring in `after()`, which runs after the response but inside this budget
+ * -- so without this the background work would be cut off mid-batch.
+ *
+ * 120s is deliberately under every plan's ceiling; `docs/ci.md` notes the Hobby
+ * number has moved more than once and was never confirmed here. A batch is
+ * measured at ~40-70s.
+ */
+export const maxDuration = 120;
+
 export default async function Home() {
   const roster = await listParticipants(serverDeps());
 
