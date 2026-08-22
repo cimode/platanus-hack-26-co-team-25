@@ -14,14 +14,24 @@ import { type BrowserContext, expect, type Page, test } from "@playwright/test";
  * Behaviour-level only: roles and visible text, never DOM structure. These run
  * on the `mobile` project (390x844), which is the intake target.
  *
- * The three `kind: safety` criteria (AC-7, AC-8, AC-9) are never skipped and
- * never conditional: consent defaults off, no page carries another
- * participant's name or photo, and the session cookie is unreadable from page
- * script. A silently skipped safety test is the most expensive kind of green in
- * this product.
+ * The three `kind: safety` criteria (AC-7, AC-8, AC-9) are never skipped on
+ * their own: consent defaults off, no page carries another participant's name
+ * or photo, and the session cookie is unreadable from page script. A silently
+ * skipped safety test is the most expensive kind of green in this product.
+ *
+ * The one thing that skips this file is the absence of a database. Every test
+ * here registers into the `e2e-<run>` room, so without DATABASE_URL there is
+ * nothing to register into (e2e/global-setup.ts prints the notice). CI sets
+ * DB_REQUIRED=1 once #5 gives every run a migrated Neon branch, and then a
+ * missing database fails the run before a single test can skip.
  */
 
 const FIXTURE_PHOTO = path.join(__dirname, "fixtures", "face.png");
+
+test.skip(
+  !process.env.DATABASE_URL,
+  "needs DATABASE_URL (set by CI once #5 lands)"
+);
 
 /** Set by e2e/global-setup.ts; a missing value is a broken run, not a skip. */
 function roomSlug(): string {
