@@ -169,10 +169,17 @@ jobs:
   # -- deploy ----------------------------------------------------------------
   #
   # Vercel's Git integration needs its GitHub App installed on the
-  # platanus-hack org, which only the organisers can do -- so this repo cannot
+  # platanus-hack org, which only the organisers can do -- so the org repo cannot
   # be "imported" in the Vercel dashboard. Deploying from CI with a token sidesteps
   # that entirely: Vercel becomes a deploy target of the pipeline rather than a
   # GitHub-integrated app, and no mirror repo is needed.
+  #
+  # The personal fork we actually deploy from CAN install the App, and did -- so
+  # pushes to main were being deployed twice: once by Vercel on its own (ungated,
+  # ignoring every job below) and once by this pipeline, racing for the alias.
+  # vercel.json sets git.deploymentEnabled.main = false to switch the Git
+  # integration's production deploys off, leaving this job as the only path to
+  # production. Preview deploys from the integration are unaffected.
   #
   # Required configuration. Until VERCEL_TOKEN exists these jobs succeed with every
   # step skipped, so CI stays green rather than being red while waiting on setup.
@@ -181,9 +188,10 @@ jobs:
   #   VERCEL_ORG_ID      `orgId` from .vercel/project.json    (Actions variable)
   #   VERCEL_PROJECT_ID  `projectId` from the same file       (Actions variable)
   #
-  # This deploys on a Hobby (personal) scope, so VERCEL_ORG_ID is a personal
-  # account id -- NOT a team_... value. Choose your own username, not a team,
-  # when `vercel link` prompts for a scope.
+  # This deploys on a Hobby (personal) scope. Note that Vercel issues team_-prefixed
+  # ids for personal scopes too, so a VERCEL_ORG_ID of team_... is correct here --
+  # it is the id of "<your username>'s projects", not of a real team. Choose your
+  # own username, not a team, when `vercel link` prompts for a scope.
 
   deploy-preview:
     name: deploy preview
