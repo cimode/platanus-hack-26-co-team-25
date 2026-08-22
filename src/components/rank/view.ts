@@ -8,7 +8,7 @@
  * the type cannot carry, no serialiser, no RSC payload and no dev-tools
  * inspection can leak.
  */
-import type { Lens } from "../room/layout";
+import type { Lens } from "@/lib/domain/room/layout";
 
 /** Whose reveal this is. Opaque: the cookie today, a session token later. */
 export type ViewerId = string;

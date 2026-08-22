@@ -6,7 +6,7 @@
  * takes the viewer and why an unranked person is `null` rather than a profile
  * with an empty standing.
  */
-import type { RankBand, RankReason } from "./rank";
+import type { RankBand, RankReason } from "@/components/rank/view";
 
 export interface PersonProfile {
   readonly id: string;

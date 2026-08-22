@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { RankBand, RankEntry, RankSort } from "./rank";
-import { applyRankView } from "./rank";
+import type { RankBand, RankEntry, RankSort } from "./view";
+import { applyRankView } from "./view";
 
 /**
  * `applyRankView` is the whole reason `/rank`'s client island is small: sorting
