@@ -12,20 +12,55 @@
  * Seeded throughout (`mulberry32`), never `Math.random`, so a failing AC
  * reproduces from its seed alone.
  */
-import type { Pillar } from "../quiz/instrument.ts";
-import { PILLARS } from "../quiz/instrument.ts";
+import { assignmentsFor } from "../quiz/assignments.ts";
+import type { Block, Pillar } from "../quiz/instrument.ts";
+import { OPTION_KEYS, PILLARS, validateBlock } from "../quiz/instrument.ts";
 import type { BlockResponse, OptionKey } from "../quiz/response.ts";
+import { mulberry32, seedFrom, shuffled } from "../quiz/rng.ts";
 import type { BlockItems } from "./items.ts";
 
-/** The same PRNG the timeline layer uses — 32-bit, seeded, dependency-free. */
-export function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+// The quiz domain already owns the seeded PRNG; re-exported so the scoring
+// tests draw from the same one rather than a second copy of the algorithm.
+export { mulberry32 };
+
+/**
+ * A structurally valid 15-block form for one participant, with a per-person
+ * key↔pillar layout — what D16 actually serves.
+ *
+ * Everything the measurement depends on is fixed across people: 15 positions,
+ * the 4/4/4/3 focus rotation from `assignmentsFor`, four pillars once each,
+ * exactly one reversed option and it sits on the focus pillar. What varies is
+ * which option KEY carries which pillar — precisely the thing that makes
+ * scoring someone against another person's form wrong, and the reason
+ * `estimateLatents` takes `items` rather than defaulting to a constant.
+ *
+ * Scenario and option text are placeholders: the likelihood never reads them.
+ * Each block goes through the real `validateBlock`, so a form the app would
+ * reject cannot quietly become a passing test fixture.
+ */
+export function structuralBlocksFor(participantId: string): Block[] {
+  const random = mulberry32(seedFrom(`scoring-sim:${participantId}`));
+  return assignmentsFor(participantId).map((assignment) => {
+    const layout = shuffled(PILLARS, random);
+    const block: Block = {
+      position: assignment.position,
+      batch: assignment.batch,
+      focusPillar: assignment.focusPillar,
+      domain: assignment.domain,
+      scenario: `simulated block ${assignment.position}`,
+      options: OPTION_KEYS.map((key, i) => ({
+        key,
+        text: `option ${key}`,
+        pillar: layout[i],
+        keyed:
+          layout[i] === assignment.focusPillar
+            ? ("reversed" as const)
+            : ("positive" as const),
+      })),
+    };
+    validateBlock(block);
+    return block;
+  });
 }
 
 /** Box-Muller, seeded — draws a standard normal from `rng`. */

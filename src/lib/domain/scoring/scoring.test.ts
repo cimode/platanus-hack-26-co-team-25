@@ -2,8 +2,20 @@
  * scoring.test.ts — property tests for src/lib/domain/scoring/ (issue #7).
  *
  * Bayesian MAP scoring of a Thurstonian choice model with fixed, authored
- * item parameters (AUDIT.md S8) — `estimateLatents(responses, ITEM_PARAMETERS)` turns the 15
- * block responses into one posterior per pillar, `map-luce-v1`.
+ * item parameters (AUDIT.md S8) — `estimateLatents(responses, items)` turns
+ * up to 15 block responses into one posterior per pillar, `map-luce-v1`.
+ *
+ * Under docs/domain.md D16 every participant answers their own generated
+ * form, so `items` is never a constant: it is `itemParametersOf(blocks)` over
+ * that participant's stored blocks, a pure projection of each option's
+ * `pillar` and `keyed` — scenario text is never read. What every form shares
+ * is the structure — 15 positions, the 4/4/4/3 focus-pillar rotation of
+ * `assignmentsFor`, four pillars once each, one reversed option on the focus
+ * pillar — and that is what these tests simulate over: respondent n answers
+ * `structuralBlocksFor("participant-" + n)`, a different key↔pillar layout
+ * and domain set per person, the same structure. Levels are recovered on one
+ * common metric across 200 different forms because the likelihood reads
+ * pillar and keying and never text (PILLARS.md §7.2).
  *
  * Zero runtime dependencies, plain assertions, erasable-types-only syntax,
  * in the style of src/lib/domain/matching/engine.test.ts. Every respondent
@@ -12,7 +24,7 @@
  *
  * Acceptance criteria covered (issue #7):
  *   AC-1  determinism + shape: same input, identical object; mean = Φ(theta)
- *   AC-2  levels recovered: r(true, est) > 0.80 per pillar, sum r > 0.85
+ *   AC-2  levels recovered across 200 forms: r > 0.80 per pillar, r(sum) > 0.85
  *   AC-3  all-positive keying loses levels (AUDIT F1): sum of thetas ≈ 0
  *   AC-4  fewer responses → wider posterior: seTheta(5) > seTheta(15)
  *   AC-5  most-only responses still score; least widens nothing
@@ -28,8 +40,14 @@ import type { Pillar } from "../quiz/instrument.ts";
 import { INSTRUMENT, PILLARS } from "../quiz/instrument.ts";
 import type { BlockResponse, OptionKey } from "../quiz/response.ts";
 import { estimateLatents, SCORER_VERSION } from "./estimate.ts";
-import { ITEM_PARAMETERS, itemParametersOf } from "./items.ts";
-import { drawTheta, mulberry32, simulateRespondent } from "./simulate.ts";
+import type { BlockItems } from "./items.ts";
+import { itemParametersOfBlocks } from "./items.ts";
+import {
+  drawTheta,
+  mulberry32,
+  simulateRespondent,
+  structuralBlocksFor,
+} from "./simulate.ts";
 
 /** Pearson r. */
 function correlation(x: readonly number[], y: readonly number[]): number {
@@ -50,26 +68,40 @@ function correlation(x: readonly number[], y: readonly number[]): number {
 /** No clock in the fixtures either — the epoch is as good as any instant. */
 const ANSWERED_AT = new Date(0);
 
+interface Respondent {
+  theta: Record<Pillar, number>;
+  blocks: ReturnType<typeof structuralBlocksFor>;
+  items: BlockItems[];
+  responses: BlockResponse[];
+}
+
 /**
  * The respondents every AC shares, drawn from mulberry32(42).
  *
- * One stream, full 15-block most+least answers. AC-4 and AC-5 then TRUNCATE or
- * STRIP these same answers rather than re-simulating: a second `mulberry32(42)`
+ * Respondent n answers `structuralBlocksFor("participant-" + n)` — their own
+ * key↔pillar layout and domain set, the same structure as everyone else's
+ * (D16) — and is scored against THEIR OWN items. That is the point: levels
+ * come back on one common metric across 200 different forms because the
+ * likelihood reads pillar and keying and never text.
+ *
+ * One RNG stream, full 15-block most+least answers. AC-4 and AC-5 TRUNCATE or
+ * STRIP these same answers rather than re-simulating: a second mulberry32(42)
  * run with different options consumes the stream at a different rate, so
  * `short[i]` would be a different person than `full[i]` and the comparison
  * would measure the draw, not the information.
  */
-function cohort(size: number) {
+function cohort(size: number): Respondent[] {
   const rng = mulberry32(42);
-  const people: {
-    theta: Record<Pillar, number>;
-    responses: BlockResponse[];
-  }[] = [];
+  const people: Respondent[] = [];
   for (let i = 0; i < size; i++) {
+    const blocks = structuralBlocksFor(`participant-${i + 1}`);
+    const items = itemParametersOfBlocks(blocks);
     const theta = drawTheta(rng);
     people.push({
       theta,
-      responses: simulateRespondent(theta, ITEM_PARAMETERS, rng, {
+      blocks,
+      items,
+      responses: simulateRespondent(theta, items, rng, {
         answeredAt: ANSWERED_AT,
       }),
     });
@@ -82,25 +114,23 @@ function withoutLeast(responses: readonly BlockResponse[]): BlockResponse[] {
   return responses.map((r) => ({ ...r, leastKey: null }));
 }
 
-/** An all-positive copy of the shipped form — the AUDIT F1 counterfactual. */
-const ALL_POSITIVE = itemParametersOf({
-  ...INSTRUMENT,
-  blocks: INSTRUMENT.blocks.map((block) => ({
-    ...block,
-    options: block.options.map((option) => ({
-      ...option,
-      keyed: "positive" as const,
-    })),
-  })),
-});
+/** One respondent's own form, every option positively keyed — the F1 counterfactual. */
+function allPositive(blocks: Respondent["blocks"]): BlockItems[] {
+  return itemParametersOfBlocks(
+    blocks.map((block) => ({
+      ...block,
+      options: block.options.map((o) => ({ ...o, keyed: "positive" as const })),
+    }))
+  );
+}
 
 describe("estimateLatents", () => {
-  it("AC-1 · scores the same 15 responses to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {
+  it("AC-1 · scores 15 responses on the form structuralBlocksFor(participant-1) twice to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {
     const [person] = cohort(1);
     expect(person.responses).toHaveLength(15);
 
-    const first = estimateLatents(person.responses, ITEM_PARAMETERS);
-    const second = estimateLatents(person.responses, ITEM_PARAMETERS);
+    const first = estimateLatents(person.responses, person.items);
+    const second = estimateLatents(person.responses, person.items);
 
     expect(first.scorerVersion).toBe(SCORER_VERSION);
     expect(SCORER_VERSION).toBe("map-luce-v1");
@@ -117,7 +147,7 @@ describe("estimateLatents", () => {
     }
   });
 
-  it("AC-2 · recovers levels over 200 respondents from mulberry32(42): r > 0.80 per pillar, r(sum) > 0.85", () => {
+  it("AC-2 · recovers levels over 200 respondents, each on their own structuralBlocksFor form, from mulberry32(42): r > 0.80 per pillar, r(sum) > 0.85", () => {
     const people = cohort(200);
     const truth: Record<string, number[]> = {};
     const estimated: Record<string, number[]> = {};
@@ -129,7 +159,7 @@ describe("estimateLatents", () => {
     const estimatedSums: number[] = [];
 
     for (const person of people) {
-      const out = estimateLatents(person.responses, ITEM_PARAMETERS);
+      const out = estimateLatents(person.responses, person.items);
       let trueSum = 0;
       let estimatedSum = 0;
       for (const pillar of PILLARS) {
@@ -150,7 +180,7 @@ describe("estimateLatents", () => {
     expect(rSum, `r(sum) = ${rSum.toFixed(3)}`).toBeGreaterThan(0.85);
   });
 
-  it("AC-3 · all-positive keying pins every respondent's theta sum to zero while contrasts survive (AUDIT F1)", () => {
+  it("AC-3 · all-positive keying of each respondent's own blocks pins the theta sum to zero while contrasts survive (AUDIT F1)", () => {
     const people = cohort(50);
     const trueSums: number[] = [];
     const estimatedSums: number[] = [];
@@ -158,7 +188,7 @@ describe("estimateLatents", () => {
     const contrasts: number[] = [];
 
     for (const person of people) {
-      const out = estimateLatents(person.responses, ALL_POSITIVE);
+      const out = estimateLatents(person.responses, allPositive(person.blocks));
       let trueSum = 0;
       let estimatedSum = 0;
       for (const pillar of PILLARS) {
@@ -197,14 +227,14 @@ describe("estimateLatents", () => {
     );
   });
 
-  it("AC-4 · scoring positions 1..5 instead of all 15 widens seTheta on every pillar for every respondent", () => {
+  it("AC-4 · scoring positions 1..5 instead of all 15 against the same items widens seTheta on every pillar for every respondent", () => {
     const people = cohort(50);
     for (let i = 0; i < people.length; i++) {
       const wide = estimateLatents(
         people[i].responses.slice(0, 5),
-        ITEM_PARAMETERS
+        people[i].items
       );
-      const narrow = estimateLatents(people[i].responses, ITEM_PARAMETERS);
+      const narrow = estimateLatents(people[i].responses, people[i].items);
       for (const pillar of PILLARS) {
         expect(
           wide.estimates[pillar].seTheta,
@@ -214,13 +244,13 @@ describe("estimateLatents", () => {
     }
   });
 
-  it("AC-5 · most-only responses still yield four finite estimates, wider than most+least for 90 of 100", () => {
+  it("AC-5 · most-only responses against the respondent's own items still yield four finite estimates, wider than most+least for 90 of 100", () => {
     const people = cohort(100);
     let wider = 0;
     for (let i = 0; i < people.length; i++) {
       const stripped = withoutLeast(people[i].responses);
-      const withLeast = estimateLatents(people[i].responses, ITEM_PARAMETERS);
-      const without = estimateLatents(stripped, ITEM_PARAMETERS);
+      const withLeast = estimateLatents(people[i].responses, people[i].items);
+      const without = estimateLatents(stripped, people[i].items);
       expect(stripped.every((r) => r.leastKey === null)).toBe(true);
 
       let allWider = true;
@@ -244,9 +274,9 @@ describe("estimateLatents", () => {
       ...person.responses,
       { ...person.responses[0], position: 16 },
     ];
-    expect(() => estimateLatents(past, ITEM_PARAMETERS)).toThrow(/16/);
+    expect(() => estimateLatents(past, person.items)).toThrow(/16/);
     const duplicated = [...person.responses, { ...person.responses[2] }];
-    expect(() => estimateLatents(duplicated, ITEM_PARAMETERS)).toThrow(
+    expect(() => estimateLatents(duplicated, person.items)).toThrow(
       /duplicate.*3/
     );
   });
@@ -263,35 +293,32 @@ describe("estimateLatents", () => {
     // confident theta = 0 out of this, with seTheta NARROWER than the prior,
     // i.e. the nonsense response appeared to add information.
     const badMost = [{ ...person.responses[0], mostKey: "e" as OptionKey }];
-    expect(() => estimateLatents(badMost, ITEM_PARAMETERS)).toThrow(
+    expect(() => estimateLatents(badMost, person.items)).toThrow(
       /mostKey.*"e".*a\.\.d/
     );
 
     const badLeast = [{ ...person.responses[0], leastKey: "z" as OptionKey }];
-    expect(() => estimateLatents(badLeast, ITEM_PARAMETERS)).toThrow(
+    expect(() => estimateLatents(badLeast, person.items)).toThrow(
       /leastKey.*"z".*a\.\.d/
     );
 
     const missing = [
       { ...person.responses[0], mostKey: undefined as unknown as OptionKey },
     ];
-    expect(() => estimateLatents(missing, ITEM_PARAMETERS)).toThrow(/mostKey/);
+    expect(() => estimateLatents(missing, person.items)).toThrow(/mostKey/);
 
     // A null leastKey is the legitimate single-pick fallback, not an error.
     expect(() =>
       estimateLatents(
         [{ ...person.responses[0], leastKey: null }],
-        ITEM_PARAMETERS
+        person.items
       )
     ).not.toThrow();
   });
 
   it("rejects an item set carrying the same position twice", () => {
     const [person] = cohort(1);
-    const duplicated = [
-      ...ITEM_PARAMETERS,
-      { ...ITEM_PARAMETERS[1], position: 1 },
-    ];
+    const duplicated = [...person.items, { ...person.items[1], position: 1 }];
     // Last-wins would score block 1 against block 2's options, silently.
     expect(() => estimateLatents(person.responses, duplicated)).toThrow(
       /position 1 twice/
@@ -303,8 +330,8 @@ describe("estimateLatents", () => {
     const reversed = [...person.responses].reverse();
     // Float addition is not associative, so the objective must be summed in a
     // fixed order or two orderings differ in the last ulp.
-    expect(estimateLatents(reversed, ITEM_PARAMETERS)).toEqual(
-      estimateLatents(person.responses, ITEM_PARAMETERS)
+    expect(estimateLatents(reversed, person.items)).toEqual(
+      estimateLatents(person.responses, person.items)
     );
   });
 
@@ -318,15 +345,18 @@ describe("estimateLatents", () => {
     // earlier version of this test managed to assert nothing at all.)
     // Only the blocks where regulation is POSITIVELY keyed — in the others it
     // is the reversed option, and picking it would push theta the other way.
-    const skewed = ITEM_PARAMETERS.filter((block) =>
-      block.options.some((o) => o.pillar === "regulation" && o.sign === 1)
-    ).map((block) => ({
-      ...block,
-      options: block.options.map((o) => ({
-        ...o,
-        intercept: o.pillar === "regulation" && o.sign === 1 ? -50 : 0,
-      })),
-    }));
+    const [person] = cohort(1);
+    const skewed = person.items
+      .filter((block) =>
+        block.options.some((o) => o.pillar === "regulation" && o.sign === 1)
+      )
+      .map((block) => ({
+        ...block,
+        options: block.options.map((o) => ({
+          ...o,
+          intercept: o.pillar === "regulation" && o.sign === 1 ? -50 : 0,
+        })),
+      }));
     expect(skewed.length).toBeGreaterThan(0);
 
     const responses: BlockResponse[] = skewed.map((block) => {
@@ -375,7 +405,7 @@ describe("estimateLatents", () => {
     const [person] = cohort(1);
 
     // Rotate the pillars one key to the left, keeping the structure legal.
-    const permuted = ITEM_PARAMETERS.map((block) => ({
+    const permuted = person.items.map((block) => ({
       ...block,
       options: block.options.map((option, i) => ({
         ...option,
@@ -384,7 +414,7 @@ describe("estimateLatents", () => {
       })),
     }));
 
-    const right = estimateLatents(person.responses, ITEM_PARAMETERS);
+    const right = estimateLatents(person.responses, person.items);
     const wrong = estimateLatents(person.responses, permuted);
 
     // Both look perfectly healthy. Only one of them is about this person.
@@ -402,7 +432,7 @@ describe("estimateLatents", () => {
   });
 
   it("scores an empty response set to the prior: theta 0, mean .5", () => {
-    const out = estimateLatents([], ITEM_PARAMETERS);
+    const out = estimateLatents([], cohort(1)[0].items);
     for (const pillar of PILLARS) {
       expect(out.estimates[pillar].theta).toBeCloseTo(0, 12);
       // normCdf uses an erf approximation, so 0.5 lands within ~5e-10.
@@ -482,10 +512,13 @@ describe("safety invariants", () => {
   //      the route by which a stray NaN would be irreproducible.
   //
   // When src/lib/domain/scoring/estimate.ts lands, `scoredToday` becomes the
-  // ScoredLatents of estimateLatents over the adversarial respondent (most =
-  // the block's reversed option, least = the lowest-key positive option, all
-  // 15 blocks), the 200 mulberry32(42) respondents of AC-2 and their
-  // 5-response truncations; `expectWellFormed` runs on each unchanged.
+  // ScoredLatents of estimateLatents over the adversarial respondent on
+  // structuralBlocksFor("adversary") (most = the block's single reversed
+  // option, least = the lowest-key positive option, all 15 blocks), the 200
+  // mulberry32(42) respondents of AC-2 on their own forms and their
+  // 5-response truncations — every one scored against itemParametersOf(their
+  // own blocks), never a shared constant; `expectWellFormed` runs on each
+  // unchanged.
   it("AC-8 · no estimate is NaN or infinite: mean in [0, 1], se > 0, |theta| <= 4", () => {
     // 1. Why a non-finite estimate must be impossible, not merely unlikely.
     expect(bandOf(Number.NaN)).toBe("high");
@@ -529,6 +562,9 @@ describe("safety invariants", () => {
     // The adversarial respondent: every "most" is the block's reversed option
     // and every "least" is its lowest-key positive one — the answer pattern
     // that drives theta hardest away from the prior in all four coordinates.
+    // Built on the committed fallback form, which is a valid 15-block form and
+    // the one place the constant is genuinely convenient (D16 §10.1).
+    const adversarialItems = itemParametersOfBlocks(INSTRUMENT.blocks);
     const adversarial: BlockResponse[] = INSTRUMENT.blocks.map((block) => {
       const reversed = block.options.find((o) => o.keyed === "reversed");
       const positives = block.options
@@ -549,7 +585,7 @@ describe("safety invariants", () => {
     for (const pillar of PILLARS) {
       scoredToday.push({
         label: `adversarial ${pillar}`,
-        estimate: estimateLatents(adversarial, ITEM_PARAMETERS).estimates[
+        estimate: estimateLatents(adversarial, adversarialItems).estimates[
           pillar
         ],
       });
@@ -557,10 +593,10 @@ describe("safety invariants", () => {
 
     // The 200 respondents of AC-2, and their 5-response truncations.
     for (const [i, person] of cohort(200).entries()) {
-      const full = estimateLatents(person.responses, ITEM_PARAMETERS);
+      const full = estimateLatents(person.responses, person.items);
       const truncated = estimateLatents(
         person.responses.slice(0, 5),
-        ITEM_PARAMETERS
+        person.items
       );
       for (const pillar of PILLARS) {
         scoredToday.push({

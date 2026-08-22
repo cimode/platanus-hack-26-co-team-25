@@ -58,7 +58,7 @@ abandoners do not.
 | D12 | Romantic consent covers the ranking **and** the AI-offspring render, and the copy says so. | `AUDIT.md` S17: face-merge renders only for mutually opted-in pairs. One switch, explicitly worded. |
 | D14 | **Option cards are text, not images.** No `public/quiz/*.png`, no image-generation pipeline, no `imagePathOf`. The `imagePrompts` already in `quiz/batch-*.json` stay in the file as authored history and are ignored by the domain type. | Confirmed by the user 2026-08-22. Cuts the entire image budget (60 renders per instrument version, and ~6,000 under the per-participant design §10.1 rejects), removes the model's least reliable capability — Spanish caption text baked into an image — from the critical path, and deletes issue I3 outright. Options are ≤8 words by the authoring rules, which is a card; the 2×2 grid in `docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` renders them as type. |
 | D16 | **Each participant gets their own generated form, authored live, batch by batch.** Reverses D1/D2. Fixed for everyone: 15 positions, the 4/4/4/3 focus-pillar rotation, four pillars once each, exactly one reversed option on the focus pillar. Varies per person: which everyday domain each position is set in, and the writing. Authored at entry and rolled forward — batch N+1 while batch N is answered. Stored in `generated_blocks(participant_id, position)`. **The committed 15 blocks become the per-participant fallback**, served whenever authoring fails, the model is down, or `AI_GATEWAY_API_KEY` is absent. | Confirmed by the user 2026-08-22, after §10.1 had been recorded the other way and built on — see the note below. The linking objection in D1 was **overstated**: the estimator uses *authored*, not calibrated, item parameters (`AUDIT.md` S8), so a block's likelihood depends on which pillar was chosen and how it was keyed, never on the scenario text. Identical structure is identical measurement, and `validateBlock()` enforces the structure on every generated block. D14 is what makes it affordable — text-only options mean ~1,500 short completions for 100 attendees rather than ~6,000 image renders. Residual risk is content quality with no human in the loop, carried by the structural validator, a repair pass and the fallback. Measured: ~38–70s per batch of five, 15/15 blocks correctly keyed first attempt. |
-| D15 | **The question set is stored in the database too, and every answer row carries its question.** `instruments(version pk, hash, blocks jsonb, seeded_at)` holds the full 15-block content per version, written by `db:seed` from the constant and refused on a hash mismatch; `quiz_responses` gains `instrument_version`, `scenario`, `most_text`, `least_text`, captured at answer time. | Requested by the user 2026-08-22: answers must be readable in the database together with the questions, without the code. The constant remains the source of truth (D2 — hash-pinned, version-guarded); the table is its audited mirror, and the columns make each row self-describing in Drizzle Studio or any SQL client. Cost: one jsonb row per version and ~150 bytes per answer. Lands with issue I9. |
+| D15 | **Every answer row carries its question.** ⚠️ The `instruments(version pk, hash, blocks jsonb, seeded_at)` **half is SUPERSEDED by D16** — there is no such table, no seed writes one, and the constant is mirrored nowhere; `generated_blocks(participant_id, position)` is the stored question set, per person. **What was kept, and shipped in I9/#13:** `quiz_responses` gains `instrument_version`, `scenario`, `most_text`, `least_text`, captured at answer time — now resolved from *that participant's* `generated_blocks` row rather than from the constant, with `save` rejecting when the block or the key is missing. | Requested by the user 2026-08-22: answers must be readable in the database together with the questions, without the code. Under D16 (same day, later) the question is not derivable from the code at *all*, so the answer-row columns became the whole of this decision instead of half of it — and a shared mirror became meaningless, because no two participants answer the same 15 scenarios. `INSTRUMENT` is still hash-pinned by its unit test and is still the per-participant fallback (D2). Cost: ~150 bytes per answer, and one extra read per `save` (the block, by its unique index). |
 | D13 | **Rankings are computed on request, not stored.** Latent estimates *are* stored — they are the avatar. | `rankRoom` is pure and ranks a 100-person room in milliseconds; persisting its output was ceremony on the last issue. The loading moment is `loading.tsx` narrating "scoring 15 blocks · ranking N people". The projected room view, when it exists, computes mutual top-k from the same in-memory array behind an operator credential. `latent_estimates` stays: it is `CONTEXT.md` §3 step 2, and the timeline will read it. |
 
 ## 2. Aggregates (`src/lib/domain/`)
@@ -184,24 +184,35 @@ non-empty.
 | most_key | option_key not null | |
 | least_key | option_key | null under the single-pick fallback; check `least_key is null or least_key <> most_key` |
 | shown_order | text not null | e.g. `cbad`; check `length = 4` |
+| instrument_version | text not null | **I9** — `INSTRUMENT.version`, the *structural* version under D16 |
+| scenario | text not null | **I9** — this participant's block-`position` scenario, as answered |
+| most_text | text not null | **I9** — the text of the option `most_key` named |
+| least_text | text | **I9** — null exactly when `least_key` is; check `(least_key is null) = (least_text is null)` |
 | answered_at | timestamptz not null | |
 | | unique (participant_id, position) | |
 
 A participant answers a block once; re-answering is an update (the back affordance), not a
-second row. The instrument the keys refer to is the room's `instrument_version`.
+second row — and the update moves the **texts** with the keys, or the row would describe an
+answer nobody gave. The instrument the keys refer to is the room's `instrument_version`.
 
-### `instruments` — **I9** (D15): the question set, per version
+The four I9 columns are resolved inside `ResponseRepository.save`, at write time, from
+`generated_blocks(participant_id, position)` — **that participant's** block, never the
+fallback constant (under D16 most people did not answer the constant). No block row at that
+position, or a key that block never offered, makes `save` **reject**, naming the participant
+and the position, and write nothing: an answer to a block nobody was shown is a bug, not a
+degraded mode. `pillar`/`keyed` never appear on an answer row (§10.1).
 
-| column | type | notes |
-| --- | --- | --- |
-| version | text pk | `v1` — equals `INSTRUMENT.version` |
-| hash | text not null | `instrumentHash()` at seed time; the seed refuses to overwrite a different hash |
-| blocks | jsonb not null | the 15 blocks exactly as the constant: position, focusPillar, scenario, options[{key, text, pillar, keyed}] |
-| seeded_at | timestamptz not null | |
+### ~~`instruments`~~ — **I9** (D15): superseded by D16, columns kept
 
-`quiz_responses` also gains (I9): `instrument_version text not null`, `scenario text not null`,
-`most_text text not null`, `least_text text` — resolved from the constant when the answer is
-saved, so a row reads on its own. `pillar`/`keyed` never appear on an answer row.
+There is no `instruments` table. D15 mirrored one shared question set per version; under D16
+the question set is per participant, and `generated_blocks(participant_id, position)` already
+*is* that record — cascading with the participant, which a version-keyed mirror never would.
+Mirroring the constant in SQL would store the one form almost nobody answered.
+
+What D15 asked for survives whole in the four columns above, and matters more under D16 than
+it did under D2: the question a row answers is no longer derivable from the code at all, so
+the row has to carry it. The constant stays hash-pinned by its unit test and stays the
+per-participant fallback (D2); it is seeded nowhere.
 
 ## 4. Tables that land later
 
@@ -290,8 +301,10 @@ interface ResponseRepository {
   save(r: BlockResponse, opts?: { completedAt: Date }): Promise<void>;
   //  upsert on (participant, position); when `completedAt` is given (the 15th distinct
   //  position), the same batch() also sets participants.quiz_completed_at — one round trip,
-  //  so a participant can never have 15 responses and no completion timestamp
-  byParticipant(id): Promise<BlockResponse[]>;
+  //  so a participant can never have 15 responses and no completion timestamp.
+  //  The adapter first reads generated_blocks(participant, position) and stores scenario /
+  //  most_text / least_text on the row (D15, §3); a missing block or an unknown key rejects
+  byParticipant(id): Promise<BlockResponse[]>;   // keys only — the texts are for humans and SQL
 }
 ```
 
@@ -351,7 +364,7 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
 | I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three batches` | `/quiz` against the instrument constant; typographic option cards (D14), batch beats as pacing | I1, I4 |
 | I7 · [#7](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/7) `scoring: turn 15 block responses into latent posteriors` | `domain/scoring`, `latent_estimates` | I1 |
 | I8 · [#10](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/10) `matching: rank the room under a lens and show the result` | `prepare-results` (score if missing → `byRoomForRanking(room, lens)` → `toPerson` → `rankRoom`), `/results/[lens]` with `loading.tsx`, the results-payload serialisation test (§5) and the abandoned-participant safety test | I5, I6, I7 |
-| I9 · [#13](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/13) `quiz: persist the question set and resolved answers` | `instruments` table + the four answer columns, migration `0001`, `InstrumentRepository`, seed writes/refuses by hash, `save` resolves texts | #4 |
+| I9 · [#13](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/13) `quiz: capture each answer's question text from the participant's generated block` | the four answer columns on `quiz_responses`, migration `0002_response_texts`, `save` resolves texts from `generated_blocks` and rejects a missing block — **merged (PR #19)** | #4 |
 
 Waves: **I1** → **{I2, I4, I9}** → **{I5, I6, I7}** → **I8**. I9 and I7 both add a migration and both touch `schema/index.ts`, so they run sequentially, I9 first. Each wave touches disjoint
 paths and can run in parallel through `/work`. I3 has no code dependency and no
@@ -376,6 +389,9 @@ These are decided above so work can start; each is one line to reverse.
    I9/#13 should mirror *that* instead. D15's other half — denormalising `scenario`,
    `most_text`, `least_text` onto the answer row — becomes *more* valuable under D16, not
    less, because the question is no longer derivable from the constant.
+   **Settled in #13:** no `instruments` table at all (`generated_blocks` is the record), and
+   the four answer-row columns ship resolved from the participant's own block — see D15 and
+   §3.
    **(b) `rooms.instrument_version`** now identifies the *structural* version (rotation and
    rules), which really is shared, rather than the exact 15 scenarios.
 2. **D11 — Vercel Blob for photos**, `bytea` as the fallback.

@@ -109,8 +109,12 @@ Server-only. Never returned to any other participant, never in a room or ranking
 
 ## 6. `quiz` — fifteen block responses, one submission each
 
-The instrument is a constant (`INSTRUMENT`, version `v1`, 15 blocks × 4 text options, one
-option per pillar, exactly one reversed-keyed). The form submits **keys**, never text:
+Each participant answers **their own 15 blocks**, authored live at entry and stored in
+`generated_blocks(participant_id, position)` (`docs/domain.md` D16). What is fixed for
+everyone is the structure — 15 positions, four text options per block, one per pillar,
+exactly one reversed-keyed on the focus pillar — and `INSTRUMENT` (version `v1`) is the
+structural contract plus the fallback served when authoring fails. The form submits
+**keys**, never text:
 
 ```ts
 type OptionKey = "a" | "b" | "c" | "d";
@@ -141,8 +145,9 @@ answer above reads, on its own:
   "leastText": "Anuncio que la cena está oficialmente arruinada" }
 ```
 
-The question set itself lives once per version in `instruments.blocks` (with each option's
-pillar and keying, which never appear on an answer row).
+The question a person saw lives in their own `generated_blocks` row (with each option's
+pillar and keying, which never appear on an answer row); the texts are copied onto the
+answer from that row, so a deleted participant's cascade never orphans an answer.
 
 ## 7. What is stored — the aggregate
 
@@ -226,8 +231,8 @@ interface RoomMember { id: string; name: string; photoUrl: string | null }
 }
 ```
 
-`position` + `mostKey` resolve against `INSTRUMENT.blocks[position - 1].options` to the
-pillar and keying that the scorer (issue #7) reads; the text is never stored twice.
+`position` + `mostKey` resolve against that participant's `generated_blocks` row (the option
+whose `key` matches) to the pillar and keying that the scorer (issue #7) reads.
 
 ## 9. Validation, in one place
 
@@ -250,7 +255,8 @@ Where the types live: `src/lib/domain/participant/participant.ts`, `gates.ts`, `
 ## 10. The receiving contract (zod) — what each Server Action accepts
 
 The client sends **keys**, never text. The server resolves the question and the chosen
-option texts from `INSTRUMENT` and stores them with the answer (D15). This is the shape
+option texts from the participant's `generated_blocks` row and stores them with the
+answer (D15 as amended by D16); a key for a block the person was never shown is rejected. This is the shape
 `src/lib/domain/intake/contract.ts` takes in issues #6 / #8 / #9:
 
 ```ts
@@ -322,7 +328,7 @@ What the server derives and stores per answer — none of it comes from the clie
   participantId: fromCookie("hookai_session"),
   instrumentVersion: INSTRUMENT.version,                  // "v1"
   position, mostKey, leastKey, shownOrder,                // as received
-  scenario: block.scenario,                               // block = INSTRUMENT.blocks[position - 1]
+  scenario: block.scenario,                               // block = generated_blocks row for (participantId, position)
   mostText: block.options.find((o) => o.key === mostKey).text,
   leastText: leastKey ? block.options.find((o) => o.key === leastKey).text : null,
   answeredAt: now,
