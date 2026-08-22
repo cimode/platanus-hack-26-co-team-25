@@ -174,12 +174,12 @@ jobs:
   # that entirely: Vercel becomes a deploy target of the pipeline rather than a
   # GitHub-integrated app, and no mirror repo is needed.
   #
-  # Required secrets. Until VERCEL_TOKEN exists these jobs succeed with every
+  # Required configuration. Until VERCEL_TOKEN exists these jobs succeed with every
   # step skipped, so CI stays green rather than being red while waiting on setup.
   #
-  #   VERCEL_TOKEN       vercel.com/account/tokens
-  #   VERCEL_ORG_ID      `orgId` from .vercel/project.json after `vercel link`
-  #   VERCEL_PROJECT_ID  `projectId` from the same file
+  #   VERCEL_TOKEN       vercel.com/account/tokens            (Actions secret)
+  #   VERCEL_ORG_ID      `orgId` from .vercel/project.json    (Actions variable)
+  #   VERCEL_PROJECT_ID  `projectId` from the same file       (Actions variable)
   #
   # This deploys on a Hobby (personal) scope, so VERCEL_ORG_ID is a personal
   # account id -- NOT a team_... value. Choose your own username, not a team,
@@ -194,8 +194,8 @@ jobs:
       contents: read
       pull-requests: write
     env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
     steps:
       - name: Are Vercel secrets configured?
         id: gate
@@ -250,8 +250,8 @@ jobs:
     needs: [typecheck, biome, eslint, unit, build, e2e]
     runs-on: ubuntu-latest
     env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
     steps:
       - name: Are Vercel secrets configured?
         id: gate
