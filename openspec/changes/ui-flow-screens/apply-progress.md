@@ -155,10 +155,21 @@ it guards and watching `pnpm run typecheck` fail, then reverting.
 
 - Mode: stacked PR slice, `auto-chain` / `stacked-to-main`.
 - Branch: `feat/ui-flow-u2-timeline-contracts`.
-- Base: `feat/1a-venue-background` (open PR #18), same reason as U1 — that
-  commit introduces `openspec/changes/ui-flow-screens/`. **Deliberately NOT
-  based on U1's branch**: the two units are disjoint and basing U2 on U1 would
-  serialise two independent reviews. Retarget to `main` once #18 merges.
+- Branched from `feat/1a-venue-background` (`c5b80b5`) for the same reason as
+  U1 — that commit introduces `openspec/changes/ui-flow-screens/`, which did
+  not exist on `main`. **Deliberately NOT based on U1's branch**: the two units
+  are disjoint and basing U2 on U1 would serialise two independent reviews.
+- **Target `main`.** PR #18 (`3d7ccfc`) and U1's PR #27 (`ee42d3b`) both merged
+  while this unit was being written, so `c5b80b5` is now an ancestor of
+  `origin/main` and no rebase is needed — open the PR straight against `main`.
+- **Merge into `main` was rehearsed and is clean bar one trivial hunk.**
+  `tasks.md` auto-merges (this unit marked 1.1–1.9 byte-identically to U1, so
+  git sees the same change on both sides). `apply-progress.md` reports an
+  add/add conflict because neither side has a common ancestor for it — but
+  U2's file BEGINS WITH `main`'s file byte for byte and only appends Batch 2,
+  so the resolution is `git checkout --theirs` and nothing else. On the merged
+  tree `pnpm run verify` is green at 145 passed / 41 skipped, and AC-PORT-6's
+  four files still report 14 passed / 7 skipped, unchanged.
 - Rollback: `git revert`. Nothing imports these modules yet — not U1, not
   `composition.ts`, not a screen — so the revert cannot break anything.
 - Five work-unit commits, each independently revertable and each under the
@@ -216,13 +227,17 @@ it guards and watching `pnpm run typecheck` fail, then reverting.
    estimates are calibrated to code, not to this codebase's commenting
    convention. U3–U9's estimates should be read as roughly 2.5× low.
 4. **`domain/reveal/index.ts` (U1's barrel) does not export U2's modules.**
-   The barrel is U1's file and is not in this tree, so U2 could not extend it
-   without pulling U1 in. Whoever merges the second of the two units should add
-   `event-tag`, `offspring` and `timeline` to it — one line each, no logic.
-5. `main` has moved to `8c76d87` and now carries changes to
-   `src/lib/domain/room/layout.ts`. `Lens`, `LENSES` and `isLens` are byte-
-   identical there, so U2's imports are safe across the eventual retarget;
-   verified rather than assumed.
+   The barrel is U1's file and was not in this tree while U2 was written, so
+   U2 could not extend it without pulling U1 in. It IS on `main` now. Adding
+   `event-tag`, `offspring` and `timeline` to it is one line each and no logic;
+   left out of this PR because task 1.7 owns that file and this unit was scoped
+   to 2.1–2.8. Do it in U8, or as a one-line follow-up.
+5. **`main` moved twice mid-unit and now contains both PR #18 and U1's PR
+   #27** (`8c76d87` → `3d7ccfc` → `ee42d3b`). Root `timeline/` did not change
+   across any of it, so the 2.2 drift trap's coupling still holds, and
+   `Lens`/`LENSES`/`isLens` in `domain/room/layout.ts` are byte-identical
+   despite that file being edited — checked rather than assumed, before and
+   after the unit.
 
 ### Remaining
 
