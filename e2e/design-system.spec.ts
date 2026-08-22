@@ -37,7 +37,7 @@ const SECTIONS = [
   "typography",
   "surfaces",
   "lenses",
-  "shape-glow",
+  "shape-depth",
   "controls",
   "in-situ",
   "loading",
@@ -46,9 +46,8 @@ const SECTIONS = [
 test.describe("design system", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/design");
-    // The serif is the whole point of the type system, so never shoot before
-    // fonts have settled -- otherwise snapshots flap between Instrument Serif
-    // and its fallback.
+    // Baloo 2 carries the whole display voice, so never shoot before fonts
+    // have settled -- otherwise snapshots flap between it and its fallback.
     await page.evaluate(() => document.fonts.ready);
   });
 
@@ -107,19 +106,23 @@ test.describe("design system", () => {
     expect(resolved.business).toBeTruthy();
     expect(resolved.friendship).toBeTruthy();
 
-    // All four contexts must differ: three lenses plus the pre-lens brand cyan.
-    const values = [
-      resolved.root,
-      resolved.romantic,
-      resolved.business,
-      resolved.friendship,
-    ];
-    expect(new Set(values).size).toBe(4);
+    // The three lenses must be mutually distinct -- that is the whole point.
+    const lenses = [resolved.romantic, resolved.business, resolved.friendship];
+    expect(new Set(lenses).size).toBe(3);
+
+    // Business and friendship must also differ from the pre-lens accent.
+    // Romantic deliberately does NOT: coral IS the romantic accent in Dipia,
+    // not a separate brand hue, so `--primary` matching at :root is correct.
+    expect(resolved.business).not.toBe(resolved.root);
+    expect(resolved.friendship).not.toBe(resolved.root);
+    expect(resolved.romantic).toBe(resolved.root);
   });
 
-  test("the app is dark-only", async ({ page }) => {
-    // Light mode is intentionally not built. If `dark` ever falls off <html>,
-    // every surface inverts and nobody notices until it is projected.
-    await expect(page.locator("html")).toHaveClass(/dark/);
+  test("the app is light-only", async ({ page }) => {
+    // The dark theme was retired with the Dipia system. globals.css still
+    // DECLARES the `dark` variant -- the shadcn primitives carry 44 `dark:`
+    // utilities and an undeclared variant fails the build -- but nothing must
+    // ever apply the class, or every surface inverts on stage.
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
   });
 });

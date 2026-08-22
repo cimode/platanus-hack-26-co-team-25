@@ -92,7 +92,7 @@ ln -s "$(git rev-parse --show-toplevel)/.neon" "$WT/.neon"
 ```
 
 Sibling directory, deliberately outside the repo: a `.worktrees/` inside it
-would need excluding from Biome, ESLint, Vitest and Playwright separately, and
+would need excluding from Biome, Vitest and Playwright separately, and
 whichever one you forget scans a duplicate copy of the whole codebase.
 
 Pass each issue to the `work_issues` workflow as

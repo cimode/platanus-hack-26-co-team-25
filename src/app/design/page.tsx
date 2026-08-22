@@ -171,7 +171,7 @@ function RankingSample({ active }: { active: boolean }) {
           key={p.name}
           className={cn(
             "flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-all",
-            active && i === 0 && "glow"
+            active && i === 0 && "shadow-toy"
           )}
         >
           <Avatar className="size-9">
@@ -205,7 +205,7 @@ function TimelineSample() {
             <span className="text-primary">{e.year}</span>
           </div>
           <div className="space-y-2 border-l border-border pl-4">
-            <p className="font-narrative text-2xl leading-tight text-balance">
+            <p className="font-display text-2xl leading-tight text-balance">
               {e.event}
             </p>
             <div className="flex gap-3 font-mono text-[0.7rem] text-muted-foreground">
@@ -235,7 +235,7 @@ export default function DesignSystemPage() {
           </span>
         </div>
         <div className="space-y-2">
-          <h1 className="font-narrative text-5xl leading-[1.05] text-balance sm:text-6xl">
+          <h1 className="font-display text-5xl leading-[1.05] text-balance sm:text-6xl">
             A simulation engine for human relationships.
           </h1>
           <p className="max-w-xl text-sm text-muted-foreground">
@@ -246,13 +246,13 @@ export default function DesignSystemPage() {
         </div>
         <div className="flex flex-wrap gap-2 pt-2">
           <Badge variant="outline" className="font-mono text-[0.7rem]">
-            dark-only
+            light-only
           </Badge>
           <Badge variant="outline" className="font-mono text-[0.7rem]">
             radius 1rem
           </Badge>
           <Badge variant="outline" className="font-mono text-[0.7rem]">
-            Instrument Serif · Geist · Geist Mono
+            Baloo 2 · Nunito Sans · ui-monospace
           </Badge>
         </div>
       </header>
@@ -262,7 +262,7 @@ export default function DesignSystemPage() {
         <Section
           n="01"
           title="Brand"
-          note="The wordmark is always lowercase, one word, tight tracking. It is the logo — there is no separate mark. Cyan is hookai's own colour and appears only on the engine's surfaces: intake, loading, the shell. It never competes with a lens."
+          note="The wordmark is always lowercase, one word, tight tracking, with the coral dot. Coral is both the product accent and the romantic lens — deliberately the same hue, not a separate brand colour."
         >
           <div className="grid gap-4 sm:grid-cols-3">
             <Card>
@@ -299,21 +299,21 @@ export default function DesignSystemPage() {
         <Section
           n="02"
           title="Typography"
-          note="Three voices, three jobs. The serif narrates a life. The sans runs the interface. The mono is the engine reporting — scores, years, dimensions, IDs. Never swap their roles: that separation is what makes the product read as an engine telling a story rather than a chatbot with opinions. font-heading is Geist, not the serif — card and dialog titles are furniture, so the serif stays rare enough to still mean something."
+          note="Three voices, three jobs. Baloo 2 is the display voice — logo, headings, CTAs. Nunito Sans runs the interface and carries every narrated event. The mono is the system reporting — years, counters, hints — always lowercase. font-heading points at Baloo, so shadcn card and dialog titles inherit the display face without an override."
         >
           <div className="space-y-8">
             <div className="space-y-2">
-              <Spec>font-narrative · Instrument Serif 400 · narrative</Spec>
-              <p className="font-narrative text-4xl leading-tight text-balance">
+              <Spec>font-display · Baloo 2 700–800 · display</Spec>
+              <p className="font-display text-4xl leading-tight text-balance">
                 Year six: the kid.
               </p>
-              <p className="font-narrative text-2xl leading-snug text-muted-foreground">
+              <p className="font-display text-2xl leading-snug text-muted-foreground">
                 You buy the apartment on Fifth Avenue.
               </p>
             </div>
             <Separator />
             <div className="space-y-2">
-              <Spec>font-sans / font-heading · Geist · interface</Spec>
+              <Spec>font-sans · Nunito Sans 400–800 · interface</Spec>
               <p className="text-base">
                 Pick someone from the ranking to simulate a shared life.
               </p>
@@ -323,7 +323,7 @@ export default function DesignSystemPage() {
             </div>
             <Separator />
             <div className="space-y-2">
-              <Spec>font-mono · Geist Mono · engine output</Spec>
+              <Spec>font-mono · ui-monospace · system metadata</Spec>
               <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-sm">
                 <span>92% MATCH</span>
                 <span className="text-muted-foreground">O 0.82</span>
@@ -339,7 +339,7 @@ export default function DesignSystemPage() {
         <Section
           n="03"
           title="Surfaces"
-          note="A pure neutral base, deliberately colourless. All colour in the product is meaningful: cyan means hookai, an accent means a lens. If a surface needs a colour, it is wrong."
+          note="A warm cream base. Surfaces stay quiet so the sprites and the lens accent carry every bit of colour meaning."
         >
           <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
             {SURFACES.map(([name, v]) => (
@@ -387,11 +387,11 @@ export default function DesignSystemPage() {
           </div>
         </Section>
 
-        {/* -- 05 shape & glow ---------------------------------------------- */}
+        {/* -- 05 shape & depth --------------------------------------------- */}
         <Section
           n="05"
-          title="Shape & glow"
-          note="Radius 1rem, hairline borders, flat at rest. Glow is reserved for active, selected or focused surfaces and inherits the lens automatically — it reads from --primary. Everything at rest staying flat is what makes the glow mean something; ambient glow means nothing."
+          title="Shape & depth"
+          note="Generous radii, 2px borders, and the hard toy shadow: a solid offset block with no blur, no spread. shadow-toy reads from --primary-shadow, so it retakes the lens hue on any subtree for free. Reserve it for things you can press — CTAs and selected cards; resting surfaces use the neutral shadow-card."
         >
           <div className="space-y-8">
             <div className="space-y-3">
@@ -422,25 +422,25 @@ export default function DesignSystemPage() {
                 </div>
                 {LENSES.map(({ key, cls }) => (
                   <div key={key} className={cn(cls, "space-y-2")}>
-                    <div className="flex h-20 items-center justify-center rounded-xl border glow bg-card text-xs">
+                    <div className="flex h-20 items-center justify-center rounded-xl border shadow-toy bg-card text-xs">
                       active
                     </div>
-                    <Spec>.glow in .{cls.replace("lens-", "")}</Spec>
+                    <Spec>.shadow-toy in .{cls.replace("lens-", "")}</Spec>
                   </div>
                 ))}
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2">
-                  <div className="flex h-20 items-center justify-center rounded-xl border glow-brand bg-card text-xs">
+                  <div className="flex h-20 items-center justify-center rounded-xl border shadow-toy bg-card text-xs">
                     pre-lens
                   </div>
-                  <Spec>.glow-brand</Spec>
+                  <Spec>.shadow-toy</Spec>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex h-20 items-center justify-center rounded-xl border border-border bg-card text-xs text-muted-foreground glow-sm">
+                  <div className="flex h-20 items-center justify-center rounded-xl border border-border bg-card text-xs text-muted-foreground shadow-card">
                     subtle
                   </div>
-                  <Spec>.glow-sm</Spec>
+                  <Spec>.shadow-card</Spec>
                 </div>
               </div>
             </div>
@@ -451,7 +451,7 @@ export default function DesignSystemPage() {
         <Section
           n="06"
           title="Controls"
-          note="Intake is the only pre-lens screen, so it runs on brand cyan. Buttons, fields and inputs shown at the sizes actually used on a phone."
+          note="Intake is the only pre-lens screen, so it runs on the coral accent. Buttons, fields and inputs shown at the sizes actually used on a phone."
         >
           <div className="grid gap-6 md:grid-cols-2">
             <Card className="h-fit">
@@ -486,7 +486,7 @@ export default function DesignSystemPage() {
               <CardHeader>
                 <CardTitle className="text-sm">Intake fields</CardTitle>
                 <CardDescription className="text-xs">
-                  pre-lens · brand cyan
+                  pre-lens · coral
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -523,7 +523,7 @@ export default function DesignSystemPage() {
                       Include me in romantic rankings
                     </FieldLabel>
                   </Field>
-                  <Button className="w-full glow-brand">Continue</Button>
+                  <Button className="w-full shadow-toy">Continue</Button>
                 </FieldGroup>
               </CardContent>
             </Card>
@@ -591,7 +591,7 @@ export default function DesignSystemPage() {
               ))}
             </div>
             <div className="flex items-center justify-center rounded-xl border border-border bg-card p-4">
-              <div className="w-full space-y-3 rounded-xl border glow-brand p-4">
+              <div className="w-full space-y-3 rounded-xl border shadow-toy p-4">
                 <Spec>simulating · pre-lens</Spec>
                 <Progress value={64} className="h-1" />
                 <p className="font-mono text-[0.7rem] text-muted-foreground">

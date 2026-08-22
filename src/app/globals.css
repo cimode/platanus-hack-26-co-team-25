@@ -2,49 +2,93 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* The variant stays DECLARED even though the app never applies `.dark`: the
+   shadcn primitives in src/components/ui/** carry 44 `dark:` utilities, and an
+   undeclared variant is a build error. With no `.dark` ancestor they simply
+   never match, which is exactly what a light-only theme wants. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* -- surfaces & ink ---------------------------------------------------- */
   --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-surface: var(--card);
+  --color-surface-alt: var(--surface-alt);
+  --color-ink: var(--foreground);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--muted-foreground);
+  --color-ink-faint: var(--ink-faint);
+
+  /* -- accent ------------------------------------------------------------ */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-tint: var(--primary-tint);
+  --color-primary-shadow: var(--primary-shadow);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
-  --color-foreground: var(--foreground);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-  --font-heading:
-    "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-narrative:
-    "Instrument Serif", "Instrument Serif Fallback", Georgia, "Times New Roman",
-    serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+
+  /* -- room canvas & friction -------------------------------------------- */
+  --color-dark: var(--dark);
+  --color-friction: var(--friction);
+  --color-friction-tint: var(--friction-tint);
+  --color-friction-deep: var(--friction-deep);
+
+  /* -- event tags (timeline) --------------------------------------------- */
+  --color-tag-hito: var(--tag-hito);
+  --color-tag-hito-foreground: var(--tag-hito-foreground);
+  --color-tag-mudanza: var(--tag-mudanza);
+  --color-tag-mudanza-foreground: var(--tag-mudanza-foreground);
+  --color-tag-mascota: var(--tag-mascota);
+  --color-tag-mascota-foreground: var(--tag-mascota-foreground);
+  --color-tag-roce: var(--tag-roce);
+  --color-tag-roce-foreground: var(--tag-roce-foreground);
+  --color-tag-ritual: var(--tag-ritual);
+  --color-tag-ritual-foreground: var(--tag-ritual-foreground);
+  --color-tag-viaje: var(--tag-viaje);
+  --color-tag-viaje-foreground: var(--tag-viaje-foreground);
+  --color-tag-peque: var(--tag-peque);
+  --color-tag-peque-foreground: var(--tag-peque-foreground);
+
+  /* -- lines ------------------------------------------------------------- */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-divider: var(--divider);
+
+  /* -- sidebar (shadcn contract; unused so far) -------------------------- */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* -- type -------------------------------------------------------------- */
+  /* Display voice: Baloo 2. `--font-heading` is the token shadcn's Card,
+     Dialog and Sheet titles read, so pointing it at Baloo gives every title
+     the display face for free. `font-display` is the explicit escape hatch. */
+  --font-sans:
+    "Nunito Sans", "Nunito Sans Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    "Baloo 2", "Baloo 2 Fallback", ui-rounded, system-ui, sans-serif;
+  --font-heading:
+    "Baloo 2", "Baloo 2 Fallback", ui-rounded, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+  /* -- shape ------------------------------------------------------------- */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -52,83 +96,97 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* -- depth ------------------------------------------------------------- */
+  /* The "toy" shadow is the signature of this system: a hard offset block, no
+     blur, no spread. It reads from --primary-shadow, so it retakes the lens
+     hue on any subtree for free -- same trick the old glow used. */
+  --shadow-toy: 0 4px 0 var(--primary-shadow);
+  --shadow-toy-lg: 0 6px 0 var(--primary-shadow);
+  --shadow-card: 0 4px 0 var(--divider);
 }
 
+/* ---------------------------------------------------------------------------
+   Dipia palette  --  warm cream, light-only
+   ---------------------------------------------------------------------------
+   Life-sim, warm and playful: pixel-art sprites over clean modern UI. The pixel
+   lives in the ART (avatars, venue, board); the type and controls stay crisp.
+
+   Light-only by design. There is no `.dark` block -- see the note on the dark
+   custom-variant above. `--dark` below is a SURFACE (the room's night canvas),
+   not a theme.
+   --------------------------------------------------------------------------- */
 :root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 1rem;
-  --brand: oklch(0.72 0.15 200);
-  --brand-foreground: oklch(0.18 0.03 200);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-}
+  --background: #f7f1e3;
+  --foreground: #33261d;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --brand: oklch(0.72 0.15 200);
-  --brand-foreground: oklch(0.18 0.03 200);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* Defaults to the hookai brand cyan; each .lens-* class overrides it. So
-     `primary` always means "the accent of the current context" -- cyan on
-     pre-lens surfaces, the lens hue inside a lens. Use --brand directly only
-     for marks that must NOT follow the lens (e.g. the wordmark dot). */
-  --primary: oklch(0.72 0.15 200);
-  --primary-foreground: oklch(0.18 0.03 200);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.15 200);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --card: #fffdf7;
+  --card-foreground: #33261d;
+  --popover: #fffdf7;
+  --popover-foreground: #33261d;
+  --surface-alt: #efe4cf;
+
+  --ink-soft: #4a3b2e;
+  --ink-faint: #a99680;
+
+  /* Coral is BOTH the product accent and the romantic lens -- deliberately the
+     same value, per the design handoff ("CTA, acentos, dot romántico"). Use
+     --brand for a mark that must NOT follow the lens. */
+  --primary: #d95f4b;
+  --primary-foreground: #fffdf7;
+  --primary-shadow: #a8422f;
+  --primary-tint: #fbe3de;
+  --brand: #d95f4b;
+  --brand-foreground: #fffdf7;
+
+  --secondary: #efe4cf;
+  --secondary-foreground: #33261d;
+  --muted: #efe4cf;
+  --muted-foreground: #7a6a58;
+  --accent: #fbe3de;
+  --accent-foreground: #a8422f;
+
+  /* Distinct from coral on purpose: a destructive action must not read as a
+     primary one when both are warm reds. */
+  --destructive: #9a2b1e;
+
+  --border: rgb(51 38 29 / 0.14);
+  --input: rgb(51 38 29 / 0.14);
+  --ring: #d95f4b;
+  --divider: rgb(51 38 29 / 0.1);
+
+  /* The room canvas (screen 1b) and the friction family (timeline "roce"). */
+  --dark: #171512;
+  --friction: #e0a13f;
+  --friction-tint: #f4cf9a;
+  --friction-deep: #c8842f;
+
+  /* Timeline event types. */
+  --tag-hito: #e6e0f2;
+  --tag-hito-foreground: #5a4a8a;
+  --tag-mudanza: #dce8f4;
+  --tag-mudanza-foreground: #33539e;
+  --tag-mascota: #e2efdc;
+  --tag-mascota-foreground: #4a7a3a;
+  --tag-roce: #f9e3c8;
+  --tag-roce-foreground: #a8641f;
+  --tag-ritual: #fbe3de;
+  --tag-ritual-foreground: #b8452f;
+  --tag-viaje: #dcf0ee;
+  --tag-viaje-foreground: #2a7a72;
+  --tag-peque: #f9dfe9;
+  --tag-peque-foreground: #a83a68;
+
+  --radius: 1rem;
+
+  --sidebar: #fffdf7;
+  --sidebar-foreground: #33261d;
+  --sidebar-primary: #d95f4b;
+  --sidebar-primary-foreground: #fffdf7;
+  --sidebar-accent: #efe4cf;
+  --sidebar-accent-foreground: #33261d;
+  --sidebar-border: rgb(51 38 29 / 0.14);
+  --sidebar-ring: #d95f4b;
 }
 
 /* ---------------------------------------------------------------------------
@@ -139,8 +197,7 @@
    (16), gap-6 (24), gap-8 (32), p-4, space-y-6.
 
    4px steps are allowed only for optical detail inside a component: the gap
-   between an icon and its label, a badge's inner padding. If you are spacing
-   two blocks apart, use an even step.
+   between an icon and its label, a badge's inner padding.
 
    Deliberately NOT redefining --spacing. Tailwind v4 derives the whole scale
    from it, so setting it to 0.5rem would double every existing p-* and gap-*
@@ -150,74 +207,66 @@
 /* ---------------------------------------------------------------------------
    Lens accents
    ---------------------------------------------------------------------------
-   The three compatibility lenses (romantic / business / friendship) each own an
-   accent. Put the class on any subtree and every shadcn token inside it retakes
-   its temperature -- no component variants, no conditional classNames.
+   The three compatibility lenses each own an accent. Put the class on any
+   subtree and every token inside it retakes its temperature -- including
+   `shadow-toy`, because that shadow reads from --primary-shadow.
 
-     <section className="lens-romantic">  ->  primary/ring/accent go rose
-     <section className="lens-business">  ->  ... violet
-     <section className="lens-friendship">->  ... amber
+     <section className="lens-romantic">   ->  primary/ring/accent go coral
+     <section className="lens-business">   ->  ... violet
+     <section className="lens-friendship"> ->  ... green
 
-   Declared after `.dark` so they win at equal specificity, and because custom
-   properties resolve to the nearest declaring ancestor they also work nested.
-   Dark-only: the app forces `.dark` on <html>.
+   Violet and green are lifted from the timeline's own tag palette (HITO and
+   MASCOTA) so the system stays one language. Friendship is deliberately NOT
+   amber: amber already means "roce" / friction on the timeline, and reusing it
+   for a whole lens would make the warmest relationship read as conflict.
+
+   Romantic resolves to the same coral as :root by design -- coral IS the
+   romantic accent in this system, not a separate brand hue.
    --------------------------------------------------------------------------- */
 
 .lens-romantic {
-  --primary: oklch(0.645 0.246 16.439);
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.645 0.246 16.439);
-  --accent: oklch(0.28 0.06 16.439);
-  --accent-foreground: oklch(0.97 0.02 16.439);
+  --primary: #d95f4b;
+  --primary-foreground: #fffdf7;
+  --primary-shadow: #a8422f;
+  --primary-tint: #fbe3de;
+  --ring: #d95f4b;
+  --accent: #fbe3de;
+  --accent-foreground: #a8422f;
 }
 
 .lens-business {
-  --primary: oklch(0.606 0.25 292.717);
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.606 0.25 292.717);
-  --accent: oklch(0.28 0.07 292.717);
-  --accent-foreground: oklch(0.97 0.02 292.717);
+  --primary: #5a4a8a;
+  --primary-foreground: #fffdf7;
+  --primary-shadow: #3f3363;
+  --primary-tint: #e6e0f2;
+  --ring: #5a4a8a;
+  --accent: #e6e0f2;
+  --accent-foreground: #3f3363;
 }
 
 .lens-friendship {
-  --primary: oklch(0.769 0.188 70.08);
-  --primary-foreground: oklch(0.205 0 0);
-  --ring: oklch(0.769 0.188 70.08);
-  --accent: oklch(0.3 0.06 70.08);
-  --accent-foreground: oklch(0.98 0.02 70.08);
+  --primary: #4a7a3a;
+  --primary-foreground: #fffdf7;
+  --primary-shadow: #35592a;
+  --primary-tint: #e2efdc;
+  --ring: #4a7a3a;
+  --accent: #e2efdc;
+  --accent-foreground: #35592a;
 }
 
 /* ---------------------------------------------------------------------------
-   Glow  --  active state only, never ambient
+   Pixel art
    ---------------------------------------------------------------------------
-   `glow` reads from --primary, so it inherits the surrounding lens for free:
-   inside .lens-romantic it glows rose, inside .lens-business violet. Reserve it
-   for selected / active / focused surfaces. Everything at rest stays flat with
-   a hairline border -- that contrast is what makes the glow mean something.
-
-     <Card className="border-primary/40 glow">   // selected
-     <Card>                                       // resting
-
-   `glow-brand` is the pre-lens equivalent (intake, loading, shell) and uses the
-   hookai cyan instead.
+   Sprites are authored at small pixel dimensions and scaled up. Without this
+   the browser smooths them into mush and the whole visual premise dies.
    --------------------------------------------------------------------------- */
-
-@utility glow {
-  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
-    0 0 28px -6px color-mix(in oklab, var(--primary) 50%, transparent);
+@utility pixelated {
+  image-rendering: pixelated;
 }
 
-@utility glow-brand {
-  border-color: color-mix(in oklab, var(--brand) 55%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent),
-    0 0 28px -6px color-mix(in oklab, var(--brand) 50%, transparent);
-}
-
-@utility glow-sm {
-  box-shadow: 0 0 16px -6px color-mix(in oklab, var(--primary) 55%, transparent);
+@utility sprite {
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 2px rgb(0 0 0 / 0.3));
 }
 
 @layer base {
@@ -229,5 +278,11 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Display face for every heading, so a bare <h1> is already right. */
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-extrabold tracking-tight;
   }
 }

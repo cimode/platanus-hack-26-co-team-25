@@ -33,7 +33,7 @@ import {
   LENS_CONSTRAINTS, applyDelta, hashSeed, hazardShape, initialState, isDegradedPair,
   kidEventAllowed, mulberry32, randInt, sampleDissolutionYear, sharedTags,
 } from '../shared.ts';
-import { TERM_LABELS } from '../../matching/engine.ts';
+import { TERM_LABELS } from '../../src/lib/domain/matching/engine.ts';
 import { narrate, nominate } from '../lib/narrator.ts';
 import type { OutcomeName, PatternName, StepName } from './grammar.ts';
 import {
@@ -321,6 +321,12 @@ export const generateTimeline: GenerateTimeline = async (a, b, score, lens, opts
 
   // -- 8. narration (live gateway or deterministic mock) ---------------------
   const beats = flat.map(({ bp }) => bp.realized as Beat);
+  // The structure is decided and deterministic at this point; only the prose
+  // still costs a round trip. Publish the skeleton before narrating so the demo
+  // can draw the full timeline instantly and fill sentences in as they land.
+  try {
+    opts.onStructure?.(beats);
+  } catch { /* a broken renderer is not a generation failure */ }
   const narrated = await narrate(beats, [a, b], lens, opts);
   const events = beats.map((beat, i) => ({
     year: beat.year,
@@ -343,6 +349,7 @@ export const generateTimeline: GenerateTimeline = async (a, b, score, lens, opts
     degraded: isDegradedPair(a, b),
     ...(narrated.model !== undefined ? { model: narrated.model } : {}),
     ...(narrated.petGuardReplacements !== undefined ? { petGuardReplacements: narrated.petGuardReplacements } : {}),
+    ...(narrated.mockFallbacks !== undefined ? { mockFallbacks: narrated.mockFallbacks } : {}),
   };
   const personA = { id: a.id, name: a.name };
   const personB = { id: b.id, name: b.name };

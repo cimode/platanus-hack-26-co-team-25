@@ -12,7 +12,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { scorePair, type Person, type Lens } from '../../matching/engine.ts';
+import { scorePair, type Person, type Lens } from '../../src/lib/domain/matching/engine.ts';
 import {
   scanBanned, scanSurvivalClaims, validateTimeline,
   type Timeline, type TimelineOpts,
