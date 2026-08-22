@@ -128,8 +128,7 @@ test.describe("1b · the room", () => {
     // out of view. Counting elements did not catch it; measuring does.
     await enterAs(page, "diego");
     const band = await page
-      .locator("section", { has: page.locator("figure") })
-      .first()
+      .getByRole("region", { name: /la sala/i })
       .boundingBox();
     expect(band).not.toBeNull();
 
@@ -155,24 +154,36 @@ test.describe("1b · the room", () => {
     expect(scrollable).toBe(true);
   });
 
-  test("each lens button wears its own accent", async ({ page }) => {
-    // The payoff of the lens system: three buttons, one class each, zero
-    // conditional colour. If two ever resolve the same, the language is broken.
+  test("the card retakes the accent of the lens you pick", async ({ page }) => {
+    // The payoff of the lens system: choosing an option repaints the dot AND
+    // the Vamos button, with zero conditional colour in the component. If two
+    // lenses ever resolve the same, the visual language is broken.
     await enterAs(page, "diego");
-    const hues = await page.evaluate(() =>
-      [...document.querySelectorAll("button[name=lens]")].map((el) =>
-        getComputedStyle(el).getPropertyValue("--primary").trim()
-      )
-    );
-    expect(hues).toHaveLength(3);
-    expect(new Set(hues).size).toBe(3);
+    const select = page.getByLabel(/tipo de conexión/i);
+    const accent = () =>
+      page.evaluate(() => {
+        const el = document.querySelector("form[class*='lens-']");
+        return el
+          ? getComputedStyle(el).getPropertyValue("--primary").trim()
+          : null;
+      });
+
+    const seen = new Set<string>();
+    for (const lens of ["romantic", "business", "friendship"]) {
+      await select.selectOption(lens);
+      const hue = await accent();
+      expect(hue, `${lens} has no accent`).toBeTruthy();
+      seen.add(hue as string);
+    }
+    expect(seen.size).toBe(3);
   });
 
   test("choosing a lens carries it through to the ranking", async ({
     page,
   }) => {
     await enterAs(page, "diego");
-    await page.getByRole("button", { name: /trabajando/i }).click();
+    await page.getByLabel(/tipo de conexión/i).selectOption("business");
+    await page.getByRole("button", { name: /vamos/i }).click();
     await expect(page).toHaveURL(/\/rank$/);
     await expect(
       page.getByRole("heading", { name: /negocios/i })
