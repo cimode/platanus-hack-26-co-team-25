@@ -221,11 +221,11 @@ rooms ──────────< participants >────── participa
 
 ## 10. Para probarlo con tus manos
 
-1. `npm run db:migrate` crea las tablas en tu rama de base de datos (la de `.env`).
-2. `npm run db:seed` crea el room del evento y copia las preguntas a `instruments`.
-3. `npm run db:studio` abre un navegador de tablas: ahí verás `participants`,
+1. `pnpm run db:migrate` crea las tablas en tu rama de base de datos (la de `.env`).
+2. `pnpm run db:seed` crea el room del evento y copia las preguntas a `instruments`.
+3. `pnpm run db:studio` abre un navegador de tablas: ahí verás `participants`,
    `quiz_responses`, etc., y podrás pegar las consultas de arriba.
-4. Los tests de integración (`npx vitest run src/lib/adapters/db`) crean personas y
+4. Los tests de integración (`pnpm exec vitest run src/lib/adapters/db`) crean personas y
    respuestas de mentira en un room de prueba y las borran al terminar — es la forma más
    rápida de ver filas reales apareciendo.
 

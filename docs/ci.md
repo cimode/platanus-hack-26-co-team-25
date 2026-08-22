@@ -2,15 +2,35 @@
 
 One workflow: `.github/workflows/ci.yml`. Runs on every PR and on push to `main`.
 
+## Package manager
+
+pnpm, pinned by the `packageManager` field in `package.json`. Corepack locally and
+`pnpm/action-setup` in CI both read that one field, so the version that wrote the
+lockfile is the version that installs it.
+
+```bash
+corepack enable                 # once per machine
+pnpm install                    # local -- may update pnpm-lock.yaml
+pnpm install --frozen-lockfile  # what CI runs -- fails rather than drifting
+```
+
+**Adding a dependency with a postinstall script?** pnpm 10 refuses to run
+dependency lifecycle scripts unless the package is listed under
+`pnpm.onlyBuiltDependencies`. The install still *succeeds* -- it prints a warning
+and hands you a package that silently does not work. The list currently holds
+`esbuild` (transitive, via drizzle-kit and vitest) and `lefthook` (its postinstall
+fetches the Go binary the git hooks run). Use `pnpm approve-builds` to extend it,
+and commit the change.
+
 ## Jobs
 
-Six checks fan out in parallel from a shared npm cache. Wall clock ~90s.
+Six checks fan out in parallel from a shared pnpm store cache. Wall clock ~90s.
 
 | Job | Runs | Gates merge |
 | --- | --- | --- |
 | `typecheck` | `next typegen && tsc --noEmit` | ✅ |
 | `biome` | `biome check .` — format + lint + imports, incl. the `next`, `react`, `tailwind` and `test` rule domains | ✅ |
-| `audit` | `npm audit --audit-level=high` | ✅ |
+| `audit` | `pnpm audit --audit-level=high` | ✅ |
 | `unit` | `vitest run --coverage`, posts a coverage comment | ✅ |
 | `build` | `next build` | ✅ |
 | `e2e` | `playwright test` | ✅ |
@@ -44,7 +64,7 @@ commit them:
 
 ```bash
 docker run --rm -v $PWD:/w -w /w mcr.microsoft.com/playwright:v1.62.1-noble \
-  npx playwright test --update-snapshots
+  ./node_modules/.bin/playwright test --update-snapshots
 ```
 
 ## Coverage
@@ -72,7 +92,7 @@ and log a notice — CI stays green rather than red while waiting on setup.
 1. Create the Vercel project (once, locally):
 
    ```bash
-   npx vercel link          # choose your PERSONAL scope (Hobby), name it "hookai"
+   pnpm dlx vercel link          # choose your PERSONAL scope (Hobby), name it "hookai"
    cat .vercel/project.json # -> projectId, orgId
    ```
 

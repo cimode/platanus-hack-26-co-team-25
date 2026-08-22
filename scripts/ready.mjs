@@ -5,7 +5,7 @@
  * Readiness is computed, never stored. A `blocked` label would go stale the
  * moment a dependency closes and nobody re-ran the updater; this cannot.
  *
- *     npm run issues:ready
+ *     pnpm run issues:ready
  */
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";

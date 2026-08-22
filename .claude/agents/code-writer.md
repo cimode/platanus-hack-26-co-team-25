@@ -43,7 +43,7 @@ A test you edited is a test that no longer proves anything.
 
 Only the paths in the issue's **Files affected** table. If the work genuinely
 needs a file that is not listed, add it to your report — the table is what tells
-`npm run issues:ready` whether two issues can run in parallel, so silent drift
+`pnpm run issues:ready` whether two issues can run in parallel, so silent drift
 there causes merge collisions for someone else.
 
 ## Parallelism
@@ -60,7 +60,7 @@ editing one interface is slower than one agent doing both.
 ## Done means
 
 ```bash
-npm run verify
+pnpm run verify
 ```
 
 Typecheck, Biome and the full Vitest suite. Every previously-failing

@@ -1,5 +1,5 @@
 /**
- * `npm run db:seed` -- creates the demo room if absent. That is all it does
+ * `pnpm run db:seed` -- creates the demo room if absent. That is all it does
  * (docs/domain.md §8).
  *
  * The seed is deliberately not a fixture factory. `platanus-hack-26-bogota`
@@ -27,7 +27,7 @@ import { INSTRUMENT } from "../src/lib/domain/quiz/index.ts";
 const DEFAULT_SLUG = "platanus-hack-26-bogota";
 const DEFAULT_NAME = "Platanus Hack 26 · Bogotá";
 
-// `npm run db:seed` passes `--env-file=.env`, which is how a developer gets
+// `pnpm run db:seed` passes `--env-file=.env`, which is how a developer gets
 // their branch URL. This guarded second read is what lets `node
 // scripts/seed.ts` work with no flag at all -- CI has DATABASE_URL in the
 // environment and no `.env` file, and `--env-file` throws on a missing file.

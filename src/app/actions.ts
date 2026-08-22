@@ -4,9 +4,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { serverDeps } from "@/lib/composition";
+import { isLens } from "@/lib/domain/room/layout";
 import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
 import { findParticipant } from "@/lib/use-cases/list-participants";
 import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
+import { LENS_COOKIE } from "./lens";
 
 /**
  * Adopt a participant's identity for the demo.
@@ -62,4 +64,26 @@ export async function impersonateAction(
   // `redirect` signals by throwing, so nothing below runs and the declared
   // return type is only reached on the error paths above.
   redirect("/room");
+}
+
+/**
+ * Commit to a lens and move on to the ranking.
+ *
+ * The submitted value is checked against the three real lenses rather than
+ * trusted: the cookie it writes drives `lens-*` on every screen downstream, and
+ * an unrecognised value there means a subtree that silently keeps the default
+ * accent instead of the one the user chose.
+ */
+export async function chooseLensAction(formData: FormData): Promise<void> {
+  const lens = formData.get("lens");
+  if (!isLens(lens)) return;
+
+  const store = await cookies();
+  store.set(LENS_COOKIE, lens, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+  });
+
+  redirect("/rank");
 }

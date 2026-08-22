@@ -25,7 +25,7 @@ export class FixtureMissingError extends Error {
     super(
       `No LLM fixture for id "${id}".\n` +
         `Available: ${available.length ? available.join(", ") : "(none)"}\n` +
-        `Record one with \`npm run fixtures:record\`, or use stubLlm() for a ` +
+        `Record one with \`pnpm run fixtures:record\`, or use stubLlm() for a ` +
         `hand-written response.`
     );
     this.name = "FixtureMissingError";

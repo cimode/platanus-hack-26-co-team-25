@@ -33,8 +33,8 @@ result back.
 They are captured from the live `/design` route, so they go stale whenever tokens change.
 
 ```bash
-npm run dev                                  # in the repo root
-npx playwright install chromium              # once
+pnpm run dev                           # in the repo root
+pnpm exec playwright install chromium  # once
 ```
 
 Then drive Playwright against `http://localhost:3000/design`: full page at 1280×1200 and

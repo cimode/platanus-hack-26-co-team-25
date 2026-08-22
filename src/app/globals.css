@@ -286,3 +286,60 @@
     @apply font-display font-extrabold tracking-tight;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Room motion
+   ---------------------------------------------------------------------------
+   The room is alive or it is a screenshot. Two beats, both from the design
+   handoff:
+
+     pickme  idle hop, 2.4-4.5s, staggered per sprite so the crowd never
+             pulses in unison. The stagger comes from the placement (each
+             Placement carries its own idleDelay).
+     hopbig  a bigger hop on hover -- the sprite saying "pick me".
+
+   Both are decoration, so both stop entirely under prefers-reduced-motion.
+   A room that jitters is not worth a vestibular migraine.
+   --------------------------------------------------------------------------- */
+
+@keyframes pickme {
+  0%,
+  88%,
+  100% {
+    transform: translateY(0);
+  }
+  92% {
+    transform: translateY(-6%);
+  }
+  96% {
+    transform: translateY(-2%);
+  }
+}
+
+@keyframes hopbig {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-18%);
+  }
+  70% {
+    transform: translateY(-4%);
+  }
+}
+
+@utility idle-hop {
+  animation: pickme 3.6s ease-in-out infinite;
+}
+
+@utility hop-big {
+  animation: hopbig 0.55s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .idle-hop,
+  .hop-big {
+    animation: none;
+  }
+}

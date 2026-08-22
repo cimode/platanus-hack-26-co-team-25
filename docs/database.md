@@ -60,11 +60,11 @@ database configured.
 
 | Command | Does |
 | --- | --- |
-| `npm run db:generate` | Emit a versioned migration into `drizzle/` — **the only way the schema changes** |
-| `npm run db:migrate` | Apply pending migrations to `DATABASE_URL` |
-| `npm run db:check` | Detect conflicting/corrupt migration history; needs no database |
-| `npm run db:seed` | Create the demo room if absent. That is all it does |
-| `npm run db:studio` | Browse the data |
+| `pnpm run db:generate` | Emit a versioned migration into `drizzle/` — **the only way the schema changes** |
+| `pnpm run db:migrate` | Apply pending migrations to `DATABASE_URL` |
+| `pnpm run db:check` | Detect conflicting/corrupt migration history; needs no database |
+| `pnpm run db:seed` | Create the demo room if absent. That is all it does |
+| `pnpm run db:studio` | Browse the data |
 
 **There is no `db:push`.** It was deleted from `package.json` and from this file
 (`docs/domain.md` D8). A pushed schema has no history, so it cannot replay on a
@@ -73,9 +73,9 @@ branch holding real intake responses is actually running. Every schema change is
 three steps, in this order:
 
 ```bash
-npm run db:generate     # writes drizzle/NNNN_<name>.sql + drizzle/meta/
+pnpm run db:generate     # writes drizzle/NNNN_<name>.sql + drizzle/meta/
 git add drizzle          # committed WITH the schema change that produced it
-npm run db:migrate      # applies it to the branch in .env
+pnpm run db:migrate      # applies it to the branch in .env
 ```
 
 The migration file and the `schema/` change are one commit. A migration that
@@ -94,7 +94,7 @@ neon checkout dev-add-quiz    # per feature; creates it if new, pulls env
 neon diff                     # schema diff against the parent before committing
 ```
 
-The CLI is `neon` (`npm i -g neon`) — *not* the older `neonctl`.
+The CLI is `neon` (`pnpm add -g neon`) — *not* the older `neonctl`.
 
 `docs/domain.md` §8 has the CI shape: one PII-free `ci-base` parent, a
 `preview/pr-<n>` branch per pull request reset to parent before use, and

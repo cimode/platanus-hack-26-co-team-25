@@ -1,4 +1,4 @@
-# Git hooks for the project. Installed automatically by the `prepare` npm script.
+# Git hooks for the project. Installed automatically by the `prepare` pnpm script.
 #
 # Staged files only, so this stays fast during a 36h crunch. Deliberately NOT
 # running `tsc --noEmit`, `next build`, the full test suite, or coverage here --
@@ -19,7 +19,7 @@ pre-commit:
     # (next, react, tailwind, test domains) are configured in biome.json.
     - name: biome
       glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,css,json,jsonc}"
-      run: npx biome check --write --no-errors-on-unmatched {staged_files}
+      run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
     # Only the tests related to what you actually touched. `vitest related`
@@ -31,4 +31,4 @@ pre-commit:
     # feature in front of you.
     - name: vitest (related only)
       glob: "*.{ts,tsx,mts}"
-      run: npx vitest related --run {staged_files}
+      run: pnpm exec vitest related --run {staged_files}

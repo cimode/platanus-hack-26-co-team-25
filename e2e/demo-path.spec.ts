@@ -85,8 +85,97 @@ test.describe("1a · impersonate", () => {
     await cta(page).click();
 
     await expect(page).toHaveURL(/\/room$/);
+    // The room names you in its header pill, not in a heading -- the heading
+    // belongs to the room itself.
+    await expect(page.getByText("Diego Morales")).toBeVisible();
+  });
+});
+
+test.describe("1b · the room", () => {
+  async function enterAs(page: Page, query: string) {
+    await page.goto("/");
+    const box = page.getByRole("combobox", {
+      name: /nombre del participante/i,
+    });
+    await box.click();
+    await box.fill(query);
+    await page.getByRole("option").first().click();
+    await page.getByRole("button", { name: /ámonos/i }).click();
+    await page.waitForURL("**/room");
+  }
+
+  test("sends you back when no one is being impersonated", async ({ page }) => {
+    // A room with no `me` is a broken session, not an empty state: the cookie
+    // is missing or names someone off the roster.
+    await page.context().clearCookies();
+    await page.goto("/room");
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test("you are not standing in your own room", async ({ page }) => {
+    await enterAs(page, "diego");
+    // 18 on the roster, so 17 others.
+    await expect(page.locator("figure")).toHaveCount(17);
+    await expect(page.getByText("Diego Morales")).toHaveCount(1); // the header pill only
+  });
+
+  test("every sprite is actually painted inside the room band", async ({
+    page,
+  }) => {
+    // REGRESSION GUARD. The canvas first shipped with `h-full`, which resolves
+    // against a parent whose height comes from flex-1 -- so it measured 0px,
+    // every sprite's `top: 44%` collapsed to 0, and the whole crowd was clipped
+    // out of view. Counting elements did not catch it; measuring does.
+    await enterAs(page, "diego");
+    const band = await page
+      .locator("section", { has: page.locator("figure") })
+      .first()
+      .boundingBox();
+    expect(band).not.toBeNull();
+
+    const figures = page.locator("figure");
+    const count = await figures.count();
+    for (let i = 0; i < count; i++) {
+      const box = await figures.nth(i).boundingBox();
+      expect(box, `sprite ${i} has no box`).not.toBeNull();
+      expect(box?.height ?? 0).toBeGreaterThan(20);
+      expect(box?.y ?? -1).toBeGreaterThanOrEqual((band?.y ?? 0) - 1);
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+        (band?.y ?? 0) + (band?.height ?? 0) + 1
+      );
+    }
+  });
+
+  test("the floor scrolls horizontally", async ({ page }) => {
+    await enterAs(page, "diego");
+    const floor = page.getByRole("region", { name: /la sala/i });
+    const scrollable = await floor.evaluate(
+      (el) => el.scrollWidth > el.clientWidth
+    );
+    expect(scrollable).toBe(true);
+  });
+
+  test("each lens button wears its own accent", async ({ page }) => {
+    // The payoff of the lens system: three buttons, one class each, zero
+    // conditional colour. If two ever resolve the same, the language is broken.
+    await enterAs(page, "diego");
+    const hues = await page.evaluate(() =>
+      [...document.querySelectorAll("button[name=lens]")].map((el) =>
+        getComputedStyle(el).getPropertyValue("--primary").trim()
+      )
+    );
+    expect(hues).toHaveLength(3);
+    expect(new Set(hues).size).toBe(3);
+  });
+
+  test("choosing a lens carries it through to the ranking", async ({
+    page,
+  }) => {
+    await enterAs(page, "diego");
+    await page.getByRole("button", { name: /trabajando/i }).click();
+    await expect(page).toHaveURL(/\/rank$/);
     await expect(
-      page.getByRole("heading", { name: /diego morales/i })
+      page.getByRole("heading", { name: /negocios/i })
     ).toBeVisible();
   });
 });

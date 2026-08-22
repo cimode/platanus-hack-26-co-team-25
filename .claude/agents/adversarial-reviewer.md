@@ -61,7 +61,7 @@ Undeclared files cause merge collisions for whoever is working in parallel.
 
 ## Verdict
 
-Run `npm run verify` and `npm run test:e2e` yourself. Do not trust the report.
+Run `pnpm run verify` and `pnpm run test:e2e` yourself. Do not trust the report.
 
 **Not satisfied** → return findings to `code-writer`, most severe first, each
 with a concrete failure scenario: inputs or state → wrong result. "Consider

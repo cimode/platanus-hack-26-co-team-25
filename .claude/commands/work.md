@@ -1,7 +1,7 @@
 ---
 description: Approve an issue, start it, and drive it through test-writer → code-writer → tester → adversarial-reviewer to a PR
 argument-hint: "#12 [#15 ...] | a description of the work"
-allowed-tools: Bash(gh:*), Bash(git:*), Bash(npm:*), Read, Write, Edit, Grep, Glob, Agent, Workflow, Skill, AskUserQuestion
+allowed-tools: Bash(gh:*), Bash(git:*), Bash(pnpm:*), Read, Write, Edit, Grep, Glob, Agent, Workflow, Skill, AskUserQuestion
 ---
 
 Take `$ARGUMENTS` from an approved spec to an open PR.
@@ -47,7 +47,7 @@ approved → in-progress
 ## 4. Decide sequential or parallel
 
 ```bash
-npm run issues:ready
+pnpm run issues:ready
 ```
 
 For more than one issue, compare their **Files affected** tables:
@@ -78,13 +78,14 @@ stages for an issue must share one tree.
 WT="../.hookai-worktrees/issue-$N"
 git worktree add -b "feat/$N-<short-slug>" "$WT" HEAD
 
-# A fresh worktree has no node_modules, and every stage runs `npm run verify`.
-# Symlink when the issue has no e2e ACs: typecheck, Biome, ESLint and Vitest
+# A fresh worktree has no node_modules, and every stage runs `pnpm run verify`.
+# Symlink when the issue has no e2e ACs: typecheck, Biome and Vitest
 # all follow it. Turbopack does NOT -- `next dev` aborts with "Symlink
 # [project]/node_modules is invalid, it points out of the filesystem root", so
 # Playwright cannot boot its server in a symlinked worktree. If any AC lives in
-# e2e/*.spec.ts, install for real instead (~1 min, cached tarballs).
-if grep -q "e2e/" <<< "$AC"; then (cd "$WT" && npm ci --prefer-offline); \
+# e2e/*.spec.ts, install for real instead -- seconds, since pnpm hardlinks
+# from the global store rather than unpacking tarballs.
+if grep -q "e2e/" <<< "$AC"; then (cd "$WT" && pnpm install --frozen-lockfile --prefer-offline); \
 else ln -s "$(git rev-parse --show-toplevel)/node_modules" "$WT/node_modules"; fi
 # Same for the env the db scripts read, and the Neon branch pin.
 ln -s "$(git rev-parse --show-toplevel)/.env"  "$WT/.env"
@@ -114,7 +115,7 @@ Four stages, each a subagent with its own definition in `.claude/agents/`:
 | Stage | Agent | Must end with |
 | --- | --- | --- |
 | 1 | `test-writer` | Every AC has a test, and every one **fails on an assertion** |
-| 2 | `code-writer` | `npm run verify` green, no test file touched |
+| 2 | `code-writer` | `pnpm run verify` green, no test file touched |
 | 3 | `tester` | Green, or a routed failure with a reason |
 | 4 | `adversarial-reviewer` | A PR, or findings back to stage 2 |
 
