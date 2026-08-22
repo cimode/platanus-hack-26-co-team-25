@@ -1,0 +1,27 @@
+name: Neon branch cleanup
+
+# Its own workflow because ci.yml does not run on `closed`: a PR branch has to
+# outlive the last CI run (re-pushes reuse it, and the preview deployment keeps
+# reading it), so the only safe moment to delete it is when the PR ends.
+#
+# The Neon plan caps how many branches a project may hold, so a merged or
+# abandoned PR that left `preview/pr-<n>` behind eventually costs the next PR
+# its database. Deleting on close is what keeps the cap from being reached.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  delete-preview-branch:
+    name: delete the PR branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: preview/pr-${{ github.event.number }}

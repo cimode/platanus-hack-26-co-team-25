@@ -24,21 +24,107 @@ and commit the change.
 
 ## Jobs
 
-Six checks fan out in parallel from a shared pnpm store cache. Wall clock ~90s.
+Seven checks fan out in parallel from a shared pnpm store cache; `unit` and
+`e2e` additionally wait on the run's own database branch.
 
 | Job | Runs | Gates merge |
 | --- | --- | --- |
 | `typecheck` | `next typegen && tsc --noEmit` | ✅ |
 | `biome` | `biome check .` — format + lint + imports, incl. the `next`, `react`, `tailwind` and `test` rule domains | ✅ |
 | `audit` | `pnpm audit --audit-level=high` | ✅ |
-| `unit` | `vitest run --coverage`, posts a coverage comment | ✅ |
+| `db-check` | `drizzle-kit check` — migration history, **no database** | ✅ |
+| `neon-branch` | Creates/resets this run's Neon branch, `db:migrate` + `db:seed` | ✅ (via `unit`/`e2e`) |
+| `unit` | `vitest run --coverage` against that branch, posts a coverage comment | ✅ |
 | `build` | `next build` | ✅ |
-| `e2e` | `playwright test` | ✅ |
+| `e2e` | `playwright test` against that branch (dev server included) | ✅ |
+| `neon-branch-delete` | Deletes `ci/main-<run_id>`, `if: always()`, push only | ❌ |
+| `migrate-production` | `db:migrate` + `db:seed` on **production**, `main` only | ❌ (blocks the deploy) |
 | `deploy-preview` | Vercel preview, PR only | ❌ |
-| `deploy-production` | Vercel production, `main` only | ❌ |
+| `deploy-production` | Vercel production, `main` only, `needs: migrate-production` | ❌ |
 
 **Concurrency:** a new push to the same ref cancels the in-flight run. No queue
 of stale red checks while three people iterate.
+
+## A database per run
+
+`docs/domain.md` §8 is the design; this is what it looks like in the workflow.
+
+| Event | Branch | Parent | Deleted by |
+| --- | --- | --- | --- |
+| `pull_request` | `preview/pr-<n>` — reused across pushes, **reset to parent** each time | `ci-base` | `neon-branch-cleanup.yml`, on PR close |
+| `push` to `main` | `ci/main-<run_id>` — ephemeral | `ci-base` | `neon-branch-delete`, `if: always()` |
+| — | `production` | never a parent | never |
+
+`neon-branch` runs first, migrates and seeds; `unit`, `e2e` and
+`deploy-preview` each **re-invoke** `create-branch-action@v6` with the same
+`branch_name` (which returns the existing branch) to read its pooled URL. The
+URL is never a job output: Actions drops any output containing a masked value,
+and the action masks the branch password — so only the branch *name* travels
+between jobs. Both test jobs set `DB_REQUIRED=1`, which turns the integration
+suites' "no DATABASE_URL, skipping" notice into a failure (`docs/database.md`
+→ Integration tests): CI can never go green over tests that touched no table.
+
+The reset only fires when the create step reports `created == 'false'`, i.e.
+the branch already existed. That is what stops a rewritten migration on a
+re-pushed PR from meeting the schema the previous push left behind.
+
+**`preview/pr-<n>` is deleted when the PR closes**, in its own workflow, because
+`ci.yml` does not run on `closed`. The Neon plan caps how many branches a
+project may hold; a merged PR that left its branch behind eventually costs the
+next PR its database.
+
+### Production
+
+`migrate-production` is the only job that can see
+`secrets.DATABASE_URL_PRODUCTION`, and it `needs` **every** gate —
+`typecheck`, `biome`, `audit`, `db-check`, `unit`, `build`, `e2e`. A gate it
+did not wait on would be a migration that can outrun a failing check.
+
+It **fails** when the secret is empty rather than skipping the way the deploy
+jobs do (first step: "Refuse to migrate without DATABASE_URL_PRODUCTION"). A
+repo with no `VERCEL_TOKEN` simply does not deploy, which is harmless; a
+production deploy that silently skipped its migration ships code against a
+table that is not there. `deploy-production` `needs: [migrate-production]`, so
+that failure stops the deploy too.
+
+## Actions settings
+
+Under **Settings → Secrets and variables → Actions**. The three database ones
+must exist **before this pipeline runs on `main`** — unlike the Vercel jobs,
+`neon-branch` has no skip-gate: without them `unit` and `e2e` have no database
+and go red, which is the point.
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `NEON_PROJECT_ID` | variable | `floral-bread-20641106` |
+| `NEON_API_KEY` | secret | Neon → Account settings → API keys |
+| `DATABASE_URL_PRODUCTION` | secret | **pooled** connection string of the `production` branch |
+| `VERCEL_TOKEN` | secret | <https://vercel.com/account/tokens> |
+| `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` | variables | `.vercel/project.json` |
+
+Add them in this order:
+
+1. `NEON_PROJECT_ID` and `NEON_API_KEY` — every PR run needs them.
+2. Create `ci-base` by hand (`docs/database.md` → "The CI branches"). Nothing
+   automated works until the parent exists.
+3. `DATABASE_URL_PRODUCTION` — only `migrate-production` reads it, and only on
+   `main`, but a push to `main` without it is a red build by design.
+
+### Vercel environments (manual, and deliberately so)
+
+Not automated — three clicks that must be got right once, in the Vercel
+dashboard under **Settings → Environment Variables**:
+
+| Environment | Holds |
+| --- | --- |
+| Production | `DATABASE_URL` (production's pooled URL) and `BLOB_READ_WRITE_TOKEN` |
+| Preview | **neither** — no `DATABASE_URL` at all |
+
+Preview deployments receive their database per deployment:
+`vercel deploy --prebuilt -e DATABASE_URL=…` sets the deployment's run-time
+environment from the PR's own Neon branch. Putting production's URL in the
+Preview environment would hand every preview — and every PR from anyone — the
+room's real names, photos and consent flags (`docs/domain.md` §3, §5).
 
 ## What CI catches today
 
@@ -100,14 +186,14 @@ and log a notice — CI stays green rather than red while waiting on setup.
 
 2. Create a token at <https://vercel.com/account/tokens>.
 
-3. Add three repository secrets under **Settings → Secrets and variables →
-   Actions**:
+3. Add three entries under **Settings → Secrets and variables → Actions** —
+   one secret, two variables (the workflow reads the IDs as `vars.`):
 
-   | Secret | Value |
-   | --- | --- |
-   | `VERCEL_TOKEN` | the token from step 2 |
-   | `VERCEL_ORG_ID` | `orgId` from step 1 |
-   | `VERCEL_PROJECT_ID` | `projectId` from step 1 |
+   | Name | Kind | Value |
+   | --- | --- | --- |
+   | `VERCEL_TOKEN` | secret | the token from step 2 |
+   | `VERCEL_ORG_ID` | variable | `orgId` from step 1 |
+   | `VERCEL_PROJECT_ID` | variable | `projectId` from step 1 |
 
    Both IDs come out of `.vercel/project.json`. **Do not hand-copy a team ID
    here.** This project deploys on a **Hobby (personal) scope**, where `orgId`

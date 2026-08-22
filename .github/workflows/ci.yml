@@ -43,18 +43,123 @@ jobs:
       # Only high and critical. Anything lower is noise we would learn to ignore.
       - run: pnpm audit --audit-level=high
 
+  db-check:
+    name: drizzle check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # `drizzle-kit check` diffs the committed migrations against
+      # `drizzle/meta/` and never opens a connection, so this gate deliberately
+      # gets no database at all: a corrupt migration history is caught before
+      # any branch is created for it.
+      - run: pnpm run db:check
+
+  # -- the database every test in this run sees -------------------------------
+  #
+  # One PII-free branch, `ci-base`, is the parent of everything automated;
+  # `production` is never a parent (docs/domain.md §8, D9). A pull request gets
+  # `preview/pr-<n>` (reset to parent when it already existed, so a rewritten
+  # migration never meets a stale schema); a push to main gets an ephemeral
+  # `ci/main-<run_id>` that `neon-branch-delete` removes afterwards.
+  #
+  # Only the branch NAME is published. Actions drops any job output that
+  # contains a masked value, and the action masks the branch password -- so
+  # every consumer re-invokes create-branch-action with that name (which
+  # returns the existing branch) and reads the URL as a step output instead.
+  #
+  # Needs NEON_API_KEY (secret) and NEON_PROJECT_ID (variable); see docs/ci.md.
+
+  neon-branch:
+    name: neon branch
+    runs-on: ubuntu-latest
+    outputs:
+      # Same expression as the create step's `branch_name` below, on purpose:
+      # a job output cannot read a job-level `env`, and pointing the create
+      # step at another step's output would hide which branch this is.
+      branch_name: ${{ github.event_name == 'pull_request' && format('preview/pr-{0}', github.event.number) || format('ci/main-{0}', github.run_id) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Create or reuse the branch
+        id: branch
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          parent_branch: ci-base
+          branch_name: ${{ github.event_name == 'pull_request' && format('preview/pr-{0}', github.event.number) || format('ci/main-{0}', github.run_id) }}
+
+      - name: Reset a reused branch to its parent
+        # `created` is the string 'false' only when the branch already existed
+        # -- a re-pushed PR. A freshly created branch is already at the parent.
+        if: steps.branch.outputs.created == 'false'
+        uses: neondatabase/reset-branch-action@v1
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: ${{ steps.branch.outputs.branch_id }}
+          parent: true
+
+      # drizzle-kit reads process.env, so an `env:` block on the step is all
+      # `db:migrate` needs to point at this branch.
+      - name: Apply migrations
+        run: pnpm run db:migrate
+        env:
+          DATABASE_URL: ${{ steps.branch.outputs.db_url_pooled }}
+
+      - name: Seed the demo room
+        run: pnpm run db:seed
+        env:
+          DATABASE_URL: ${{ steps.branch.outputs.db_url_pooled }}
+
+  neon-branch-delete:
+    name: delete the CI branch
+    # Only pushes create an ephemeral `ci/main-<run_id>`; a PR branch outlives
+    # the run and is deleted by neon-branch-cleanup.yml when the PR closes.
+    # `always()` so a red test still returns the branch to the plan's quota.
+    if: always() && github.event_name == 'push'
+    needs: [neon-branch, unit, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: ${{ needs.neon-branch.outputs.branch_name }}
+
   # -- unit tests + coverage comment -----------------------------------------
 
   unit:
     name: unit tests
+    needs: [neon-branch]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+    env:
+      # The integration suites under src/lib/adapters/db/ skip themselves
+      # without a database; here they must fail instead (docs/domain.md §8).
+      DB_REQUIRED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+
+      # Returns the branch neon-branch already migrated -- same name, same
+      # parent -- because the URL cannot travel as a job output.
+      - name: Resolve the branch URL
+        id: db
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          parent_branch: ci-base
+          branch_name: ${{ needs.neon-branch.outputs.branch_name }}
+
       - run: pnpm run test:cov
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.db_url_pooled }}
 
       # Report-only, no threshold. A coverage gate in a 36h build either blocks
       # a legitimate PR at hour 30 or gets lowered until it asserts nothing.
@@ -116,10 +221,25 @@ jobs:
 
   e2e:
     name: playwright e2e
+    needs: [neon-branch]
     runs-on: ubuntu-latest
+    env:
+      # e2e/global-setup.ts creates the `e2e-<run>` room the intake specs
+      # register into, and skips itself without a database. Here a missing
+      # database is a failure, not a green run over specs that never loaded.
+      DB_REQUIRED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+
+      - name: Resolve the branch URL
+        id: db
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          parent_branch: ci-base
+          branch_name: ${{ needs.neon-branch.outputs.branch_name }}
 
       # Browsers are ~95MB; cache them against the installed Playwright version
       # so we only pay the download when the dependency actually moves.
@@ -147,7 +267,13 @@ jobs:
       # and Linux renders fonts differently, so all 18 baselines would fail here
       # with no real regression. See docs/testing.md for the Docker recipe that
       # generates Linux baselines if we ever want them gating.
+      #
+      # Playwright boots the dev server itself (playwright.config.ts), as a
+      # child of this step -- so it inherits DATABASE_URL from here and the app
+      # under test reads the same branch global-setup wrote the room into.
       - run: pnpm run test:e2e
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.db_url_pooled }}
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -155,6 +281,47 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # -- production ------------------------------------------------------------
+  #
+  # The only job in this pipeline that can see the production connection
+  # string, and the only path by which production's schema ever changes. It
+  # needs EVERY gate: a gate this job does not wait on is a migration that can
+  # outrun a failing check.
+  #
+  # It FAILS rather than skips when the secret is missing. The deploy jobs skip
+  # gracefully because a repo without VERCEL_TOKEN simply does not deploy; a
+  # production deploy that silently skipped its migration is worse than a red
+  # main, because the next request hits a table that is not there.
+
+  migrate-production:
+    name: migrate production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [typecheck, biome, audit, db-check, unit, build, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Refuse to migrate without DATABASE_URL_PRODUCTION
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error title=Missing secret::DATABASE_URL_PRODUCTION is not set. Add it under Settings > Secrets and variables > Actions (see docs/ci.md) -- production is not migrated and this run stops here." >&2
+            exit 1
+          fi
+          echo "DATABASE_URL_PRODUCTION is set; applying migrations to production."
+
+      - name: Apply migrations
+        run: pnpm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+
+      - name: Seed the demo room
+        run: pnpm run db:seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
 
   # -- deploy ----------------------------------------------------------------
   #
@@ -186,7 +353,7 @@ jobs:
   deploy-preview:
     name: deploy preview
     if: github.event_name == 'pull_request'
-    needs: [typecheck, biome, unit, build]
+    needs: [typecheck, biome, unit, build, neon-branch]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -210,16 +377,31 @@ jobs:
       - uses: ./.github/actions/setup
         if: steps.gate.outputs.ready == 'true'
 
+      - name: Resolve the branch URL
+        if: steps.gate.outputs.ready == 'true'
+        id: db
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          parent_branch: ci-base
+          branch_name: ${{ needs.neon-branch.outputs.branch_name }}
+
+      # `-e` sets the deployment's RUN-TIME environment, so this preview talks
+      # to the PR's own branch without the Vercel Preview environment ever
+      # holding a database URL -- which is what keeps a preview from reaching
+      # the room's real data (docs/domain.md §5, D9).
       - name: Deploy to Vercel (preview)
         if: steps.gate.outputs.ready == 'true'
         id: deploy
         run: |
           pnpm dlx vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
           pnpm dlx vercel@latest build --token="$VERCEL_TOKEN"
-          url=$(pnpm dlx vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN" | tail -1)
+          url=$(pnpm dlx vercel@latest deploy --prebuilt -e DATABASE_URL="$DATABASE_URL" --token="$VERCEL_TOKEN" | tail -1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DATABASE_URL: ${{ steps.db.outputs.db_url_pooled }}
 
       - name: Comment the preview URL
         if: steps.gate.outputs.ready == 'true'
@@ -245,7 +427,10 @@ jobs:
   deploy-production:
     name: deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [typecheck, biome, unit, build, e2e]
+    # migrate-production already needs every gate, and Actions waits on a
+    # need's own needs -- so this deploys only after the whole pipeline is
+    # green AND production's schema matches the code being shipped.
+    needs: [migrate-production]
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
