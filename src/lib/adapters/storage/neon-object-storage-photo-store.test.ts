@@ -34,7 +34,7 @@ import { type EnvLike, integrationStorage } from "./test-storage";
  * AC-1 … AC-3 are integration tests against a real branch bucket, guarded by
  * `./test-storage.ts` the way `adapters/db/test-db.ts` guards the database
  * suites: skip with a notice when `AWS_ENDPOINT_URL_S3` is unset, fail under
- * `DB_REQUIRED=1`. The guard is evaluated inside each test rather than in a
+ * `STORAGE_REQUIRED=1`. The guard is evaluated inside each test rather than in a
  * `describe.skipIf`, so a guard failure is reported against its AC id. They
  * upload under a `photos/test-<run>-…` prefix and delete what they created.
  *
@@ -282,20 +282,20 @@ describe("integrationStorage (test-storage.ts)", () => {
     expect(skipped.notice).toContain("AWS_ENDPOINT_URL_S3");
     expect(skipped.notice).toMatch(/skip/i);
 
-    // CI sets DB_REQUIRED=1: a missing bucket is a failure carrying the same
+    // STORAGE_REQUIRED=1 (set only where the bucket exists): a missing bucket is a failure carrying the same
     // notice, never a silent green run over tests that uploaded nothing.
     let thrown: unknown;
     try {
-      integrationStorage({ DB_REQUIRED: "1" });
+      integrationStorage({ STORAGE_REQUIRED: "1" });
     } catch (error) {
       thrown = error;
     }
     expect(
       thrown,
-      "DB_REQUIRED=1 with no endpoint did not throw"
+      "STORAGE_REQUIRED=1 with no endpoint did not throw"
     ).toBeInstanceOf(Error);
     expect((thrown as Error).message).toContain("AWS_ENDPOINT_URL_S3");
-    expect((thrown as Error).message).toContain("DB_REQUIRED");
+    expect((thrown as Error).message).toContain("STORAGE_REQUIRED");
 
     // An `S3Client` is inert until a command is sent, which is what lets this
     // be a unit test over an endpoint that resolves nowhere.
