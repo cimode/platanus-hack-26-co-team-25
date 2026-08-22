@@ -159,7 +159,7 @@ test.describe("1b · the room", () => {
     // the Vamos button, with zero conditional colour in the component. If two
     // lenses ever resolve the same, the visual language is broken.
     await enterAs(page, "diego");
-    const select = page.getByLabel(/tipo de conexión/i);
+    const trigger = page.getByRole("combobox", { name: /tipo de conexión/i });
     const accent = () =>
       page.evaluate(() => {
         const el = document.querySelector("form[class*='lens-']");
@@ -169,20 +169,35 @@ test.describe("1b · the room", () => {
       });
 
     const seen = new Set<string>();
-    for (const lens of ["romantic", "business", "friendship"]) {
-      await select.selectOption(lens);
+    for (const label of [/románticamente/i, /trabajando/i, /de amigos/i]) {
+      await trigger.click();
+      await page.getByRole("option", { name: label }).click();
       const hue = await accent();
-      expect(hue, `${lens} has no accent`).toBeTruthy();
+      expect(hue, `${label} has no accent`).toBeTruthy();
       seen.add(hue as string);
     }
     expect(seen.size).toBe(3);
+  });
+
+  test("the lens listbox is fully keyboard-operable", async ({ page }) => {
+    // The native <select> this replaced gave keyboard support for free. Having
+    // traded that away for a popup we can actually style, the replacement has
+    // to earn it back -- otherwise the restyle was a downgrade wearing paint.
+    await enterAs(page, "diego");
+    const trigger = page.getByRole("combobox", { name: /tipo de conexión/i });
+    await trigger.focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(trigger).toContainText(/trabajando/i);
   });
 
   test("choosing a lens carries it through to the ranking", async ({
     page,
   }) => {
     await enterAs(page, "diego");
-    await page.getByLabel(/tipo de conexión/i).selectOption("business");
+    await page.getByRole("combobox", { name: /tipo de conexión/i }).click();
+    await page.getByRole("option", { name: /trabajando/i }).click();
     await page.getByRole("button", { name: /vamos/i }).click();
     await expect(page).toHaveURL(/\/rank$/);
     await expect(
