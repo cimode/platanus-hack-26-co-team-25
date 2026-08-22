@@ -151,7 +151,7 @@ function Header({ lens, name }: { lens: Lens; name: string }) {
         />
       </div>
       <p className="mt-1.5 font-mono text-[10.5px] text-ink-muted lowercase">
-        {name} · sólo vos ves este ranking
+        {name} · solo tú ves este ranking
       </p>
     </header>
   );
@@ -191,7 +191,7 @@ function Body({ room }: { room: RankedRoom }) {
           className="rounded-[18px] border-2 border-ink-faint/25 border-dashed px-6 py-10 text-center font-mono text-[11px] text-ink-muted lowercase"
           role="status"
         >
-          la sala todavía se está llenando. volvé en un rato.
+          la sala todavía se está llenando. vuelve en un rato.
         </p>
       </div>
     );
@@ -239,7 +239,7 @@ function Blocked({
 function Hint() {
   return (
     <p className="relative shrink-0 px-6 pt-2 pb-5 font-mono text-[10px] text-ink-faint lowercase">
-      ⟷ sólo arrastre horizontal · la fila es la línea del rank
+      ⟷ solo arrastre horizontal · la fila es la línea del rank
     </p>
   );
 }
@@ -249,7 +249,7 @@ function NoLens() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-5 px-6 py-16">
       <h1 className="font-display font-extrabold text-2xl text-ink">
-        Primero elegí cómo querés conectar
+        Primero elige cómo quieres conectar
       </h1>
       <p className="font-mono text-[11px] text-ink-muted lowercase">
         el ranking depende de la lente: no es el mismo para amistad que para

@@ -87,7 +87,7 @@ export function RankBoard({ entries }: { entries: readonly RankEntry[] }) {
           </p>
         ) : (
           <section
-            aria-label="Tu ranking. Desplazá horizontalmente para ver a todos."
+            aria-label="Tu ranking. Desplaza horizontalmente para ver a todos."
             className="flex w-full cursor-grab gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain px-5 py-2 active:cursor-grabbing"
             ref={ref}
             /* Focusable so the arrow keys reach it: WCAG 2.1.1 wants a
