@@ -1,67 +1,56 @@
 # docs/design — Claude Design handoff package
 
-Everything needed to iterate on the hookai design system in an external tool and bring the
-result back.
+Everything needed to iterate on the **Dipia** design system in an external tool and bring
+the result back.
+
+Dipia is warm cream, coral, rounded display type, hard toy shadows and pixel-art sprites
+over crisp UI. **Light-only.** It replaced the dark hookai system in commit `d6e0d4d` —
+if you find a reference to brand cyan, OKLCH, Instrument Serif or `.glow` anywhere, that
+document is stale.
 
 ## Files
 
-| File                     | What it is                                                                                                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CLAUDE_DESIGN_BRIEF.md` | **The prompt.** Paste from the `# THE PROMPT` heading down. Everything above it is orientation for the person running the handoff.                                                    |
-| `design-tokens.json`     | Machine-readable token mirror — exact OKLCH values, the lens mechanism, component inventory, and the rules that must hold. Attach this so the model never re-derives a colour by eye. |
-| `screenshots/`           | The system as actually rendered, 2× DPI, straight from `/design`. Nothing mocked.                                                                                                     |
+| File | What it is |
+| --- | --- |
+| `CLAUDE_DESIGN_BRIEF.md` | **The system prompt.** Paste from the `# THE PROMPT` heading down; everything above it is orientation for whoever runs the handoff. |
+| `CLAUDE_DESIGN_QUIZ_BLOCK.md` | **The quiz block prompt** — the one screen a participant sees fifteen times, and the highest-value open problem in the product. |
+| `design-tokens.json` | Machine-readable token mirror: exact hex, the lens mechanism, the shadow system, the rules that must hold. Attach it so the model never re-derives a colour by eye. |
+| `screenshots/` | The system as actually rendered at 2× DPI, straight from `/design`. Nothing mocked. |
+| `sketch-quiz-block.png` | The original hand sketch the quiz grid came from. Historical — it shows image cards, which D14 cancelled. |
+
+## The source of truth is the code
+
+`src/app/globals.css` defines the system. `design-tokens.json` is a mirror kept by hand,
+and `/design` is the living reference — every token, every lens, every component state,
+rendered. **When a document here disagrees with `/design`, `/design` wins.**
+
+`e2e/design-system.spec.ts` screenshots each section, so token drift shows up as a failing
+visual diff rather than as a slow decay nobody notices.
 
 ## Screenshots
 
-| File                      | Shows                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `00-overview-desktop.png` | Whole system, one image (1280 wide)                                                       |
-| `00-masthead.png`         | Wordmark + the serif at display size                                                      |
-| `01-brand.png`            | Wordmark treatments, brand cyan swatches                                                  |
-| `02-typography.png`       | The three voices and their roles                                                          |
-| `03-surfaces.png`         | Neutral surface ramp                                                                      |
-| `04-lenses.png`           | **The lens mechanism** — same card, three times, one class changed                        |
-| `05-shape-glow.png`       | Radius scale, resting vs active glow per lens                                             |
-| `06-controls.png`         | Buttons, badges, intake fields at mobile sizes                                            |
-| `07-in-situ.png`          | **Ranking + timeline** — the two real screens, and the type pairing the system exists for |
-| `07b-in-situ-mobile.png`  | Same, at 390px                                                                            |
-| `08-loading.png`          | Skeleton and progress states                                                              |
-| `99-overview-mobile.png`  | Full page at 390×844, the actual target device                                            |
+Captured from `/design` with `scripts/capture-design.ts`.
 
-## Regenerating the screenshots
+| File | Shows |
+| --- | --- |
+| `00-overview-desktop.png` | Whole system, one image (1280 wide) |
+| `00-masthead.png` | Wordmark and Baloo 2 at display size |
+| `01-brand.png` | Wordmark treatments, the coral swatch family |
+| `02-typography.png` | The two voices and their roles |
+| `03-surfaces.png` | Cream ground, card, recessed fill, the ink ramp |
+| `04-lenses.png` | **The lens mechanism** — the same card three times, one class changed |
+| `05-shape-depth.png` | Radius scale, and the toy shadow at rest, raised and pressed |
+| `06-controls.png` | Buttons, badges, intake fields at mobile sizes |
+| `07-in-situ.png` | **Ranking and timeline** — the two real screens the system exists for |
+| `07b-in-situ-mobile.png` | Same, at 390px |
+| `08-loading.png` | Skeleton and progress states |
+| `99-overview-mobile.png` | Full page at 390×844, the actual target device |
 
-They are captured from the live `/design` route, so they go stale whenever tokens change.
+To refresh them after a design change:
 
 ```bash
-pnpm run dev                           # in the repo root
-pnpm exec playwright install chromium  # once
+pnpm run design:capture
 ```
 
-Then drive Playwright against `http://localhost:3000/design`: full page at 1280×1200 and
-390×844 with `deviceScaleFactor: 2`, plus per-section crops via
-`main > div > section` and `.nth(i)`. Wait on `document.fonts.ready` before shooting or the
-serif will not have loaded.
-
-## Source of truth
-
-`src/app/globals.css` is authoritative. `design-tokens.json` is a mirror for design tools —
-**if the two disagree, the CSS is right and the JSON is stale.**
-
-## Bringing changes back
-
-Two routes:
-
-1. **Manual** — read the design output, apply token changes to `src/app/globals.css`, rebuild
-   `/design`, re-screenshot, regenerate this JSON.
-2. **`DesignSync`** — Claude Code can push a local component library into a
-   `claude.ai/design` design-system project and diff against it one component at a time.
-   Useful once there is a real component library beyond the token layer; overkill today.
-
-## Watch out for
-
-`shadcn init` and `shadcn add @shadcn/font-*` both rewrite the font block in `@theme inline`
-and reintroduce a **self-referencing custom property** (`--font-x: var(--font-x)`). Because
-`@theme inline` emits its variables into `:root`, and `:root` _is_ `<html>`, that collides
-with `next/font`'s own definition at equal specificity and the font silently stops loading.
-This has happened three times. After running either command, check
-`src/app/globals.css` lines ~12-15 and confirm the font families are literal names.
+It boots the app, waits for fonts, and rewrites all twelve. Review the diff before
+committing — a screenshot updated without looking is worse than none.
