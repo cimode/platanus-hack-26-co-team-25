@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-
+import { hashPrompt, type LlmFixture } from "../../ports/llm";
 import {
   createFixtureLlm,
   FixtureMissingError,
@@ -8,7 +8,6 @@ import {
   failingLlm,
   stubLlm,
 } from "./fake";
-import { hashPrompt, type LlmFixture } from "./port";
 
 const TimelineSchema = z.object({
   events: z.array(

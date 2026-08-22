@@ -1,7 +1,7 @@
 /**
  * demo.ts — Synthetic 8-person room exercising every engine path.
  *
- * Run: node src/lib/matching/demo.ts
+ * Run: node src/lib/domain/matching/demo.ts
  *
  * Showcases: the romantic wantsKids gate (sofia x mateo), an anxious x long-distance
  * pursueWithdraw pair (lucas x sofia — sofia's distanceBand is 3), a both-high-agency

@@ -41,7 +41,7 @@ front of you; CI is about the whole project.**
 | Coverage                       | **never**                        | reported as a PR comment | ❌ no threshold |
 | Evals                          | —                                | —                        | ❌ manual       |
 
-`vitest related` walks the module graph, so editing `src/lib/llm/port.ts` runs every suite
+`vitest related` walks the module graph, so editing `src/lib/ports/llm.ts` runs every suite
 that imports it transitively, and nothing else. Editing a file with no tests exits 0 rather
 than blocking the commit. Measured: ~3.4s with related tests, ~2.7s without.
 
@@ -68,11 +68,11 @@ If a module under `src/lib/` imports an SDK, it is not an engine module. Beyond 
 this is what lets the engine run headless from a CLI — which is how you iterate on prompts
 without clicking through the UI.
 
-The seam is `src/lib/llm/port.ts`.
+The seam is `src/lib/ports/llm.ts`; see `docs/architecture.md`.
 
 ## Testing against the model
 
-Three fakes, in `src/lib/llm/fake.ts`:
+Three fakes, in `src/lib/adapters/llm/fake.ts`:
 
 | Fake                         | Use when                                                                    |
 | ---------------------------- | --------------------------------------------------------------------------- |

@@ -1,8 +1,8 @@
 /**
- * engine.test.ts — property tests for src/lib/matching/engine.ts.
+ * engine.test.ts — property tests for src/lib/domain/matching/engine.ts.
  *
  * Zero runtime dependencies, plain assertions, erasable-types-only syntax.
- * Run: npm test -- src/lib/matching
+ * Run: npm test -- src/lib/domain/matching
  *
  * Properties covered (task contract):
  *   P1  weight vectors sum to 1.0 ±1e-9 per lens (after business Agency-off renorm)

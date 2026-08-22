@@ -21,7 +21,7 @@ export default defineConfig({
   // The barrel re-exports every table, so drizzle-kit follows one import
   // instead of globbing a directory -- no double registration as the domain
   // grows into schema/participants.ts, schema/quiz.ts, and so on.
-  schema: "./src/lib/db/schema/index.ts",
+  schema: "./src/lib/adapters/db/schema/index.ts",
   out: "./drizzle",
   dbCredentials: { url },
   // Ask before running a destructive statement, and print the SQL first.

@@ -6,9 +6,9 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    // src/lib/matching/* import each other with explicit .ts extensions so
-    // the demo runs directly under Node's type stripping
-    // (`node src/lib/matching/demo.ts`).
+    // src/lib/domain/matching/* import each other with explicit .ts
+    // extensions so the demo runs directly under Node's type stripping
+    // (`node src/lib/domain/matching/demo.ts`).
     // Safe only because noEmit is on -- tsc never has to rewrite them.
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,

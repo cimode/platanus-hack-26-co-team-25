@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
 /**
- * The database seam, built to the same rule as `src/lib/llm/port.ts`:
+ * The database seam, built to the same rule as `src/lib/ports/llm.ts`:
  *
  *   > If a module under src/lib/ imports an SDK, it is not an engine module.
  *   >   -- docs/testing.md

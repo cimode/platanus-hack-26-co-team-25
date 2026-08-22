@@ -60,7 +60,7 @@ Two separate checks, and they catch different things:
   Write `Depends on: #12, #15`, or `Depends on: none`.
 - **Files affected** — merge collisions. If a path in your table also appears
   in an issue that is `status:in-progress`, say so in the issue body. Two specs
-  that both edit `src/lib/db/schema/index.ts` will collide even when neither
+  that both edit `src/lib/adapters/db/schema/index.ts` will collide even when neither
   depends on the other.
 
 ### 4. Pick a priority

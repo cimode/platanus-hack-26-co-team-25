@@ -31,8 +31,10 @@ Same one `docs/testing.md` sets for the LLM:
 async function rankRoom(room: RoomId, deps: { db: Db; llm: LlmPort });
 ```
 
-`getDb()` in `src/lib/db/index.ts` is the composition root for **app** code
-(route handlers, server components). Engine modules never call it.
+`getDb()` lives in `src/lib/adapters/db/client.ts` and is called from exactly
+one place: `src/lib/composition.ts`. Use cases receive `db` as a parameter and
+`biome.json` fails the build if anything inside the hexagon imports an adapter
+directly. See `docs/architecture.md`.
 
 ## Environment
 

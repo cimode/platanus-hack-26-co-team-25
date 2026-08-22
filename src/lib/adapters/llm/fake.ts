@@ -3,7 +3,7 @@ import {
   type LlmFixture,
   type LlmPort,
   type LlmRequest,
-} from "./port";
+} from "../../ports/llm";
 
 /**
  * Turns synchronous throws into rejections.

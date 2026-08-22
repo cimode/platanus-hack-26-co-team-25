@@ -72,6 +72,42 @@
   },
   "overrides": [
     {
+      "includes": [
+        "src/lib/domain/**",
+        "src/lib/use-cases/**",
+        "src/lib/ports/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@neondatabase/**",
+                      "drizzle-orm/**",
+                      "drizzle-zod",
+                      "@anthropic-ai/**",
+                      "next/**",
+                      "react",
+                      "react-dom/**"
+                    ],
+                    "message": "Inside the hexagon. Depend on a port from src/lib/ports/; adapters live in src/lib/adapters/ and are wired in src/lib/composition.ts."
+                  },
+                  {
+                    "group": ["**/adapters/**", "**/composition"],
+                    "message": "Dependencies point inward. The core defines ports; adapters implement them. Take what you need as a parameter."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["src/components/ui/**"],
       "linter": {
         "rules": {
@@ -90,7 +126,7 @@
       }
     },
     {
-      "includes": ["src/lib/matching/demo.ts", "scripts/**"],
+      "includes": ["src/lib/domain/matching/demo.ts", "scripts/**"],
       "linter": {
         "rules": { "suspicious": { "noConsole": "off" } }
       }
