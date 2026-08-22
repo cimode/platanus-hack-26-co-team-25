@@ -1,6 +1,12 @@
 import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
+import { createParticipantRepository } from "./adapters/db/participant-repository";
+import { createResponseRepository } from "./adapters/db/response-repository";
+import { createRoomRepository } from "./adapters/db/room-repository";
 import type { LlmPort } from "./ports/llm";
+import type { ParticipantRepository } from "./ports/participant-repository";
+import type { ResponseRepository } from "./ports/response-repository";
+import type { RoomRepository } from "./ports/room-repository";
 
 /**
  * The composition root: the ONLY module allowed to know which adapter
@@ -21,7 +27,16 @@ import type { LlmPort } from "./ports/llm";
 export interface Deps {
   db: Db;
   llm: LlmPort;
+  participants: ParticipantRepository;
+  rooms: RoomRepository;
+  responses: ResponseRepository;
 }
+
+/** Everything wired today: the three repositories over one database handle. */
+export type ServerDeps = Pick<
+  Deps,
+  "db" | "participants" | "rooms" | "responses"
+>;
 
 /**
  * Dependencies available on the server today.
@@ -31,7 +46,16 @@ export interface Deps {
  * production a fake that quietly returns fixtures is worse than not compiling.
  * When `adapters/llm/anthropic.ts` lands, widen this to `Deps` and the use
  * cases that need a model start type-checking.
+ *
+ * The repositories are rebuilt per call and the handle underneath them is
+ * memoised by `getDb()`, so this costs an object literal, not a connection.
  */
-export function serverDeps(): Pick<Deps, "db"> {
-  return { db: getDb() };
+export function serverDeps(): ServerDeps {
+  const db = getDb();
+  return {
+    db,
+    participants: createParticipantRepository(db),
+    rooms: createRoomRepository(db),
+    responses: createResponseRepository(db),
+  };
 }

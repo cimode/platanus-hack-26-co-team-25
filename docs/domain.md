@@ -46,7 +46,7 @@ abandoners do not.
 | --- | --- | --- |
 | D1 | **One fixed instrument for the whole room** — the 15 blocks in `quiz/batch-{1,2,3}.json`. Not generated per participant. | `PILLARS.md` §7.2: the precision claim rests on a *fixed balanced form* — every person answers the same 15 blocks, so every between-person contrast is on the same items. Per-person items destroy linking, and with it the 25% technical-depth argument. `AUDIT.md` F1: "irreversible once the form ships". The content exists and has passed the desirability judge. Generation (DeepSeek → Qwen) is an **offline pipeline that produces a versioned instrument**, not a request-time job. |
 | D2 | **The instrument is a domain constant, not three tables.** `src/lib/domain/quiz/instrument.ts` builds it from the JSON at import, validates every block, carries `INSTRUMENT.version` (`v1`), and a unit test pins the content hash — version included. Responses reference `(position, key)`; the room records which version it administered, and the quiz (I6) and scoring (I7) use cases **throw when `room.instrument_version !== INSTRUMENT.version`**. | Sixty rows of committed, already-validated JSON that the engine never reads do not need a `QuizRepository`, a seed, a status enum, a partial unique index and a freeze-diff guard. The hash test plus the room↔version check *are* the freeze: editing a block means bumping the version, and a bumped version can only be administered and scored in a room created for it — never re-scored onto an existing room's responses. The quiz screen reads a constant — zero database reads per block on venue wifi. |
-| D3 | Blocks are delivered in **three batches of five**; batch N+1's images preload while batch N is answered. Between-batch screens are *transitions* (a "batch 2 of 3" beat while five images prefetch), not waits. | The staged experience the product wants, without any generation latency in it (`docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` §9). |
+| D3 | Blocks are delivered in **three batches of five**. Between-batch screens are *transitions* (a "batch 2 of 3" beat), not waits. | The staged experience the product wants, without any generation latency in it (`docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` §9). **Amended 2026-08-22 (D14):** the original rationale was prefetching the next five option images; with text-only options there is nothing to preload, so the batching survives purely as pacing. |
 | D4 | Identity is a **session token in an httpOnly cookie**, stored in its own table. No email, no login. | `CONTEXT.md` §5: "auth beyond the minimum needed to identify a participant" is out of scope. The token is what makes "a ranking is visible only to the person who ran it" enforceable. A new device loses the session; acceptable for a one-evening demo. Its own table means no read of `participants` can return it *structurally* — not by convention. |
 | D5 | **Gates live in their own tables, one per lens.** No row ⇔ never asked. | `PILLARS.md` §2: Eligibility Gates is "the only pillar with genuinely lens-partitioned content"; A8 says asking is a disclosure event. Gender and orientation are asked *only* of people who consented to the romantic lens, and the absent row maps 1:1 to the engine's `gates.romantic === undefined` → suppressed. |
 | D6 | Declared values are stored **as the band that was tapped** (`smallint 0..3`), never as the `0..1` float the engine consumes. | Store what was asked, derive what the model needs. The band→float map is one pure function and can change without a migration. |
@@ -56,6 +56,7 @@ abandoners do not.
 | D10 | Option display order is shuffled per participant per block and recorded (`shown_order`). | `AUDIT.md` minor: a fixed form repeating one quadruple fifteen times becomes readable; shuffling breaks the mapping, and recording the shuffle keeps position bias analysable. |
 | D11 | Photos go to **Vercel Blob** (`@vercel/blob`, `BLOB_READ_WRITE_TOKEN`), `photo_url` on the participant; tests use a fake `PhotoStore`. | GA, CDN-served, one env var, no Postgres egress for a room view that loads a hundred faces. Blob URLs are unguessable and are only ever embedded in pages the viewer is authorised to see; withdrawal deletes the blob. Fallback if provisioning becomes a problem at hour N: `photo bytea` served by a private route handler — same port, different adapter. |
 | D12 | Romantic consent covers the ranking **and** the AI-offspring render, and the copy says so. | `AUDIT.md` S17: face-merge renders only for mutually opted-in pairs. One switch, explicitly worded. |
+| D14 | **Option cards are text, not images.** No `public/quiz/*.png`, no image-generation pipeline, no `imagePathOf`. The `imagePrompts` already in `quiz/batch-*.json` stay in the file as authored history and are ignored by the domain type. | Confirmed by the user 2026-08-22. Cuts the entire image budget (60 renders per instrument version, and ~6,000 under the per-participant design §10.1 rejects), removes the model's least reliable capability — Spanish caption text baked into an image — from the critical path, and deletes issue I3 outright. Options are ≤8 words by the authoring rules, which is a card; the 2×2 grid in `docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` renders them as type. |
 | D13 | **Rankings are computed on request, not stored.** Latent estimates *are* stored — they are the avatar. | `rankRoom` is pure and ranks a 100-person room in milliseconds; persisting its output was ceremony on the last issue. The loading moment is `loading.tsx` narrating "scoring 15 blocks · ranking N people". The projected room view, when it exists, computes mutual top-k from the same in-memory array behind an operator credential. `latent_estimates` stays: it is `CONTEXT.md` §3 step 2, and the timeline will read it. |
 
 ## 2. Aggregates (`src/lib/domain/`)
@@ -71,7 +72,7 @@ domain/
 │                 instrumentHash() — pinned by a test; changing content after responses exist is a new version
 │                 BlockResponse { participantId, position, mostKey, leastKey?, shownOrder, answeredAt }
 │                 validateResponse() — most ≠ least, keys ∈ a..d, position ∈ 1..15
-│                 batchOf(position), imagePathOf(position, key) = /quiz/b{position}-{key}.png
+│                 batchOf(position)   — no imagePathOf: options are text (D14)
 ├─ matching/      (exists) Person, scorePair, rankRoom
 │                 toPerson(rankable, latents, cohort) — I8; throws on any null declared field (cannot happen past the floor)
 └─ scoring/       (I7) responses → LatentEstimate per pillar
@@ -329,19 +330,17 @@ writes are declared + acquaintances, the last response + `quiz_completed_at`, an
 | --- | --- | --- |
 | I1 · [#4](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/4) `domain: intake schema, migrations, repositories and seed` | §2 types + instrument constant (with `version`) + hash test, §3 tables, §7 ports/adapters, first migration, demo-room seed; **three running safety tests** (romantic consent defaults off; ranking visible only to its subject; only mutual matches in the room view — un-skipping the two safety stubs in `e2e/demo-path.spec.ts` as vacuous assertions) plus the `RoomMember` type-level test and the `SessionToken`-not-a-field test; **D8 in full**: delete `db:push` from `package.json`, make `dbCredentials` optional in `drizzle.config.ts` so `db:generate` / `db:check` run with `DATABASE_URL` unset, rewrite `docs/database.md`; update `.claude/skills/data-access/SKILL.md` (§1 port example → the §7 `ResponseRepository.save(r)` shape, §2 batch rationale → the §7 list of batched writes, §5 and hard rule 6 → generate + commit + migrate) | — |
 | I2 · [#5](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/5) `ci: migrate a Neon branch per PR and production on main` | §8 CI | I1 |
-| I3 · *not filed yet (§10.3 + style token)* `quiz: render the 60 caption-free option cards into public/quiz` | image-generator port + env-configured adapter; resumable script that first strips the trailing `; caption reading '…'` clause from all 60 prompts in `quiz/batch-*.json` (captions are DOM text, D2) and takes the style token as an argument; records the chosen token as the replacement `STYLE_TOKEN` in `.claude/workflows/create_quest.js`; writes `public/quiz/b{n}-{k}.png` | — (no dependents; I6 renders without it) |
+| I3 · **cancelled 2026-08-22 (D14)** — was `quiz: render the 60 caption-free option cards into public/quiz`. Options are text; there is no image pipeline, no image-generator port and no `public/quiz/`. | — | — |
 | I4 · [#6](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/6) `intake: register with a photo and per-lens consent on a phone` | `/intake` steps 1–3, session cookie, `PhotoStore` + Vercel Blob adapter, the photo-exposure safety test (§5) | I1 |
 | I5 · [#8](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/8) `intake: declared round and lens gates` | `/intake` steps 4–5 | I4 |
-| I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three preloaded batches` | `/quiz` against the instrument constant; `onError` → caption-only card | I1, I4 |
+| I6 · [#9](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/9) `quiz: answer 15 blocks in three batches` | `/quiz` against the instrument constant; typographic option cards (D14), batch beats as pacing | I1, I4 |
 | I7 · [#7](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/7) `scoring: turn 15 block responses into latent posteriors` | `domain/scoring`, `latent_estimates` | I1 |
 | I8 · [#10](https://github.com/platanus-hack/platanus-hack-26-co-team-25/issues/10) `matching: rank the room under a lens and show the result` | `prepare-results` (score if missing → `byRoomForRanking(room, lens)` → `toPerson` → `rankRoom`), `/results/[lens]` with `loading.tsx`, the results-payload serialisation test (§5) and the abandoned-participant safety test | I5, I6, I7 |
 
 Waves: **I1** → **{I2, I4, I7}** → **{I3, I5, I6}** → **I8**. Each wave touches disjoint
 paths and can run in parallel through `/work`. I3 has no code dependency and no
-dependents; it is **not created until two decisions exist** — the image gateway/model
-(§10.3) and the literal style-token string (`docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md`
-§7.2) — because an issue that defers either is a question, not a spec. Until then I6
-renders caption-only cards, which it must support anyway.
+**I3 is cancelled** (D14): options are text, so there is no image work to file. I6 renders
+typographic option cards; that is the only mode.
 
 Not in this split, noted so nobody forgets them: the operator-gated projected room view
 (mutual pairs only, no scores — reads the same in-memory ranking), withdrawal ("delete me":
@@ -351,13 +350,14 @@ cascade delete + blob delete), the timeline and the offspring render.
 
 These are decided above so work can start; each is one line to reverse.
 
-1. **D1/D2 — fixed instrument in code.** If per-participant generation is wanted instead,
-   the three quiz tables return, the quiz screen reads the database, and a background job
-   runner is needed; roughly 6,000 image generations for 100 attendees.
+1. ~~**D1/D2 — fixed instrument in code.**~~ **Confirmed by the user 2026-08-22.** The
+   alternative — per-participant generation, three quiz tables, a DB-backed quiz screen and
+   a background job runner — is rejected. `docs/quiz-generation.md` planned that design and
+   is superseded by this decision; generation stays an offline authoring step.
 2. **D11 — Vercel Blob for photos**, `bytea` as the fallback.
-3. **Which gateway serves the image model** for I3 (Vercel AI Gateway, Neon AI Gateway —
-   this project is in `us-east-2` — or the provider directly). The adapter is an
-   env-configured HTTP client either way.
+3. ~~**Which gateway serves the image model** for I3.~~ **Moot 2026-08-22 (D14)** — there
+   is no image model. `AI_GATEWAY_API_KEY` is set on Vercel (Preview and Production) and
+   serves the offline *text* authoring path only.
 4. **Where the issues live.** The `status:*` / `prio:*` labels exist on the org repo; CI,
    `main` and deploys live on the `cimode` repo; `/intake`, `/work` and `issue-status`
    point at the org repo.
