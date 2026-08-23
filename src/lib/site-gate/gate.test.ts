@@ -86,25 +86,24 @@ describe("decideGate", () => {
     expect(
       decideGate({
         password,
-        pathname: "/intake",
-        target: "/intake?room=x",
+        pathname: "/room",
+        target: "/room?lens=romantic",
         method: "GET",
         accept: HTML,
         cookie: null,
       })
-    ).toEqual({ kind: "redirect", to: "/intake?room=x" });
+    ).toEqual({ kind: "redirect", to: "/room?lens=romantic" });
   });
 
   it("401s everything that is not an HTML navigation", () => {
     const cases: Array<[string, string, string | null]> = [
-      ["/_next/static/chunks/a.js", "GET", "*/*"],
       ["/_next/image", "GET", "image/avif"],
+      ["/_next/data/build/room.json", "GET", "*/*"],
       ["/api/anything", "GET", "application/json"],
       ["/robots.txt", "GET", "text/plain"],
-      ["/favicon.ico", "GET", null],
       ["/", "HEAD", null],
-      ["/intake", "OPTIONS", HTML],
-      ["/intake", "POST", HTML],
+      ["/room", "OPTIONS", HTML],
+      ["/room", "POST", HTML],
     ];
     for (const [pathname, method, accept] of cases) {
       expect(
@@ -126,13 +125,22 @@ describe("decideGate", () => {
     ).toEqual({ kind: "allow" });
   });
 
-  it("keeps /qr open, with the styles and fonts it needs and nothing more", () => {
+  it("keeps the participant's flow and its assets open, and the product gated", () => {
     const open: Array<[string, string]> = [
       ["/qr", "GET"],
       ["/qr/", "HEAD"],
+      ["/intake", "GET"],
+      ["/intake", "POST"],
+      ["/intake/declared", "POST"],
+      ["/quiz", "GET"],
+      ["/quiz", "POST"],
+      ["/results", "GET"],
       ["/_next/static/css/app.css", "GET"],
       ["/_next/static/chunks/%5Broot%5D__dev._.css", "GET"],
       ["/_next/static/media/baloo.woff2", "GET"],
+      ["/_next/static/chunks/main-app.js", "GET"],
+      ["/_next/static/chunks/app/intake/page.js", "GET"],
+      ["/favicon.ico", "GET"],
     ];
     for (const [pathname, method] of open) {
       expect(
@@ -143,10 +151,15 @@ describe("decideGate", () => {
     const closed: Array<[string, string, string | null]> = [
       ["/qr/anything", "GET", HTML],
       ["/qrcode", "GET", HTML],
-      ["/qr", "POST", HTML],
-      ["/qr", "OPTIONS", null],
-      ["/_next/static/chunks/app/qr/page.js", "GET", "*/*"],
-      ["/_next/static/chunks/main-app.js", "GET", null],
+      ["/intake-x", "GET", HTML],
+      ["/quizzes", "GET", HTML],
+      ["/results/romantic", "GET", HTML],
+      ["/", "GET", HTML],
+      ["/room", "GET", HTML],
+      ["/rank", "GET", HTML],
+      ["/match", "GET", HTML],
+      ["/simulate/abc", "GET", HTML],
+      ["/design", "GET", HTML],
       ["/_next/static/css/app.css", "POST", null],
       ["/_next/static/media/../chunks/x.js", "GET", null],
       ["/_next/image", "GET", "image/avif"],
@@ -176,11 +189,11 @@ describe("decideGate", () => {
     expect(
       decideGate({
         password: "rotated",
-        pathname: "/intake",
+        pathname: "/room",
         method: "GET",
         accept: HTML,
         cookie,
       })
-    ).toEqual({ kind: "redirect", to: "/intake" });
+    ).toEqual({ kind: "redirect", to: "/room" });
   });
 });
