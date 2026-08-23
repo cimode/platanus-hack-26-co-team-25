@@ -29,7 +29,7 @@ export async function impersonateAction(
   const id = formData.get("participantId");
 
   if (typeof id !== "string" || id === "") {
-    return { error: "Elegí a alguien de la lista para continuar." };
+    return { error: "Elige a alguien de la lista para continuar." };
   }
 
   const participant = await findParticipant(id, serverDeps());
