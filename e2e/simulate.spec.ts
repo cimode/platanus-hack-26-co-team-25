@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { rosterIdByName, rosterSeeded } from "./fixtures/roster";
 
 /**
  * Screen 1f -- `/simulate/[id]`.
@@ -29,8 +30,24 @@ import { expect, type Page, test } from "@playwright/test";
  */
 test.skip(!process.env.DATABASE_URL, "needs DATABASE_URL (issue #55)");
 
-const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
-const OTHER = { id: "p-diego-morales", name: "Diego Morales" };
+/*
+ * Named, never hardcoded by id. `participants.id` is a `uuid` column, so
+ * `p-laura-mendez` was never a row -- it came from the hardcoded roster module
+ * that production no longer has. `e2e/global-setup.ts` seeds this cast and
+ * publishes the real uuids.
+ */
+const VIEWER = {
+  name: "Laura Méndez",
+  get id() {
+    return rosterIdByName("Laura Méndez");
+  },
+};
+const OTHER = {
+  name: "Diego Morales",
+  get id() {
+    return rosterIdByName("Diego Morales");
+  },
+};
 
 async function open(page: Page, path: string, lens = "romantic") {
   await page.context().clearCookies();
@@ -60,6 +77,14 @@ async function bodyText(page: Page): Promise<string> {
 }
 
 test.describe("1f · the simulated life", () => {
+  // The cast and their cached lives come from e2e/global-setup.ts. Without a
+  // database it seeds neither, and every assertion here would fail for that
+  // reason rather than its own.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   test("AC-SIM-1 · a ranked pair simulates, and both names are present", async ({
     page,
   }) => {
@@ -122,8 +147,8 @@ test.describe("1f · the simulated life", () => {
       return Number(pill.match(/de (\d+)/)?.[1]);
     };
 
-    const a = await horizonFor("p-ana-ramirez");
-    const b = await horizonFor("p-diego-morales");
+    const a = await horizonFor(rosterIdByName("Ana Ramírez"));
+    const b = await horizonFor(rosterIdByName("Diego Morales"));
     expect(a).toBeGreaterThan(0);
     expect(b).toBeGreaterThan(0);
     expect(a).not.toBe(b);
@@ -298,7 +323,7 @@ test.describe("1f · the simulated life", () => {
      * This pair ends apart WITH an epilogue, and the epilogue must follow the
      * ending in document order, because that is where the type puts it.
      */
-    await open(page, "/simulate/p-fernanda-lopez");
+    await open(page, `/simulate/${rosterIdByName("Fernanda López")}`);
     const ending = page.getByRole("region", { name: /fin de la simulación/i });
     await expect(ending).toContainText(/se separan en el año \d+/i);
     await expect(ending).not.toContainText(/llegan juntos/i);
@@ -314,7 +339,7 @@ test.describe("1f · the simulated life", () => {
   }) => {
     // The other half of the same branch: `epilogue` is `string | null`, and the
     // null case must not leave a hole where a sentence was.
-    await open(page, "/simulate/p-sofia-guzman");
+    await open(page, `/simulate/${rosterIdByName("Sofía Guzmán")}`);
     const ending = page.getByRole("region", { name: /fin de la simulación/i });
     await expect(ending).toContainText(/se separan en el año \d+/i);
     await expect(ending).toBeVisible();

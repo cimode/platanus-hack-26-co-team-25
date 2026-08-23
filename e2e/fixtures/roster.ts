@@ -116,6 +116,12 @@ const CAST: readonly CastMember[] = [
     tags: ["plantas", "astronomia", "cine-de-culto"],
   },
   {
+    name: "Fernanda López",
+    team: "equipo 03",
+    gender: "F",
+    tags: ["cafe", "ramen", "podcasts"],
+  },
+  {
     name: "Laura Méndez",
     team: "equipo 25",
     gender: "F",
