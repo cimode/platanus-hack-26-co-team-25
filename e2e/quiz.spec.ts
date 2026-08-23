@@ -461,10 +461,14 @@ test.describe("safety invariants", () => {
       await tap(page, participant, position);
     }
 
-    // Off the quiz and onto the hand-off, wherever the roster puts this
-    // fixture's participant (see AC-4). Only the landmark for "all twelve are
-    // answered"; the leak scan below is what this criterion is about.
-    await expect(page).toHaveURL(/\/(room)?$/);
+    // Off the quiz and onto the hand-off, which is `/results` (see AC-4). The
+    // old shape allowed `/` as well, because the hand-off was `/room` and
+    // `/room` bounces a participant it cannot place on the venue roster —
+    // which this fixture's participant never is. `/results` is static and
+    // bounces nobody, so there is one destination. Only the landmark for "all
+    // twelve are answered"; the leak scan below is what this criterion is
+    // about.
+    await expect(page).toHaveURL(/\/results$/);
     // 1 opening + 1 served opening + 12 blocks + 3 served blocks.
     expect(captured.length).toBeGreaterThanOrEqual(17);
     for (const { where, html } of captured) {
