@@ -100,6 +100,13 @@ export interface EngineOptions {
    *
    * `rankRoom` derives this from the room when the caller says nothing, so it
    * stops applying by itself the day the instrument asks again.
+   *
+   * Redistributing the weight is the right answer to having no data. It is not
+   * a substitute for HAVING data: `lifeShape` (0.22) and `distance` (0.08) are
+   * still dead, so the product ranks on personality alone and cannot honestly
+   * say "les une: ritmo de vida" -- its highest-weighted reason. Reviving them
+   * is specified and deferred, not forgotten:
+   * `openspec/changes/declared-signal/`.
    */
   unmeasured?: readonly TermName[];
 }
