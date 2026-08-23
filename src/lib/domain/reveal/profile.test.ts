@@ -9,6 +9,7 @@ const ENTRY: RankEntry = {
   id: "sofia",
   name: "Sofía Guzmán",
   photoUrl: "https://blob.example/sofia.jpg",
+  avatar: null,
   position: 2,
   band: "high",
   bond: { term: "commonGround", label: "Gustos en común" },
