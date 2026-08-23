@@ -88,6 +88,8 @@ function makeWorld(options: { instrumentVersion?: string } = {}) {
     id: PARTICIPANT_ID,
     roomId: ROOM_ID,
     name: "Beto Díaz",
+    gender: "F",
+    birthdate: "1996-05-04",
     photoUrl: null,
     team: null,
     track: null,

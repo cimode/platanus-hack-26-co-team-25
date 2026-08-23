@@ -59,6 +59,7 @@ const LEAKS = [
   "consent",
   "interested",
   "gender",
+  "birthdate",
   "single",
   "wants",
   "money",
@@ -104,17 +105,23 @@ describe("createParticipantRepository", () => {
 
     const created = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana Ramírez",
       team: "t-7",
       track: "fintech",
     });
 
-    // AUDIT.md S16 / CONTEXT.md §7.3: a fresh row is opted out of everything.
+    // D18: the three consents arrive with the registration, so `create` writes
+    // exactly what it was handed rather than falling back to the column default.
     expect(created.participant.consent).toEqual({
-      romantic: false,
-      business: false,
-      friendship: false,
+      romantic: true,
+      business: true,
+      friendship: true,
     });
+    expect(created.participant.gender).toBe("F");
+    expect(created.participant.birthdate).toBe("1996-05-04");
     expect(created.participant.photoUrl).toBeNull();
     expect(created.participant.declaredAt).toBeNull();
     expect(created.participant.roomId).toBe(room.id);
@@ -131,10 +138,16 @@ describe("createParticipantRepository", () => {
     // Two other people in the same room to point the acquaintance list at.
     const beto = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
     const carla = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Carla",
     });
     const known = [beto.participant.id, carla.participant.id];
@@ -195,6 +208,9 @@ describe("createParticipantRepository", () => {
     // §0 floor keeps this row out of every ranking.
     const dani = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Dani",
     });
     await repos.participants.setPhoto(dani.participant.id, PHOTO);
@@ -228,8 +244,17 @@ describe("createParticipantRepository", () => {
     const db = requireDb(ctx);
     const repos = repositories(db);
     const room = await itRoom(db, repos);
+    // Consent off at creation here so each fixture below states its own,
+    // through setConsent -- the registration screen writes all three true
+    // (D18) and this test is about the floor, not about that default.
     const create = (name: string) =>
-      repos.participants.create({ roomId: room.id, name });
+      repos.participants.create({
+        roomId: room.id,
+        gender: "F",
+        birthdate: "1996-05-04",
+        consent: { romantic: false, business: false, friendship: false },
+        name,
+      });
 
     // A: photo, friendship consent, all six bands -- above the floor.
     const a = await create("Ana");
@@ -265,8 +290,14 @@ describe("createParticipantRepository", () => {
     });
     await repos.participants.saveDeclared(c.participant.id, DECLARED);
 
-    // D: photo and bands, no consent to any lens.
+    // D: photo and bands, but opted out of every lens afterwards -- the one
+    // row in this room that consent alone keeps out of a ranking.
     const d = await create("Dani");
+    await repos.participants.setConsent(d.participant.id, {
+      romantic: false,
+      business: false,
+      friendship: false,
+    });
     await repos.participants.setPhoto(
       d.participant.id,
       "https://blob.example/d.jpg"
@@ -301,7 +332,9 @@ describe("createParticipantRepository", () => {
       "friendship"
     );
     expect(friendship.map((r) => r.participant.id)).toEqual([a.participant.id]);
-    // Nobody in the room has both romantic consent and a romantic gate row.
+    // A opted out of romantic, so the same three exclusions plus A leave the
+    // lens empty. D18 took the gate-row clause out of the floor: a participant
+    // above it needs no `romantic_gates` row to be ranked any more.
     expect(
       await repos.participants.byRoomForRanking(room.id, "romantic")
     ).toEqual([]);

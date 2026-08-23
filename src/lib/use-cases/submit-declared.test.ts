@@ -65,6 +65,8 @@ function inMemoryParticipants(saved: DeclaredProfile = NO_BANDS): {
     id: PARTICIPANT_ID,
     roomId: "room-1",
     name: "Ana Ramírez",
+    gender: "F",
+    birthdate: "1996-05-04",
     photoUrl: "https://store.test/photos/p1.jpg",
     team: "hookai",
     track: "AI",

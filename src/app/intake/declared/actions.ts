@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  BANDS,
   DECLARED_SCREENS,
   type DeclaredScreen,
 } from "@/components/intake/declared/bands";
@@ -54,9 +55,9 @@ const DeclaredInput = z
   })
   .partial();
 
-/** AC-4's copy: the one message a half-answered screen may show. */
-const PICK_ONE = "Pick one for each.";
-const GENERIC = "That didn't save — try again.";
+/** The one message a half-answered screen may show. */
+const PICK_ONE = "Elige una opción en cada pregunta.";
+const GENERIC = "No se pudo guardar. Intenta de nuevo.";
 
 export async function declaredScreenAction(
   _previous: DeclaredScreenState,
@@ -71,7 +72,9 @@ export async function declaredScreenAction(
 
   const raw: Record<string, unknown> = {};
   for (const key of screen.bands) {
-    const value = formData.get(key);
+    // The DOM names are opaque (`q1`..`q6`); the mapping back to the column
+    // lives with the copy, so nothing on the wire names the axis.
+    const value = formData.get(BANDS[key].field);
     // Untapped: the participant is looking at the screen that asks for it.
     if (typeof value !== "string" || value === "") return { error: PICK_ONE };
     raw[key] = Number(value);
@@ -99,7 +102,7 @@ export async function declaredScreenAction(
     return {
       error:
         result.reason === "tags"
-          ? `Pick up to ${MAX_TAGS} tags from the list.`
+          ? `Elige hasta ${MAX_TAGS} opciones de la lista.`
           : GENERIC,
     };
   }
@@ -109,11 +112,11 @@ export async function declaredScreenAction(
 
 /**
  * Where Continue goes. `complete` is the repository's own answer -- all six
- * bands present, so `declared_at` is now set -- and it is what makes the gates
- * the next stop rather than another declared screen.
+ * bands present, so `declared_at` is now set -- and it is what makes the
+ * questions the next stop rather than another declared screen (D18).
  */
 function nextPath(screen: DeclaredScreen, complete: boolean): string {
-  if (complete) return "/intake/gates";
+  if (complete) return "/quiz";
   const next = DECLARED_SCREENS[DECLARED_SCREENS.indexOf(screen) + 1];
   // No next screen and still incomplete: back to the round, which resumes at
   // whichever band is still untapped.

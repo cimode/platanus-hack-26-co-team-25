@@ -4,65 +4,68 @@
 > stored at the end. Derived from `docs/domain.md` §3/§7 and mirrored 1:1 by the types in
 > `src/lib/domain/participant/` and `src/lib/domain/quiz/` (issue #4). If this file and
 > those files disagree, the code wins.
-> Last updated: 2026-08-22.
+> Last updated: 2026-08-22 (D18).
 
-The form is **seven submissions**, not one. Each step is its own Server Action with its
-own payload, saved as soon as it is answered, so abandonment keeps everything before it.
-A participant is rankable once steps 1–5 are complete (the *floor*); step 6 adds the
-measured traits.
+The form is **five submissions**, not one, since **D18** (2026-08-22): one registration,
+three declared screens, then the quiz. Each screen is its own Server Action with its own
+payload, saved as soon as it is answered, so abandonment keeps everything before it. A
+participant is rankable once registration and the declared round are complete (the
+*floor*); the quiz adds the measured traits.
 
 ```
-1 register ─> 2 photo ─> 3 consent ─> 4 declared ─> 5 gates (per consented lens) ─> 6 quiz ×15 ─> done
-                                                      └──────── the floor ────────┘
+1 registration (photo · name · gender · birthdate) ─> 2 declared ×3 ─> 3 quiz ×15 ─> done
+   └──────────────────────── the floor ────────────────────────┘
 ```
 
-## 1. `register` — creates the participant and the session
+Nothing on any of these screens names a pillar, a lens, consent, a gate, a team, a track,
+the wordmark or a step number. One `Progress` bar spans the whole 19-step flow (1
+registration + 3 declared screens + 15 blocks) and is the only progress copy there is.
+
+## 1. `register` — creates the participant, the session and the photo
+
+One screen, one action (D18). The photo is stored inside it: the row is created first
+(the store namespaces the object by participant id), then `photo_url` is set. When the
+store refuses, the row is left without a photo and **without a cookie pointing at it**, so
+the flow resumes on the same screen and no half-written row is reachable.
 
 ```ts
 interface RegisterInput {
   room: string;          // slug from ?room=, falls back to HOOKAI_ROOM_SLUG
   name: string;          // 1..80 chars
-  team?: string | null;  // structural proximity (PILLARS §8) — free text, optional
-  track?: string | null; // idem
+  gender: "M" | "F" | "NB";
+  birthdate: string;     // YYYY-MM-DD; 18 ≤ age ≤ 100, evaluated against a `today` passed in
+  photo: Blob;           // ≤ 512 px re-encoded client-side; ≤ 1 MiB and JPEG/PNG/WebP on the server
 }
+// → participants row with gender, birthdate, photo_url and the three consents `true`
 // → sets the httpOnly cookie `hookai_session`; the token never appears in any payload
 ```
 
-## 2. `photo`
+`birthdate` is asked because the engine wants an age band and nobody should have to pick
+one: `ageBandOf(birthdate, today)` maps 18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3.
 
-```ts
-interface PhotoInput {
-  file: Blob;            // ≤ 512 px, re-encoded client-side
-}
-// → participant.photoUrl (Vercel Blob URL). Required for the floor.
-```
+## 2. consent — not asked (D18)
 
-## 3. `consent` — one switch per lens, all **off** by default
+`consent_romantic`, `consent_business` and `consent_friendship` are written `true` by the
+registration itself: participating *is* consenting for this version. There is no consent
+screen, no switch and no consent copy anywhere in the product — the decision is recorded
+in `docs/domain.md` D18, not shown.
 
-```ts
-interface Consent {
-  romantic: boolean;     // default false; covers the ranking AND the AI-offspring render (D12)
-  business: boolean;     // default false
-  friendship: boolean;   // default false
-}
-```
+## 3. `declared` — six questions and a list of interests
 
-A participant who consents to nothing is stored, never ranked.
-
-## 4. `declared` — the free pillars, as the band that was tapped
-
-Saved per screen; any field may still be `null` until the round is complete.
+Saved per screen; any field may still be `null` until the round is complete. Every band is
+asked as an ordinary question ending in "?" with four options, and the axis it measures is
+never named on screen — the index tapped is what is stored (D6).
 
 ```ts
 type DeclaredBand = 0 | 1 | 2 | 3;
 
 interface DeclaredProfile {
-  moneyPosture: DeclaredBand | null;      // Life Shape
-  rootedness: DeclaredBand | null;        // Life Shape
-  familyGravity: DeclaredBand | null;     // Life Shape
+  moneyPosture: DeclaredBand | null;      // "¿Cómo va tu bolsillo este mes?"
+  rootedness: DeclaredBand | null;        // "¿Qué tan pegado estás al lugar donde vives?"
+  familyGravity: DeclaredBand | null;     // "¿Cuánto pesa tu familia en una semana normal?"
   capacityHoursBand: DeclaredBand | null; // discretionary hours ACTUALLY spent, last 4 weeks
-  distanceBand: DeclaredBand | null;      // re-contact latency after closeness/conflict (3 = longest)
-  chronotype: DeclaredBand | null;        // Common Ground
+  distanceBand: DeclaredBand | null;      // re-contact latency (3 = longest)
+  chronotype: DeclaredBand | null;        // "¿A qué hora funcionas de verdad?"
   tags: string[];                         // ≤ 12 slugs from the fixed vocabulary below
   acquaintances: ParticipantId[];         // ≤ 5; picker is cut from the first build — stays []
 }
@@ -70,6 +73,7 @@ interface DeclaredProfile {
 
 `declaredAt` is set only when all six bands are non-null. The engine consumes `band / 3`
 for the Life Shape trio; the band itself for capacity and chronotype (`docs/domain.md` §6).
+Completing the third screen hands off straight to `/quiz`.
 
 **Tag vocabulary (30 slugs, five groups of six):**
 
@@ -81,31 +85,27 @@ for the Life Shape trio; the band itself for capacity and chronotype (`docs/doma
 | activity | `tango` `running` `escalada` `ciclismo` `natacion` `senderismo` |
 | pets | `perros` `gatos` `aves` `reptiles` `peces` `sin-mascotas` |
 
-## 5. `gates` — only for lenses the participant consented to
+## 4. gates — not asked (D18)
 
-Asked **only** after the matching consent (A8: asking is a disclosure event). No row means
-"never asked", which the engine treats as *suppressed* for that lens.
+The gate screens are gone. `romantic_gates` and `business_gates` stay in the schema and
+are simply not written any more; the engine's gate inputs are **derived** from
+`src/lib/domain/participant/mvp-defaults.ts`:
 
 ```ts
-type Gender = "M" | "F" | "NB";
-
-interface RomanticGate {            // requires consent.romantic
-  gender: Gender;
-  interestedIn: Gender[];           // ≥ 1
-  single: boolean;
-  ageBand: 0 | 1 | 2 | 3;
-  wantsKids: boolean;               // desire only — timing was cut (AUDIT S11)
-}
-
-interface BusinessGate {            // requires consent.business
-  riskPosture: 0 | 1 | 2;
-  exitHorizon: 0 | 1 | 2;
-  redlinesOk: boolean;
-}
-// friendship has no gate: consent + floor only
+mvpRomanticGate({ gender, birthdate }, today) // gender as asked, interestedIn = M, F, NB,
+                                              // single true, wantsKids true,
+                                              // ageBand = ageBandOf(birthdate, today)
+mvpBusinessGate()                             // riskPosture 1, exitHorizon 1, redlinesOk true
 ```
 
-Server-only. Never returned to any other participant, never in a room or ranking payload.
+Server-only, as they always were: never returned to any other participant, never in a room
+or ranking payload.
+
+## 5. the floor, restated
+
+`photo_url is not null` · `gender` and `birthdate` are not null · `consent_<lens>` (always
+true under D18) · `declared_at is not null`. The gate-row clause is gone with the gate
+screens.
 
 ## 6. `quiz` — fifteen block responses, one submission each
 
@@ -156,6 +156,8 @@ interface Participant {
   id: string;                  // uuid v7
   roomId: string;
   name: string;
+  gender: "M" | "F" | "NB" | null;   // D18; null only on pre-D18 rows
+  birthdate: string | null;          // D18; YYYY-MM-DD
   photoUrl: string | null;
   team: string | null;
   track: string | null;
@@ -165,8 +167,8 @@ interface Participant {
   quizCompletedAt: Date | null;// also the arrival-cohort timestamp
   createdAt: Date;
 }
-// + romanticGate?: RomanticGate  (own table, row ⇔ answered)
-// + businessGate?: BusinessGate  (own table, row ⇔ answered)
+// + romanticGate?: RomanticGate  (own table; D18 stopped writing it — derived instead)
+// + businessGate?: BusinessGate  (own table; D18 stopped writing it — derived instead)
 // + responses: BlockResponse[]   (0..15)
 // + latents (issue #7): { regulation, politeness, reliability, agency }: { mean, se }
 ```
@@ -267,22 +269,20 @@ const band = z.number().int().min(0).max(3);
 const gender = z.enum(["M", "F", "NB"]);
 const optionKey = z.enum(["a", "b", "c", "d"]);
 
-// 1 · register — identity is NOT in the payload; it is born here as the httpOnly cookie
+// 1 · register (D18) — one screen: photo, name, gender, birthdate. The session token is
+// NOT in the payload; it is born here as the httpOnly cookie. The photo rides the same
+// FormData and is judged by the use case (JPEG/PNG/WebP, ≤ 1 MiB).
 export const RegisterInput = z.object({
-  room: z.string().min(1),
+  room: z.string().trim().min(1).max(200),
   name: z.string().trim().min(1).max(80),
-  team: z.string().trim().max(80).optional(),
-  track: z.string().trim().max(80).optional(),
+  gender,
+  birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // 18 ≤ age ≤ 100, checked in the domain
 });
 
-// 3 · consent — everything off by default
-export const ConsentInput = z.object({
-  romantic: z.boolean().default(false),
-  business: z.boolean().default(false),
-  friendship: z.boolean().default(false),
-});
+// consent — no payload at all (D18): the three flags are written `true` by the
+// registration itself, and no screen mentions them.
 
-// 4 · declared round — saved per screen, hence partial/nullable
+// 2 · declared round — saved per screen, hence partial/nullable
 export const DeclaredInput = z
   .object({
     moneyPosture: band.nullable(),
@@ -295,7 +295,8 @@ export const DeclaredInput = z
   })
   .partial();
 
-// 5 · gates — accepted only when consent.<lens> is true (the use case refuses otherwise)
+// gates — no payload (D18): not asked; `mvp-defaults.ts` derives what the engine wants.
+// The shapes below are what the tables still hold and what the derivation produces.
 export const RomanticGateInput = z.object({
   gender,
   interestedIn: z.array(gender).min(1),

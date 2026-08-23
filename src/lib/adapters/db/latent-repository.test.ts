@@ -235,10 +235,24 @@ describe("safety invariants", () => {
     const participants = createParticipantRepository(db);
     const latents = createLatentRepository(db);
 
-    const a = (await participants.create({ roomId: room.id, name: "Ana" }))
-      .participant;
-    const b = (await participants.create({ roomId: room.id, name: "Beto" }))
-      .participant;
+    const a = (
+      await participants.create({
+        roomId: room.id,
+        gender: "F",
+        birthdate: "1996-05-04",
+        consent: { romantic: true, business: true, friendship: true },
+        name: "Ana",
+      })
+    ).participant;
+    const b = (
+      await participants.create({
+        roomId: room.id,
+        gender: "F",
+        birthdate: "1996-05-04",
+        consent: { romantic: true, business: true, friendship: true },
+        name: "Beto",
+      })
+    ).participant;
 
     // B is scored already and must come out of this test byte-identical.
     await latents.replaceForParticipant(b.id, seedRows());
