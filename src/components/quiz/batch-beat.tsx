@@ -42,8 +42,8 @@ export function BatchBeat({ batch }: { batch: number }) {
 
         <p className="text-base text-ink-soft">
           {opening
-            ? "En cada una marcás la opción que más te suena a vos y la que menos. No hay respuestas correctas."
-            : "Cinco escenas más. Seguí con lo primero que se te venga a la cabeza."}
+            ? "En cada una marcas la opción que más se parece a ti y la que menos. No hay respuestas correctas."
+            : "Cinco escenas más. Sigue con lo primero que se te venga a la cabeza."}
         </p>
       </div>
 
