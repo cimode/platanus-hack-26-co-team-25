@@ -171,6 +171,22 @@ test.describe("site gate", () => {
         href
       ).toBe(200);
     }
+
+    // The artwork too. This is the regression of 2026-08-23: `/intake` and
+    // `/quiz` were open, so a participant registered and answered normally --
+    // and saw a broken image where their avatar should be, because the gate
+    // answered 401 to every file under `/sprites/`. Nothing failed loudly.
+    for (const asset of [
+      "/sprites/avatar1.png",
+      "/sprites/avatar3.png",
+      "/sprites/emotes/manifest.json",
+      "/venue.jpg",
+    ]) {
+      expect(
+        (await request.get(asset, { maxRedirects: 0 })).status(),
+        `${asset} must load for a participant who never typed the password`
+      ).toBe(200);
+    }
   });
 
   test("AC-6 · the product stays behind the gate: /, /room, /rank, /match", async ({
