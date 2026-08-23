@@ -132,4 +132,53 @@ test.describe("site gate", () => {
     expect(assets.length).toBeGreaterThan(0);
     expect(assets.every((status) => status < 400)).toBe(true);
   });
+
+  test("AC-5 · /qr stays open, with its styles and fonts but not the app's JavaScript", async ({
+    request,
+  }) => {
+    const slug = process.env.E2E_ROOM_SLUG;
+    const response = await request.get(slug ? `/qr?room=${slug}` : "/qr", {
+      maxRedirects: 0,
+      headers: { accept: "text/html" },
+    });
+    expect(response.status()).toBe(200);
+    expect(response.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+    const html = await response.text();
+    if (slug) expect(html).toContain("Escanea y entra");
+
+    // The page renders as designed: every stylesheet and font it links loads...
+    const styles = [
+      ...html.matchAll(/<link[^>]+href="([^"]+\.css[^"]*)"/g),
+    ].map((m) => m[1]);
+    expect(
+      styles.length,
+      "the page links at least one stylesheet"
+    ).toBeGreaterThan(0);
+    for (const href of styles) {
+      expect(
+        (await request.get(href, { maxRedirects: 0 })).status(),
+        href
+      ).toBe(200);
+    }
+
+    // ...while every script it references is still 401: no client code leaks.
+    const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(
+      (m) => m[1]
+    );
+    expect(scripts.length, "the page references client chunks").toBeGreaterThan(
+      0
+    );
+    for (const src of scripts) {
+      expect((await request.get(src, { maxRedirects: 0 })).status(), src).toBe(
+        401
+      );
+    }
+
+    // And what the code points at is still behind the gate.
+    const intake = await request.get("/intake", {
+      maxRedirects: 0,
+      headers: { accept: "text/html" },
+    });
+    expect(intake.status()).toBe(302);
+  });
 });

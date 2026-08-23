@@ -126,6 +126,39 @@ describe("decideGate", () => {
     ).toEqual({ kind: "allow" });
   });
 
+  it("keeps /qr open, with the styles and fonts it needs and nothing more", () => {
+    const open: Array<[string, string]> = [
+      ["/qr", "GET"],
+      ["/qr/", "HEAD"],
+      ["/_next/static/css/app.css", "GET"],
+      ["/_next/static/chunks/%5Broot%5D__dev._.css", "GET"],
+      ["/_next/static/media/baloo.woff2", "GET"],
+    ];
+    for (const [pathname, method] of open) {
+      expect(
+        decideGate({ password, pathname, method, accept: null, cookie: null }),
+        `${method} ${pathname}`
+      ).toEqual({ kind: "allow" });
+    }
+    const closed: Array<[string, string, string | null]> = [
+      ["/qr/anything", "GET", HTML],
+      ["/qrcode", "GET", HTML],
+      ["/qr", "POST", HTML],
+      ["/qr", "OPTIONS", null],
+      ["/_next/static/chunks/app/qr/page.js", "GET", "*/*"],
+      ["/_next/static/chunks/main-app.js", "GET", null],
+      ["/_next/static/css/app.css", "POST", null],
+      ["/_next/static/media/../chunks/x.js", "GET", null],
+      ["/_next/image", "GET", "image/avif"],
+    ];
+    for (const [pathname, method, accept] of closed) {
+      expect(
+        decideGate({ password, pathname, method, accept, cookie: null }).kind,
+        `${method} ${pathname}`
+      ).not.toBe("allow");
+    }
+  });
+
   it("allows any request that carries a valid cookie", () => {
     for (const [pathname, method] of [
       ["/intake", "GET"],
