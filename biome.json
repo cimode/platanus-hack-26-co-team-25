@@ -25,7 +25,8 @@
       "!coverage",
       "!drizzle",
       "!timeline",
-      "!.hookai-worktrees"
+      "!.hookai-worktrees",
+      "!scripts/face/demo.html"
     ]
   },
   "formatter": {
