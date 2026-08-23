@@ -214,6 +214,62 @@ test.describe("1b · the room", () => {
     expect(after - before).toBeGreaterThan(100);
   });
 
+  test("a hovered name reads above the head and over the crowd", async ({
+    page,
+    isMobile,
+  }) => {
+    // DESKTOP ONLY, and this is a statement about the product rather than the
+    // harness: `:hover` does not exist on a touch device, so on the 390px
+    // project this affordance cannot fire at all. Asserting it there would be
+    // asserting something the platform never delivers. See the note in
+    // `participant-sprite.tsx` about what phones get instead.
+    test.skip(isMobile, "hover is a pointer affordance; touch has none");
+
+    /*
+     * Two properties, and the second is the one that needed the rewrite.
+     *
+     * The caption used to sit BELOW the sprite, which is exactly where the next
+     * row of people stands -- so the name you were reaching for was the one
+     * covered by the crowd in front of it. Above the head is empty floor at
+     * every depth, because sprites are anchored by their feet.
+     *
+     * And it has to paint OVER its neighbours. `z-index` on the figure opens a
+     * stacking context, so no z-index on the caption itself can lift it past a
+     * nearer sprite -- the figure is what must rise. That is why depth moved
+     * from an inline `zIndex` (which a `hover:` class cannot override) to a
+     * custom property.
+     */
+    // Reduced motion FIRST, and not as a convenience. The sprites wander and
+    // hop continuously, so Playwright's actionability check never finds them
+    // "stable" and `hover()` times out. What is under test here is layer and
+    // position, not movement, so freezing the room is measuring the right thing
+    // rather than working around a flake.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await enterAs(page, "diego");
+    const sprite = page.locator("figure").nth(6);
+    const caption = sprite.locator("figcaption");
+
+    const before = await sprite.evaluate((el) => getComputedStyle(el).zIndex);
+    await sprite.hover();
+    await expect(caption).toBeVisible();
+
+    const after = await sprite.evaluate((el) => getComputedStyle(el).zIndex);
+    expect(Number(after)).toBe(200);
+    expect(Number(after)).toBeGreaterThan(Number(before));
+
+    // Above the head: the caption's bottom edge sits at or above the sprite's
+    // top edge, never below its feet.
+    const [capBox, figBox] = [
+      await caption.boundingBox(),
+      await sprite.boundingBox(),
+    ];
+    expect(capBox).not.toBeNull();
+    expect(figBox).not.toBeNull();
+    expect((capBox?.y ?? 0) + (capBox?.height ?? 0)).toBeLessThanOrEqual(
+      (figBox?.y ?? 0) + 2
+    );
+  });
+
   test("the card retakes the accent of the lens you pick", async ({ page }) => {
     // The payoff of the lens system: choosing an option repaints the dot AND
     // the Vamos button, with zero conditional colour in the component. If two
