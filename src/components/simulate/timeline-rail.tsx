@@ -50,7 +50,11 @@ export function TimelineRail({
       tabIndex={0}
       {...handlers}
     >
-      <TimelinePath events={events} progress={active} />
+      <TimelinePath
+        avatars={{ a: life.subject.avatar, b: life.other.avatar }}
+        events={events}
+        progress={active}
+      />
 
       {life.lens === "friendship" ? null : (
         <EndingCard
