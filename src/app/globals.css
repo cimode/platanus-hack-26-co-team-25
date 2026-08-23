@@ -315,6 +315,7 @@
      bob      the profile avatar breathing in place.
      walk     the pair advancing along the timeline.
      popin    timeline event cards arriving, staggered .18s apart.
+     emote    a reaction spritesheet (match, greeting, rejection) played once.
      drift    the venue plate itself, barely -- 10px over 14s. Enough that the
               room is never quite still, little enough that nobody notices why.
 
@@ -449,6 +450,48 @@
   }
   50% {
     transform: translateX(-10px);
+  }
+}
+
+/* The match reveal (screen /match). `heart-float` carries the hearts up through
+   the eclipse; `--heart-drift` gives each one its own sideways path so the
+   swarm never rises in a column. `heart-pulse` breathes the placeholder heart
+   in the child circle while the model works. Both run as INLINE animations, so
+   the prefers-reduced-motion guard below stops them for free. */
+@keyframes heart-float {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--heart-drift, 0), -220px) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes heart-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+/* A reaction sheet sliding under a one-frame-wide box. Frame k sits at
+   k/(n-1) of the background-position range, so stepping n times from 0 to
+   n/(n-1)*100% lands on every frame exactly once and never shows a blank
+   last step. `--frames` is set inline by the sprite; so is the animation
+   itself, which is what puts it under the reduced-motion guard below. */
+@keyframes emote {
+  to {
+    background-position-x: calc(var(--frames) / (var(--frames) - 1) * 100%);
   }
 }
 
