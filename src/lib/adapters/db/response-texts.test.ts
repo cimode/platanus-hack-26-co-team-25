@@ -179,6 +179,9 @@ describe("createResponseRepository (resolved texts)", () => {
     const room = await itRoom(db, repos);
     const { participant } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
@@ -228,6 +231,9 @@ describe("createResponseRepository (resolved texts)", () => {
     const room = await itRoom(db, repos);
     const { participant } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     // Batch 2 covers positions 6..10, so this participant has blocks -- just
@@ -261,6 +267,9 @@ describe("createResponseRepository (resolved texts)", () => {
     const room = await itRoom(db, repos);
     const { participant } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
@@ -291,6 +300,9 @@ describe("createResponseRepository (resolved texts)", () => {
     const room = await itRoom(db, repos);
     const { participant } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
@@ -337,10 +349,16 @@ describe("createResponseRepository (resolved texts)", () => {
 
     const ana = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     const beto = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
     const anaTag = `ana-${randomUUID().slice(0, 8)}`;
@@ -410,6 +428,9 @@ describe("createResponseRepository (resolved texts)", () => {
     const room = await itRoom(db, repos);
     const { participant, sessionToken } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;

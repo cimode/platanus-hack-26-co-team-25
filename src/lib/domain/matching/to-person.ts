@@ -14,8 +14,12 @@
  *   - `tags` copied; `team` / `track` null ⇒ undefined; `acquaintances` from the
  *     rankable row; `cohort` passed in (the 30-minute window is the use case's
  *     to compute, because it needs the whole room to find the earliest).
- *   - a gate row ⇒ `gates.*`, an absent row ⇒ undefined (D5: no row means never
- *     asked, which the engine reads as suppressed under that lens).
+ *   - **D18**: no gate row is written any more, so the gate inputs are DERIVED
+ *     from the identity registration asks for -- `mvpRomanticGate({ gender,
+ *     birthdate }, today)` and `mvpBusinessGate()`. A stored row still wins
+ *     where one exists (pre-D18 rows), and a participant with no gender or no
+ *     birthdate gets `undefined`, which the engine reads as suppressed under
+ *     the romantic lens (D5) -- the same thing the §0 floor already says.
  *   - an absent latent pillar ⇒ an ABSENT KEY, never a fabricated 0.5: the
  *     engine imputes PRIOR_MEAN / PRIOR_SE from the missing key and computes
  *     `bothMeasured` from row presence (AUDIT.md S15).
@@ -28,9 +32,14 @@
  * `NaN` that `bandOf()` labels `high`, is the failure it exists to prevent.
  */
 import type { RankableParticipant } from "../participant/floor";
-import type { DeclaredBand, DeclaredProfile } from "../participant/participant";
+import { mvpBusinessGate, mvpRomanticGate } from "../participant/mvp-defaults";
+import type {
+  DeclaredBand,
+  DeclaredProfile,
+  Participant,
+} from "../participant/participant";
 import { bandToUnit } from "../participant/participant";
-import type { LatentName, Person } from "./engine";
+import type { LatentName, Person, RomanticGate } from "./engine";
 
 /**
  * Structurally `LatentPosteriors` (`ports/latent-source.ts`), said in domain
@@ -81,10 +90,26 @@ function copyLatents(latents: PersonLatents): PersonLatents {
   return copied;
 }
 
+/** The D18 romantic gate, or undefined for a row that predates the identity. */
+function derivedRomanticGate(
+  participant: Participant,
+  today: Date
+): RomanticGate | undefined {
+  if (participant.gender === null || participant.birthdate === null) {
+    return undefined;
+  }
+  return mvpRomanticGate(
+    { gender: participant.gender, birthdate: participant.birthdate },
+    today
+  );
+}
+
 export function toPerson(
   rankable: RankableParticipant,
   latents: PersonLatents,
-  cohort: number | undefined
+  cohort: number | undefined,
+  /** Passed in so the derived age band is testable on any day (D18). */
+  today: Date = new Date()
 ): Person {
   const { participant } = rankable;
   const { declared } = participant;
@@ -112,8 +137,11 @@ export function toPerson(
       acquaintances: [...rankable.acquaintances],
     },
     gates: {
-      romantic: rankable.romanticGate,
-      business: rankable.businessGate,
+      // A stored row still wins; under D18 there is none, and the engine's
+      // inputs come from `mvp-defaults.ts` instead (docs/domain.md §6).
+      romantic:
+        rankable.romanticGate ?? derivedRomanticGate(participant, today),
+      business: rankable.businessGate ?? mvpBusinessGate(),
     },
     consent: { ...participant.consent },
     hasPhoto: participant.photoUrl !== null,

@@ -1,21 +1,29 @@
+import { FlowProgress } from "@/components/intake/flow-progress";
+
 /**
  * The column every intake screen is poured into (390x844 is the target).
  *
- * The `<h1>` lives here rather than in the steps, and says the same thing on
- * all of them on purpose: Next's route announcer reads the first `<h1>`
- * whenever `document.title` is empty at commit time, so a per-step `<h1>` is
- * announced twice -- once as the heading, once as live-region text.
+ * The `<h1>` is visually hidden and says the same neutral word on every screen
+ * (issue #42): Next's route announcer reads the first `<h1>` whenever
+ * `document.title` is empty at commit time, so a per-screen `<h1>` is announced
+ * twice -- and, more to the point, nothing on an intake screen may name what is
+ * being measured. The wordmark that used to live here is gone with it.
  *
- * Extracted from `src/app/intake/page.tsx` when issue #8 added routes of its
- * own (`/intake/declared`, `/intake/gates/*`): four copies of one column is
- * four chances for step 4 to sit two pixels off step 3.
+ * The progress bar rides the shell rather than each screen, so a screen cannot
+ * forget it and the three declared screens cannot disagree about where it sits.
  */
-export function IntakeShell({ children }: { children: React.ReactNode }) {
+export function IntakeShell({
+  children,
+  step,
+}: {
+  children: React.ReactNode;
+  /** 1-based over the whole flow; omitted on a screen that is not one. */
+  step?: number;
+}) {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-10 pb-8">
-      <h1 className="font-mono text-xs tracking-[0.06em] text-ink-faint lowercase">
-        hookai · intake
-      </h1>
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 pt-6 pb-8">
+      <h1 className="sr-only">Registro</h1>
+      {step === undefined ? null : <FlowProgress step={step} />}
       {children}
     </main>
   );

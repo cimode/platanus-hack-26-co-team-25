@@ -122,6 +122,9 @@ describe("createResponseRepository", () => {
     const room = await itRoom(db, repos);
     const { participant } = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     await giveGeneratedForm(repos, participant.id);
@@ -170,6 +173,9 @@ describe("createResponseRepository", () => {
 
     const other = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
     expect(await repos.responses.byParticipant(other.participant.id)).toEqual(
@@ -184,6 +190,9 @@ describe("createResponseRepository", () => {
 
     const first = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
     await giveGeneratedForm(repos, first.participant.id);
@@ -221,6 +230,9 @@ describe("createResponseRepository", () => {
     // completion timestamp -- nor a timestamp with only 14 responses.
     const second = await repos.participants.create({
       roomId: room.id,
+      gender: "F",
+      birthdate: "1996-05-04",
+      consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
     await giveGeneratedForm(repos, second.participant.id);

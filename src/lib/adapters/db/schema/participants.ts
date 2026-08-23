@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   pgTable,
   primaryKey,
@@ -11,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { gender } from "./enums.ts";
 import { rooms } from "./rooms.ts";
 
 /**
@@ -30,6 +32,13 @@ export const participants = pgTable(
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /**
+     * Identity, asked on the one registration screen (D18). Nullable because
+     * rows registered before D18 have neither; the check below keeps them a
+     * pair, and the §0 floor keeps such a row out of every ranking.
+     */
+    gender: gender("gender"),
+    birthdate: date("birthdate"),
     /** Null until uploaded; part of the §0 floor. */
     photoUrl: text("photo_url"),
     team: text("team"),
@@ -78,6 +87,10 @@ export const participants = pgTable(
     check(
       "participants_chronotype_band",
       sql`${t.chronotype} is null or ${t.chronotype} between 0 and 3`
+    ),
+    check(
+      "participants_identity_pair",
+      sql`(${t.gender} is null) = (${t.birthdate} is null)`
     ),
     check("participants_tags_cap", sql`cardinality(${t.tags}) <= 12`),
     check(

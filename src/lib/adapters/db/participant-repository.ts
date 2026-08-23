@@ -56,6 +56,8 @@ const PARTICIPANT_COLUMNS = {
   id: participants.id,
   roomId: participants.roomId,
   name: participants.name,
+  gender: participants.gender,
+  birthdate: participants.birthdate,
   photoUrl: participants.photoUrl,
   team: participants.team,
   track: participants.track,
@@ -117,6 +119,8 @@ type ParticipantRow = {
   id: string;
   roomId: string;
   name: string;
+  gender: Gender | null;
+  birthdate: string | null;
   photoUrl: string | null;
   team: string | null;
   track: string | null;
@@ -151,6 +155,8 @@ function toParticipant(
     id: row.id,
     roomId: row.roomId,
     name: row.name,
+    gender: row.gender,
+    birthdate: row.birthdate,
     photoUrl: row.photoUrl,
     team: row.team,
     track: row.track,
@@ -230,6 +236,13 @@ export function createParticipantRepository(
             id,
             roomId: input.roomId,
             name: input.name,
+            gender: input.gender,
+            birthdate: input.birthdate,
+            // D18: participating is consenting, so the three flags are written
+            // by the registration itself rather than by a screen of their own.
+            consentRomantic: input.consent.romantic,
+            consentBusiness: input.consent.business,
+            consentFriendship: input.consent.friendship,
             team: input.team ?? null,
             track: input.track ?? null,
           })

@@ -12,28 +12,23 @@ Cada persona del evento llena un formulario en su celular. Nosotros guardamos lo
 responde, y con eso el sistema calcula con quién es compatible. Esta guía explica
 **cómo se guarda lo que responde**.
 
-## 2. El formulario no es uno, son siete
+## 2. El formulario no es uno, son tres
 
-Parece un solo formulario, pero por dentro son **siete envíos** pequeños, uno detrás de
-otro. Cada envío se guarda apenas la persona toca "siguiente". ¿Por qué así? Porque si
-alguien se aburre y cierra el celular en el paso 5, **no perdemos** los pasos 1 al 4.
-
-```
-1. registro  →  2. foto  →  3. consentimiento  →  4. ronda declarada  →  5. filtros  →  6. quiz (15 preguntas)  →  listo
-```
+Desde el **D18** (22-08-2026) el formulario se acortó: una sola pantalla de registro y
+después, directo a las preguntas. Cada pantalla se guarda apenas se responde, así que si
+alguien cierra la pestaña, lo anterior queda.
 
 | Paso | Qué pregunta | Dónde se guarda |
 | --- | --- | --- |
-| 1 · registro | nombre, equipo, track | tabla `participants` (se crea la fila) |
-| 2 · foto | una foto real | `participants.photo_url` |
-| 3 · consentimiento | "¿quieres entrar al ranking romántico / de negocios / de amistad?" (los tres apagados por defecto) | `participants.consent_romantic`, `consent_business`, `consent_friendship` |
-| 4 · ronda declarada | seis preguntas de "¿cuánto…?" con 4 opciones cada una (0 a 3), y una lista de gustos | `participants.money_posture` … `participants.chronotype`, `participants.tags` |
-| 5 · filtros | sólo si dijo que sí a romántico: género, a quién le interesa, soltería, edad, hijos. Sólo si dijo que sí a negocios: riesgo, horizonte, líneas rojas | tabla `romantic_gates` / tabla `business_gates` (una fila por persona, **y sólo si respondió**) |
-| 6 · quiz | 15 situaciones, cada una con 4 opciones; la persona marca la que más se le parece y la que menos | tabla `quiz_responses` (**una fila por pregunta respondida**, hasta 15) |
+| 1 · registro | foto, nombre, género y fecha de nacimiento, todo junto | tabla `participants` (se crea la fila, con `photo_url`, `gender`, `birthdate` y los tres consentimientos en `true`) |
+| 2 · ronda declarada | seis preguntas normales con 4 opciones cada una (se guarda 0 a 3), más una lista de gustos. Tres pantallas | `participants.money_posture` … `participants.chronotype`, `participants.tags` |
+| 3 · quiz | 15 situaciones, cada una con 4 opciones; la persona marca la que más se le parece y la que menos | tabla `quiz_responses` (**una fila por pregunta respondida**, hasta 15) |
 
-Todo esto cuelga de la persona, y la persona cuelga de un **room** (el evento). Un room
-es "Platanus Hack 26 Bogotá"; los tests usan rooms de prueba para no mezclarse con los
-datos reales.
+Lo que ya no se pregunta: el consentimiento (participar *es* consentir en esta versión),
+el equipo y el track, los filtros de cada lente, y la banda de edad — esa se calcula sola
+a partir de la fecha de nacimiento. Ninguna pantalla dice qué se está midiendo: no hay
+títulos de categoría, no hay "Paso 4 de 5" y no hay marca de agua; sólo una barra de
+progreso que cubre los 19 pasos del recorrido (1 registro + 3 pantallas + 15 bloques).
 
 ## 3. ¿Cómo sabemos quién es quién? (la cookie)
 
@@ -53,7 +48,7 @@ sus reglas. Si lo que llega no cumple el contrato, el servidor lo rechaza y no g
 nada. Lo escribimos con una librería llamada **zod**, que es un validador: le das un
 objeto y te dice si cumple o no.
 
-Así se lee un contrato (paso 6, una respuesta del quiz):
+Así se lee un contrato (paso 3, una respuesta del quiz):
 
 ```ts
 export const AnswerBlockInput = z.object({
@@ -69,8 +64,9 @@ En palabras: "acepto un número de pregunta entre 1 y 15, una letra de la a a la
 cartas". Nada más. Si llega `position: 16` o `mostKey: "z"`, se rechaza.
 
 Los otros contratos son iguales de simples y están en `docs/form-response.md` §10:
-`RegisterInput`, `ConsentInput`, `DeclaredInput`, `RomanticGateInput`,
-`BusinessGateInput`.
+`RegisterInput` (sala, nombre, género y fecha de nacimiento — más la foto, que va en el
+mismo envío y la revisa el caso de uso) y `DeclaredInput`. Los de consentimiento y filtros
+ya no existen: el D18 dejó de preguntar esas cosas.
 
 ## 5. La parte que confunde: ¿por qué guardamos letras y no el texto?
 
@@ -215,12 +211,11 @@ rooms ──────────< participants >────── participa
 
 | Regla | Quién la hace cumplir |
 | --- | --- |
-| Los tres consentimientos empiezan en `false` | la base (valor por defecto) + un test que corre siempre |
+| Los tres consentimientos se escriben `true` al registrarse, y ninguna pantalla los menciona (D18) | el caso de uso `register-participant` + un test |
 | Cada número de la ronda declarada está entre 0 y 3 | el contrato zod y un `check` en la base |
 | Máximo 12 gustos, todos de la lista permitida | contrato + `check` |
 | "Más yo" y "menos yo" no pueden ser la misma letra | contrato + `check` |
 | Una sola respuesta por persona y pregunta (si vuelve atrás, se reemplaza) | `unique (participant_id, position)` |
-| Sólo se aceptan filtros del lente que la persona aceptó | el caso de uso lo rechaza |
 | Cada respuesta apunta a un bloque que esa persona sí vio | el servidor rechaza la respuesta si no existe la fila en `generated_blocks` |
 | Las preguntas de respaldo no cambian por accidente | un test que fija el "hash" de la constante `INSTRUMENT` |
 

@@ -1,40 +1,128 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { type RegisterState, registerAction } from "@/app/intake/actions";
-import { StepHeading } from "@/components/intake/step-heading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const INITIAL: RegisterState = {};
 
+/** Longest side, in CSS pixels, after the on-device re-encode. */
+const MAX_EDGE = 512;
+
+/** Enough for a face at 512 px; small enough to survive venue wifi. */
+const JPEG_QUALITY = 0.82;
+
 /**
- * Step 1 -- register.
+ * The same ceiling the use case enforces, repeated here only to spare a phone
+ * the upload. The server number is the real one.
+ */
+const MAX_BYTES = 1024 * 1024;
+
+/** The server's own sentence, so the two paths read identically. */
+const TOO_LARGE = "La foto pesa demasiado. Intenta de nuevo.";
+
+/**
+ * The one registration screen (issue #42): photo, name, gender, birthdate, one
+ * submit.
  *
- * The smallest island that needs to be one: `useActionState` is what turns the
- * server's "Name is required" into visible copy without a navigation, and the
- * page above it stays on the server.
+ * The smallest island that needs to be one -- `useActionState` is what turns
+ * the server's sentences into visible copy without a navigation, and the page
+ * above it stays on the server. Nothing here carries a heading, a step number
+ * or a word about what is being measured.
  *
- * Name carries no `required` attribute on purpose. The browser would block the
- * submit and the participant would never see the server's sentence -- and the
- * server has to own that sentence anyway, because a Server Action is reachable
- * without this form.
+ * No field carries `required`: the browser would block the submit and the
+ * participant would never see the server's sentence -- and the server has to
+ * own that sentence anyway, because a Server Action is reachable without this
+ * form.
+ *
+ * The re-encode happens on the phone. A modern camera produces 3-4 MB per shot,
+ * the server ceiling is 1 MiB, and ~100 people are uploading over the same wifi
+ * at the same time. It is a courtesy, never a control: with JavaScript off the
+ * original file is submitted and the server refuses it the same way.
  */
 export function RegisterForm({ roomSlug }: { roomSlug: string }) {
   const [state, formAction, pending] = useActionState(registerAction, INITIAL);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [encoding, setEncoding] = useState(false);
+  const [tooLarge, setTooLarge] = useState(false);
+  const previewUrl = useRef<string | null>(null);
+
+  function showPreview(blob: Blob) {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = URL.createObjectURL(blob);
+    setPreview(previewUrl.current);
+  }
+
+  async function handleChange(
+    event: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> {
+    // Captured synchronously: React nulls `currentTarget` once the handler
+    // yields, and everything below this line is after an await.
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    setTooLarge(false);
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+
+    setEncoding(true);
+    try {
+      const smaller = await downscale(file);
+      if (smaller) {
+        // Replacing the input's own FileList keeps the submit a plain form
+        // submit -- no fetch, no hand-built FormData. Assigning `.files` fires
+        // no change event, so this cannot loop.
+        const transfer = new DataTransfer();
+        transfer.items.add(smaller);
+        input.files = transfer.files;
+      }
+      const chosen = smaller ?? file;
+      setTooLarge(chosen.size > MAX_BYTES);
+      showPreview(chosen);
+    } finally {
+      setEncoding(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="flex flex-1 flex-col gap-8">
-      <StepHeading step={1} title="Tell the room who you are." />
-
+    <form action={formAction} className="flex flex-1 flex-col gap-6">
       {/* The slug, not an id: the action resolves it against `rooms` itself. */}
       <input name="room" type="hidden" value={roomSlug} />
+
+      <div className="space-y-3">
+        <Label className="text-ink" htmlFor="intake-photo">
+          Tu foto, tomada ahora
+        </Label>
+        <input
+          accept="image/*"
+          capture="user"
+          className="w-full rounded-xl border border-input bg-card p-3 text-sm text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-medium file:text-secondary-foreground"
+          id="intake-photo"
+          name="photo"
+          onChange={handleChange}
+          type="file"
+        />
+        <FieldError message={tooLarge ? TOO_LARGE : state.photoError} />
+      </div>
+
+      {preview ? (
+        <div className="flex justify-center">
+          {/* biome-ignore lint/performance/noImgElement: a blob: URL that exists only in this tab, which next/image cannot optimise and must not try to */}
+          <img
+            alt="Tú, recién ahora"
+            className="size-32 rounded-2xl border-2 border-border object-cover"
+            src={preview}
+          />
+        </div>
+      ) : null}
 
       <div className="space-y-5">
         <div className="space-y-2">
           <Label className="text-ink" htmlFor="intake-name">
-            Name
+            ¿Cómo te llamas?
           </Label>
           <Input
             aria-invalid={state.nameError ? true : undefined}
@@ -46,53 +134,54 @@ export function RegisterForm({ roomSlug }: { roomSlug: string }) {
             type="text"
           />
           {/* Name also carries whatever could not be blamed on a field -- an
-              unresolvable room -- because it is the first thing on screen. */}
+              unresolvable room -- because it is the first text box on screen. */}
           <FieldError message={state.nameError ?? state.error} />
         </div>
 
         <div className="space-y-2">
-          <Label className="text-ink" htmlFor="intake-team">
-            Team
+          <Label className="text-ink" htmlFor="intake-gender">
+            ¿Con qué te identificas?
           </Label>
-          {/* `maxLength` so a long team name is stopped as it is typed rather
-              than after a round trip; the server keeps its own 80 and its own
-              sentence, because this attribute does nothing without JavaScript
-              turned on -- and nothing at all to a direct POST. */}
-          <Input
-            aria-invalid={state.teamError ? true : undefined}
-            className="h-12 rounded-xl bg-card px-4"
-            id="intake-team"
-            maxLength={80}
-            name="team"
-            placeholder="Optional"
-            type="text"
-          />
-          <FieldError message={state.teamError} />
+          {/* A native select: it submits, it opens as the phone's own wheel and
+              it needs no JavaScript at all. */}
+          <select
+            aria-invalid={state.genderError ? true : undefined}
+            className="h-12 w-full rounded-xl border border-input bg-card px-4 text-sm text-ink"
+            defaultValue=""
+            id="intake-gender"
+            name="gender"
+          >
+            <option disabled value="">
+              Elige una opción
+            </option>
+            <option value="F">Mujer</option>
+            <option value="M">Hombre</option>
+            <option value="NB">No binario</option>
+          </select>
+          <FieldError message={state.genderError} />
         </div>
 
         <div className="space-y-2">
-          <Label className="text-ink" htmlFor="intake-track">
-            Track
+          <Label className="text-ink" htmlFor="intake-birthdate">
+            ¿Cuándo naciste?
           </Label>
           <Input
-            aria-invalid={state.trackError ? true : undefined}
+            aria-invalid={state.birthdateError ? true : undefined}
             className="h-12 rounded-xl bg-card px-4"
-            id="intake-track"
-            maxLength={80}
-            name="track"
-            placeholder="Optional"
-            type="text"
+            id="intake-birthdate"
+            name="birthdate"
+            type="date"
           />
-          <FieldError message={state.trackError} />
+          <FieldError message={state.birthdateError} />
         </div>
       </div>
 
       <Button
         className="mt-auto h-12 w-full rounded-2xl font-display text-base font-bold shadow-toy"
-        disabled={pending}
+        disabled={pending || encoding || tooLarge}
         type="submit"
       >
-        Continue
+        Empezar
       </Button>
     </form>
   );
@@ -115,4 +204,38 @@ function FieldError({ message }: { message?: string }) {
       {message ?? ""}
     </p>
   );
+}
+
+/**
+ * Re-encode to a JPEG whose longest side is <= 512 px.
+ *
+ * Returns null rather than throwing when the browser cannot do it: the caller
+ * then submits the original file, and the server decides. A photo field that
+ * fails closed because a canvas was unavailable would cost more completions
+ * than a large upload does.
+ */
+async function downscale(file: File): Promise<File | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY);
+    });
+    if (!blob) return null;
+
+    return new File([blob], "photo.jpg", { type: "image/jpeg" });
+  } catch {
+    return null;
+  }
 }

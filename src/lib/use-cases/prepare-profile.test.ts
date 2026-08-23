@@ -157,6 +157,8 @@ function rankable(
       id,
       roomId: ROOM_ID,
       name,
+      gender: "F",
+      birthdate: "1996-05-04",
       photoUrl: `https://blob.example/${id}.jpg`,
       team: null,
       track: null,
