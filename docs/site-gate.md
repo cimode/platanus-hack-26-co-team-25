@@ -52,7 +52,18 @@ the emergency response if the password leaks.
 `src/proxy.ts` exports **no `matcher`**, so it runs on every request: pages,
 route handlers, Server Actions (which are POSTs to the page route),
 `/_next/static`, `/_next/image`, `/_next/data`, `/favicon.ico`, `/robots.txt`
-and everything under `public/`. The only allow-listed path is `/gate`.
+and everything under `public/`. What stays open without the cookie
+(`isOpen` in `src/lib/site-gate/gate.ts`):
+
+- `/gate`, any method — where the password is typed.
+- `/qr`, GET/HEAD, exact path — the code the host holds up. It shows a
+  wordmark and a room name; the link it encodes (`/intake`) is gated like
+  everything else, so a scan lands on the gate and continues via `?next=`.
+- The stylesheets (`/_next/static/**/*.css`) and self-hosted fonts
+  (`/_next/static/media/*`), GET/HEAD — so an open page renders as designed.
+  The client JavaScript (`/_next/static/chunks/*.js`) is **not** open: open
+  pages are server-rendered and read fine without hydration, and the chunks
+  are where the rest of the app's UI would leak from.
 
 - A navigation (GET/HEAD asking for `text/html`) → `302` to
   `/gate?next=<same-origin path>`.

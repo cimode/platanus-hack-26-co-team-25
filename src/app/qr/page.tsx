@@ -19,9 +19,11 @@ export const metadata: Metadata = { title: "dipia · QR" };
  * that exists. The origin comes from the request, not from configuration:
  * whatever host served this page is the host the scanners should reach.
  *
- * The site gate, when it is on, still stands in front of the scanned link; the
- * gate carries the target through `?next=`, so the password is the only thing
- * the host has to tell people.
+ * This page stays open while the site gate is on (`OPEN_PAGES` in
+ * `src/lib/site-gate/gate.ts`): it is the one thing the host shows before
+ * anyone has typed anything. The scanned link is not open -- the gate carries
+ * the target through `?next=`, so the password is the only thing the host has
+ * to tell people.
  */
 export default async function QrPage(props: PageProps<"/qr">) {
   const searchParams = await props.searchParams;
