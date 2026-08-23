@@ -1,22 +1,28 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { BandCopy } from "@/components/intake/declared/bands";
 import type { DeclaredBand } from "@/lib/domain/participant";
 
 /**
- * One declared band: a label, a hint and four taps (issue #8, D6).
+ * One question: a heading and four taps (issue #8, reshaped by #42, D6).
  *
  * A `radiogroup` of four native radios -- the index tapped IS the band stored,
  * never a float -- so the whole thing submits and reports its state with
  * JavaScript off, and a test can reach every option by role and name.
  *
+ * The heading is the question and the question is the accessible name: no
+ * label, no hint, nothing that says which axis this is. It posts under an
+ * opaque field id for the same reason (`BandCopy.field`) -- a `name` attribute
+ * is served bytes, and the column name in the markup would name the axis as
+ * loudly as a title would.
+ *
  * The selection is React state, and it reaches the input as `defaultChecked`
  * rather than `checked`, which is load-bearing: React resets the form after a
  * Server Action resolves, and a reset restores every input to its `checked`
- * ATTRIBUTE. The screen's action returns "pick one for each" instead of
- * redirecting when a band is untapped, so the taps already made have to survive
- * that reset (AC-4) -- keeping state in the attribute is what makes them.
+ * ATTRIBUTE. The screen's action returns "elige una opción en cada pregunta"
+ * instead of redirecting when a question is unanswered, so the taps already
+ * made have to survive that reset -- keeping state in the attribute is what
+ * makes them.
  */
 const RADIO_CLASS = [
   "size-5 shrink-0 appearance-none rounded-full",
@@ -26,10 +32,16 @@ const RADIO_CLASS = [
 ].join(" ");
 
 export function BandTapGroup({
-  band,
+  field,
+  question,
+  options,
   defaultValue,
 }: {
-  band: BandCopy;
+  /** The opaque `name` this group posts under (`q1`…`q6`). */
+  field: string;
+  question: string;
+  /** Exactly four, and the index IS the band that gets stored (D6). */
+  options: readonly string[];
   defaultValue: DeclaredBand | null;
 }) {
   const [value, setValue] = useState<DeclaredBand | null>(defaultValue);
@@ -37,19 +49,16 @@ export function BandTapGroup({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
-      <p className="font-display text-base font-bold text-ink" id={labelId}>
-        {band.label}
-      </p>
-      <p className="mt-1 text-xs text-ink-muted">{band.hint}</p>
+      <h2 className="font-display text-base font-bold text-ink" id={labelId}>
+        {question}
+      </h2>
 
-      {/* aria-labelledby points at the label alone: the hint is copy, not the
-          accessible name a test (or a screen reader user) navigates by. */}
       <div
         aria-labelledby={labelId}
         className="mt-3 flex flex-col gap-2"
         role="radiogroup"
       >
-        {band.options.map((option, index) => {
+        {options.map((option, index) => {
           const band0to3 = index as DeclaredBand;
           return (
             <label
@@ -57,9 +66,9 @@ export function BandTapGroup({
               key={option}
             >
               <input
-                defaultChecked={value === band0to3}
                 className={RADIO_CLASS}
-                name={band.key}
+                defaultChecked={value === band0to3}
+                name={field}
                 onChange={() => setValue(band0to3)}
                 type="radio"
                 value={band0to3}

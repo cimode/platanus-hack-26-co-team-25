@@ -40,16 +40,72 @@ export const authoredBlockSchema = z.object({
     .length(4),
 });
 
-export const authoredBatchSchema = z.object({
-  blocks: z.array(authoredBlockSchema).length(5),
-});
+/** Sentences, counted the way a reader counts them: by full stops. */
+function sentenceCount(text: string): number {
+  return text
+    .split(/[.!?…]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0).length;
+}
+
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Scenario: at most two short sentences. Option: at most eight words. */
+const MAX_SENTENCES = 2;
+const MAX_OPTION_WORDS = 8;
+
+/**
+ * The batch, plus the two length limits the character caps above cannot express.
+ *
+ * They live here rather than in the prompt alone because a tone instruction is
+ * a request and a schema is a refusal. Pushing the register into the absurd
+ * makes the model want a third sentence to land the twist and a tenth word to
+ * land the punchline; this is what stops it, and the repair pass is what
+ * recovers from it. Messages name the position and the limit, because the model
+ * is answering about five blocks at once and "too long" is not actionable.
+ */
+export const authoredBatchSchema = z
+  .object({
+    blocks: z.array(authoredBlockSchema).length(5),
+  })
+  .superRefine((batch, ctx) => {
+    batch.blocks.forEach((block, index) => {
+      const sentences = sentenceCount(block.scenario);
+      if (sentences > MAX_SENTENCES) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["blocks", index, "scenario"],
+          message:
+            `position ${block.position}: the scenario has ${sentences} ` +
+            `sentences; the limit is ${MAX_SENTENCES} short sentences`,
+        });
+      }
+
+      block.options.forEach((option, optionIndex) => {
+        const words = wordCount(option.text);
+        if (words > MAX_OPTION_WORDS) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["blocks", index, "options", optionIndex, "text"],
+            message:
+              `position ${block.position}: option "${option.key}" has ` +
+              `${words} words; the limit is ${MAX_OPTION_WORDS} words`,
+          });
+        }
+      });
+    });
+  });
 
 export type AuthoredBatch = z.infer<typeof authoredBatchSchema>;
 
 /** The rules, as the model receives them. Edit here, nowhere else. */
 const RULES = `You author blocks for a forced-choice compatibility instrument.
-A block is a short, funny, everyday "what would you do?" scenario with exactly
-four options.
+A block is a short, BIZARRO-but-everyday "what would you do?" scenario with
+exactly four options. The bar is not "amusing". A participant reads the
+scenario, laughs or says "wtf", and reads it out loud to whoever is next to
+them. Anything they would forget while choosing has already failed.
 
 THE FOUR PILLARS, and what each pole looks like:
 | pillar      | positive pole                   | reversed (low) pole                  |
@@ -83,7 +139,31 @@ HARD RULES — a block breaking any of these is discarded:
    The participant is describing themselves, and a form that switches person
    between blocks reads as two different questionnaires.
 9. Do not put the reversed-keyed option in slot (a) every time. Move it around
-   the four slots across the five blocks.`;
+   the four slots across the five blocks.
+
+TONE — the register, and the reason anyone finishes the form:
+10. BIZARRO PERO COTIDIANO. Every scenario is an ordinary situation pushed one
+    notch into the absurdo: an object that should not be there, a creature
+    behaving impossibly, a coincidence nobody planned, or an escalation that
+    got away from everyone. The situation stays recognisable — the reader has
+    almost lived it. Random nonsense is not bizarre, it is noise: if the twist
+    could be swapped for any other twist without changing the scenario, it is
+    not anchored and the block fails.
+11. The twist is CONCRETE and NAMED — one thing the reader can picture. "pasa
+    algo raro" is not a twist; "el loro del vecino aprendió tu tono de alarma"
+    is.
+12. Every one of the five blocks uses a DIFFERENT KIND of twist (object /
+    creature / coincidence / escalation / mistaken identity ...). Five
+    variations of one joke count as one block, and the batch is rejected.
+13. The scenario carries the comedy; the OPTIONS stay deadpan and plausible.
+    Four punchlines in a row means the reader picks the funniest one instead of
+    the truest one, and the block measures nothing (see rule 3). Absurd
+    premise, sane people.
+14. The reversed-keyed option is the low pole told with affection — the friend
+    everyone forgives. Funny, never villainous, never pathetic (rule 2).
+15. Bizarre is not gross, cruel or unsafe. Rules 4 and 5 still bind: no work,
+    no substances, politics, religion, sex, mental health or money shame. No
+    injury, no death, no humiliation of a real-seeming person.`;
 
 /**
  * Regional register, kept separate from the rules because it is the one thing
@@ -95,7 +175,11 @@ HARD RULES — a block breaking any of these is discarded:
  * both batches, twenty seconds apart.
  */
 const SPANISH_REGISTER = `Neutral Latin American Spanish as spoken in Bogotá:
-colloquial, warm, never formal. Use "tú"-free first-person phrasing (rule 8).
+colloquial, warm, never formal.
+TUTEO: the SCENARIO is narrated to the reader with "tú" ("Llegas a la fiesta y
+tu vecino ..."). Never "usted", never "vos", never "vosotros". The OPTIONS are
+the reader answering, so they stay in the first person singular (rule 8) —
+"Entro en pánico", never "Entras en pánico".
 Do NOT use peninsular Spanish. Wrong → right: piso → apartamento · coche →
 carro · móvil → celular · la peli → la película · el súper → el supermercado ·
 ordenador → computador · vale/guay → listo/bacano · caradura → descarado ·
@@ -130,7 +214,8 @@ export function authorPrompt(input: AuthorPromptInput): string {
 
   const avoidClause = avoid.length
     ? `\n\nThis participant has already been shown the scenarios below. Do not ` +
-      `reuse their premises, their punchlines or their objects:\n` +
+      `reuse their premises, their punchlines, their objects or their twists — ` +
+      `a new block must surprise someone who has read all of these:\n` +
       avoid.map((s) => `- ${s}`).join("\n")
     : "";
 
@@ -168,16 +253,25 @@ export function judgePrompt(
   return `You are the desirability judge for forced-choice quiz blocks.
 
 Fail a block if ANY of these is true:
+- the scenario is plain or predictable — no twist a reader would repeat to a
+  friend. An ordinary day with an ordinary complication is a failure here, even
+  when everything else about the block is correct
+- the twist is random rather than anchored in a recognisable everyday
+  situation — surreal for its own sake, or a twist that could be swapped for
+  any other twist without changing the scenario
 - an option reads as the obviously flattering "good answer" within 3 seconds
 - the reversed-keyed option is villainous rather than likable-funny
 - the scenario is work, deadline or job flavoured
 - it touches substances, politics, religion, sex, mental health or money shame
 - the humor is flat or mean-spirited
 - any option runs past ~8 words
-- it repeats another block's premise, punchline or object
+- it repeats another block's premise, punchline, object or kind of twist
 
-List concrete problems for every failure. Judge all blocks together — repetition
-across blocks is the failure you are best placed to catch.
+List concrete problems for every failure — they are handed to the author
+verbatim, so "make it funnier" is useless and "the twist is just a late bus,
+name a stranger thing that happens on that bus" is not. Judge all blocks
+together — repetition across blocks is the failure you are best placed to
+catch.
 
 BLOCKS:
 ${rendered}`;

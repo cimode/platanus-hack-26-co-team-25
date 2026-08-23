@@ -116,6 +116,8 @@ function makeWorld(options: WorldOptions = {}) {
     id: PARTICIPANT_ID,
     roomId: ROOM_ID,
     name: "Ana Ramírez",
+    gender: "F",
+    birthdate: "1996-05-04",
     photoUrl: null,
     team: null,
     track: null,

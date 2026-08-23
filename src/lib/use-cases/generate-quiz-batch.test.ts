@@ -12,6 +12,7 @@ import {
   INSTRUMENT,
   validateBlock,
 } from "../domain/quiz/instrument.ts";
+import type { LlmPort, LlmRequest } from "../ports/llm";
 import { generateQuizBatch } from "./generate-quiz-batch.ts";
 
 /**
@@ -50,6 +51,27 @@ function goodBatch(participantId: string, batch: number) {
   return {
     blocks: assignmentsForBatch(participantId, batch).map(authoredFor),
   };
+}
+
+/** The tone judge with nothing to say. Every block stands on its structure. */
+const NO_OBJECTIONS = { verdicts: [] };
+
+/**
+ * A stub that answers the author and the judge separately, and counts only the
+ * author calls — the number of *authoring* attempts is what these tests assert
+ * about, and the judge sits between attempt 1 and attempt 2.
+ */
+function authorStub(
+  respond: (call: number) => unknown,
+  judge: () => unknown = () => NO_OBJECTIONS
+) {
+  const state = { authorCalls: 0 };
+  const llm = stubLlm((id) => {
+    if (id === "quiz.judge") return judge();
+    state.authorCalls++;
+    return respond(state.authorCalls);
+  });
+  return { llm, state };
 }
 
 describe("assignmentsFor", () => {
@@ -95,7 +117,7 @@ describe("generateQuizBatch", () => {
   it("returns five validated blocks on the happy path", async () => {
     const result = await generateQuizBatch(
       { participantId: "p-1", batch: 1 },
-      { llm: stubLlm(() => goodBatch("p-1", 1)) }
+      { llm: authorStub(() => goodBatch("p-1", 1)).llm }
     );
 
     expect(result.blocks).toHaveLength(5);
@@ -113,9 +135,7 @@ describe("generateQuizBatch", () => {
   });
 
   it("repairs a structurally invalid block instead of shipping it", async () => {
-    let call = 0;
-    const llm = stubLlm(() => {
-      call++;
+    const { llm, state } = authorStub((call) => {
       const batch = goodBatch("p-7", 1);
       if (call === 1) {
         // Two reversed options — the failure that silently biases scoring.
@@ -129,7 +149,7 @@ describe("generateQuizBatch", () => {
       { llm }
     );
 
-    expect(call).toBe(2);
+    expect(state.authorCalls).toBe(2);
     expect(result.repairedAt).toEqual([3]);
     expect(result.fellBackAt).toEqual([]);
     for (const block of result.blocks) {
@@ -138,7 +158,7 @@ describe("generateQuizBatch", () => {
   });
 
   it("falls back to the committed instrument when repair does not fix it", async () => {
-    const llm = stubLlm(() => {
+    const { llm } = authorStub(() => {
       const batch = goodBatch("p-9", 2);
       // Position 8 loses a pillar every time, so it can never validate.
       batch.blocks[2].options[1].pillar = batch.blocks[2].options[0].pillar;
@@ -175,7 +195,7 @@ describe("generateQuizBatch", () => {
   });
 
   it("ignores blocks the model returns for positions outside the batch", async () => {
-    const llm = stubLlm(() => {
+    const { llm } = authorStub(() => {
       const batch = goodBatch("p-4", 1);
       // The model loses the plan and answers about block 12.
       batch.blocks[1] = authoredFor({
@@ -199,11 +219,101 @@ describe("generateQuizBatch", () => {
     }
   });
 
+  // AC-5. The tone judge is a second gate in front of the same repair pass the
+  // structural validator uses, and its objections are the only concrete thing
+  // the second attempt is told. Paraphrasing them — or summarising five of them
+  // into one line — is the failure this test exists to catch.
+  it("hands the judge's objections to the repair call, verbatim", async () => {
+    const VERDICT = "plain or predictable — no twist";
+    const sent: { id: string; prompt: string }[] = [];
+    let authorCalls = 0;
+
+    const llm: LlmPort = {
+      generate<T>(request: LlmRequest<T>): Promise<T> {
+        sent.push({ id: request.id, prompt: request.prompt });
+
+        let response: unknown;
+        if (request.id === "quiz.judge") {
+          // Every block in the batch is dull, and the judge says why.
+          response = {
+            verdicts: [1, 2, 3, 4, 5].map((position) => ({
+              position,
+              pass: false,
+              problems: [VERDICT],
+            })),
+          };
+        } else {
+          authorCalls++;
+          const batch = goodBatch("p-tone", 1);
+          if (authorCalls > 1) {
+            // The repair lands for everything except position 3, which comes
+            // back with a missing pillar and so can never validate.
+            batch.blocks[2].options[1].pillar =
+              batch.blocks[2].options[0].pillar;
+          }
+          response = batch;
+        }
+
+        const parsed = request.schema.safeParse(response);
+        if (!parsed.success) {
+          return Promise.reject(new Error(JSON.stringify(parsed.error.issues)));
+        }
+        return Promise.resolve(parsed.data);
+      },
+    };
+
+    const result = await generateQuizBatch(
+      { participantId: "p-tone", batch: 1 },
+      { llm }
+    );
+
+    // author → judge → repair, and the judge saw the authored batch.
+    expect(sent.map((s) => s.id)).toEqual([
+      "quiz.author.batch-1",
+      "quiz.judge",
+      "quiz.author.batch-1.repair",
+    ]);
+    expect(authorCalls).toBe(2);
+
+    const repair = sent[2].prompt;
+    for (const position of [1, 2, 3, 4, 5]) {
+      expect(repair).toContain(`position ${position} was rejected: ${VERDICT}`);
+    }
+
+    // The participant still gets five scoreable blocks; only the position that
+    // stayed invalid after repair falls back.
+    expect(result.blocks).toHaveLength(5);
+    expect(result.fellBackAt).toEqual([3]);
+    expect(result.repairedAt).toEqual([1, 2, 4, 5]);
+    for (const block of result.blocks) {
+      expect(() => validateBlock(block)).not.toThrow();
+    }
+    expect(result.blocks[2].scenario).toBe(INSTRUMENT.blocks[2].scenario);
+  });
+
+  // A judge that is down, or that answers with something that is not a verdict
+  // list, must cost the participant nothing: the block stands on its structure.
+  it("keeps authored blocks when the judge itself fails", async () => {
+    const { llm, state } = authorStub(
+      () => goodBatch("p-nojudge", 1),
+      () => ({ nonsense: true })
+    );
+
+    const result = await generateQuizBatch(
+      { participantId: "p-nojudge", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(1);
+    expect(result.fellBackAt).toEqual([]);
+    expect(result.repairedAt).toEqual([]);
+  });
+
   it("rejects a batch number outside 1..3", async () => {
     await expect(
       generateQuizBatch(
         { participantId: "p-1", batch: 4 },
-        { llm: stubLlm(() => goodBatch("p-1", 1)) }
+        { llm: authorStub(() => goodBatch("p-1", 1)).llm }
       )
     ).rejects.toThrow(/batch must be 1, 2 or 3/);
   });

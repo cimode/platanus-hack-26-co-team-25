@@ -5,7 +5,7 @@ import {
 } from "@/lib/domain/participant";
 
 /**
- * The copy of the declared round (issue #8, PILLARS.md §2 "free pillars").
+ * The copy of the declared round (issue #8, reshaped by #42).
  *
  * Server (the page picks which screen to render) and client (the screen renders
  * it) both read this, so it lives in a plain module rather than inside the
@@ -13,8 +13,14 @@ import {
  * boundary as a client reference, and a server component importing one gets a
  * proxy instead of the array.
  *
- * The band LABEL is the accessible name of its radio group -- the only handle a
- * test has on it -- and the hint is deliberately not part of that name.
+ * Every band is asked as a QUESTION and nothing else is on screen -- no label,
+ * no hint, no screen title, nothing that names the axis (the product correction
+ * of 2026-08-22). The question is the radio group's accessible name and the
+ * only handle a test has on it.
+ *
+ * The four options keep the exact 0..3 semantics the six columns have always
+ * stored: index 0 is the low end of the band, index 3 the high end (D6). Only
+ * the words changed.
  */
 
 /** The six band columns, keyed the way `DeclaredProfile` keys them. */
@@ -22,70 +28,109 @@ export type BandKey = (typeof DECLARED_BAND_KEYS)[number];
 
 export interface BandCopy {
   key: BandKey;
-  /** The radio group's accessible name. */
-  label: string;
-  /** Rendered under the label; never part of the accessible name. */
-  hint: string;
+  /**
+   * What the radio group posts under. Deliberately opaque: the column name
+   * would otherwise be served in the markup AND in the RSC payload, and
+   * "rootedness" in the bytes names the axis just as loudly as a heading would
+   * (issue #42, AC-5). The action maps it back.
+   */
+  field: string;
+  /** The radio group's accessible name. Ends in "?" -- it is a question. */
+  question: string;
   /** Exactly four, and the index IS the band that gets stored (D6). */
   options: readonly [string, string, string, string];
 }
 
 export const BANDS: Record<BandKey, BandCopy> = {
+  // 0 = every peso counts … 3 = spends freely.
   moneyPosture: {
     key: "moneyPosture",
-    label: "Money posture",
-    hint: "How you hold money right now.",
-    options: ["Every peso counts", "Careful", "Comfortable", "Spends freely"],
+    field: "q1",
+    question: "¿Cómo va tu bolsillo este mes?",
+    options: [
+      "Cuento cada peso, incluso los del cafecito",
+      "Ando con cuidado y me cuadra",
+      "Tranquilo, alcanza y sobra un poco",
+      "Gasto primero y reviso después",
+    ],
   },
+  // 0 = could leave tomorrow … 3 = not going anywhere.
   rootedness: {
     key: "rootedness",
-    label: "Rootedness",
-    hint: "How planted you are where you live.",
+    field: "q2",
+    question: "¿Qué tan pegado estás al lugar donde vives?",
     options: [
-      "Could leave tomorrow",
-      "Open to moving",
-      "Fairly planted",
-      "Not going anywhere",
+      "Me voy mañana con una maleta",
+      "Me mudaría sin hacer drama",
+      "Ya eché raíces, pero cortitas",
+      "De aquí no me saca ni una grúa",
     ],
   },
+  // 0 = barely … 3 = everything orbits it.
   familyGravity: {
     key: "familyGravity",
-    label: "Family gravity",
-    hint: "How much the people you grew up with shape an ordinary week.",
-    options: ["Barely", "Now and then", "A lot", "Everything orbits it"],
-  },
-  capacityHoursBand: {
-    key: "capacityHoursBand",
-    label: "Capacity hours",
-    hint: "Time you actually spent on what you chose, over the last four weeks.",
-    options: ["Almost none", "A few", "A good chunk", "Most of it"],
-  },
-  distanceBand: {
-    key: "distanceBand",
-    label: "Distance and re-contact",
-    hint: "You meet someone you click with. How long before you reach out?",
+    field: "q3",
+    question: "¿Cuánto pesa tu familia en una semana normal?",
     options: [
-      "Same day",
-      "Within a week",
-      "Within a month",
-      "Whenever it happens",
+      "Casi nada, nos escribimos en cumpleaños",
+      "De vez en cuando, sin agenda",
+      "Bastante: hay llamada fija",
+      "Todo gira alrededor, almuerzo incluido",
     ],
   },
+  // 0 = almost none … 3 = most of it.
+  capacityHoursBand: {
+    key: "capacityHoursBand",
+    field: "q4",
+    question:
+      "En las últimas cuatro semanas, ¿cuánto tiempo le dedicaste a lo que tú elegiste?",
+    options: [
+      "Casi nada, el día se me evaporó",
+      "Unas pocas horas sueltas",
+      "Un buen rato cada semana",
+      "Casi todo mi tiempo libre",
+    ],
+  },
+  // 0 = same day … 3 = whenever it happens.
+  distanceBand: {
+    key: "distanceBand",
+    field: "q5",
+    question:
+      "Conoces a alguien con quien conectas. ¿Cuánto tardas en escribirle?",
+    options: [
+      "El mismo día, antes de que se enfríe",
+      "Antes de que se acabe la semana",
+      "En algún momento del mes",
+      "Cuando se dé, se dio",
+    ],
+  },
+  // 0 = early bird … 3 = night owl.
   chronotype: {
     key: "chronotype",
-    label: "Chronotype",
-    hint: "When you are actually awake.",
-    options: ["Early bird", "Morning-ish", "Evening-ish", "Night owl"],
+    field: "q6",
+    question: "¿A qué hora funcionas de verdad?",
+    options: [
+      "Amanezco con energía sospechosa",
+      "Rindo en la mañana, sin exagerar",
+      "Arranco cuando cae la tarde",
+      "Soy criatura de la madrugada",
+    ],
   },
 };
+
+/** Which band a posted field belongs to -- the inverse of `BandCopy.field`. */
+export const BAND_OF_FIELD: Record<string, BandKey> = Object.fromEntries(
+  Object.values(BANDS).map((band) => [band.field, band.key])
+);
+
+/** The tag picker's question, asked exactly like a band (AC-5). */
+export const TAGS_QUESTION = "¿En qué se te va el tiempo libre?";
 
 export interface DeclaredScreen {
   /** What `?screen=` carries and what the form posts back. */
   id: string;
-  /** Sits beside "Step 4 of 5". */
-  title: string;
   bands: readonly BandKey[];
-  /** The tag picker rides on the last screen (PILLARS.md §2 Common Ground). */
+  /** The tag picker rides on the last screen. */
   tags: boolean;
 }
 
@@ -96,27 +141,25 @@ export interface DeclaredScreen {
  * persists its own screen, so an abandoner keeps what they tapped
  * (`PILLARS.md` §8 -- the declared round is the demo insurance).
  *
- * Chronotype and the tag picker share the LAST screen on purpose: `declared_at`
- * is set by the repository the moment the sixth band lands, and `/intake/declared`
- * forwards a participant whose round is complete to the gates. A tag screen
- * after the sixth band would therefore be a screen nobody could ever return to.
+ * The last band and the tag picker share the LAST screen on purpose:
+ * `declared_at` is set by the repository the moment the sixth band lands, and
+ * `/intake/declared` forwards a participant whose round is complete straight
+ * into the questions. A tag screen after the sixth band would therefore be a
+ * screen nobody could ever return to.
  */
 export const DECLARED_SCREENS: readonly DeclaredScreen[] = [
   {
-    id: "life-shape",
-    title: "Life shape — three taps, no wrong answers.",
+    id: "a",
     bands: ["moneyPosture", "rootedness", "familyGravity"],
     tags: false,
   },
   {
-    id: "capacity",
-    title: "The time you have, and how you keep in touch.",
+    id: "b",
     bands: ["capacityHoursBand", "distanceBand"],
     tags: false,
   },
   {
-    id: "rhythm",
-    title: "Your rhythm, and what you are into.",
+    id: "c",
     bands: ["chronotype"],
     tags: true,
   },
@@ -158,11 +201,11 @@ export const TAG_LABELS: Record<string, string> = {
 
 /** The five groups the picker renders, in the order it renders them. */
 export const TAG_GROUP_LABELS: Record<TagGroup, string> = {
-  interests: "Interests",
-  media: "Media",
-  food: "Food",
-  activity: "Activity",
-  pets: "Pets",
+  interests: "ratos libres",
+  media: "pantallas",
+  food: "comida",
+  activity: "movimiento",
+  pets: "animales",
 };
 
 export const TAG_GROUP_ORDER = Object.keys(TAG_GROUPS) as TagGroup[];

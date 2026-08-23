@@ -5,6 +5,7 @@ import { createRoomRepository } from "../../src/lib/adapters/db/room-repository"
 import type {
   Consent,
   DeclaredProfile,
+  Gender,
   SessionToken,
 } from "../../src/lib/domain/participant";
 
@@ -63,8 +64,10 @@ const COMPLETE_DECLARED: DeclaredProfile = {
 
 export interface SeedOptions {
   name?: string;
-  /** Anything unnamed stays false, exactly as the column default does. */
+  /** D18 registers with all three true; a test may still say otherwise. */
   consent?: Partial<Consent>;
+  gender?: Gender;
+  birthdate?: string;
   /** Seeded with a photo unless a test wants the step-2 guard. */
   photo?: boolean;
   /** "complete" sets all six bands, and with them `declared_at`. */
@@ -122,19 +125,19 @@ export async function seedParticipant(
   const { participant, sessionToken } = await participants.create({
     roomId: room.id,
     name,
-    team: "hookai",
-    track: "AI",
+    gender: options.gender ?? "F",
+    birthdate: options.birthdate ?? "1996-05-04",
+    // D18: registering is consenting, so this is what the real screen writes.
+    consent: {
+      romantic: options.consent?.romantic ?? true,
+      business: options.consent?.business ?? true,
+      friendship: options.consent?.friendship ?? true,
+    },
   });
 
   if (options.photo !== false) {
     await participants.setPhoto(participant.id, SEEDED_PHOTO);
   }
-
-  await participants.setConsent(participant.id, {
-    romantic: options.consent?.romantic ?? false,
-    business: options.consent?.business ?? false,
-    friendship: options.consent?.friendship ?? false,
-  });
 
   // A participant who has not started the declared round is one whose bands
   // were never written -- so "none" writes nothing at all, rather than writing
@@ -144,6 +147,22 @@ export async function seedParticipant(
   }
 
   return { id: participant.id, name, sessionToken };
+}
+
+/** The participant behind a session cookie -- identity, photo and consents. */
+export async function participantBySession(
+  sessionToken: string
+): Promise<import("../../src/lib/domain/participant").Participant | null> {
+  const { participants } = repositories();
+  return participants.bySessionToken(sessionToken as SessionToken);
+}
+
+/** Everyone in the `e2e-<run>` room, as the room view would see them. */
+export async function roomMembers(): Promise<{ id: string; name: string }[]> {
+  const { participants, rooms } = repositories();
+  const room = await rooms.bySlug(e2eRoomSlug());
+  if (!room) throw new Error(MISSING_ROOM);
+  return participants.byRoom(room.id);
 }
 
 /**
