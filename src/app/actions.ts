@@ -3,11 +3,12 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { IMPERSONATION_COOKIE } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
 import { continueQuizGeneration } from "@/lib/use-cases/ensure-quiz-batch";
 import { findParticipant } from "@/lib/use-cases/list-participants";
-import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
+import type { ImpersonateState } from "./impersonation";
 import { LENS_COOKIE } from "./lens";
 
 /**

@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
 import { LifeBoard } from "@/components/simulate/life-board";
+import { resolveViewerId } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,12 @@ import { cn } from "@/lib/utils";
 /**
  * Screen 1f -- one simulated life, for this viewer and one other person.
  *
- * A Server Component. `otherId` comes from the segment and the subject from the
- * impersonation cookie: the URL names WHO you are simulating with, never who
- * you are.
+ * A Server Component. `otherId` comes from the segment and the subject from
+ * `resolveViewerId` -- the impersonation cookie, else the participant behind
+ * `dipia_session`: the URL names WHO you are simulating with, never who you
+ * are. The session fallback adds a way to BE someone, not a way to see more:
+ * the resolved id is passed as `subjectId` and everything downstream is
+ * unchanged.
  *
  * Unknown id, yourself, and anyone absent from your ranking under this lens all
  * reach the same `notFound()`. One check, not three -- a distinguishable 404 is
@@ -41,7 +44,8 @@ export default async function SimulatePage({
 
   if (!isLens(lens)) redirect("/room");
 
-  const viewerId = store.get(IMPERSONATION_COOKIE)?.value;
+  const deps = serverDeps();
+  const viewerId = await resolveViewerId(deps);
   if (!viewerId) redirect("/");
 
   /*
@@ -59,7 +63,7 @@ export default async function SimulatePage({
    * after an earlier refactor deleted it. Had it stayed deleted, this would be
    * two incompatible shapes to reconcile instead of one import.
    */
-  const life = await serverDeps().timelines.simulate({
+  const life = await deps.timelines.simulate({
     subjectId: viewerId,
     otherId: id,
     lens,

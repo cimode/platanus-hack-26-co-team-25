@@ -10,7 +10,7 @@ import {
  * The quiz on a phone: fifteen forced-choice blocks, one tap each (issue #9,
  * style "B · Diálogo").
  *
- *     /quiz opening -> block 1 ... block 15 -> quiz_completed_at -> /results
+ *     /quiz opening -> block 1 ... block 15 -> quiz_completed_at -> /room
  *
  * Under docs/domain.md D16 every participant answers their own generated
  * form, read from `generated_blocks` through `quizProgress` -- never the
@@ -237,7 +237,7 @@ test.describe("quiz", () => {
     }
   });
 
-  test('AC-4 · fifteen taps walk the participant\'s form with no "Tanda" beat anywhere, set quiz_completed_at, land on /results "Listo" and leave exactly 15 generated_blocks rows', async ({
+  test('AC-4 · fifteen taps walk the participant\'s form with no "Tanda" beat anywhere, set quiz_completed_at, hand off to /room and leave exactly 15 generated_blocks rows', async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -258,16 +258,34 @@ test.describe("quiz", () => {
       }
     }
 
-    await expect(page).toHaveURL(/\/results/);
-    await expect(page.getByRole("heading", { name: /listo/i })).toBeVisible();
+    /*
+     * Block 15 hands off to /room, not to the old dead-end /results.
+     *
+     * Asserted as "left the quiz and did not land on /results" rather than as
+     * an exact URL, because this fixture's participant lives in its OWN
+     * `e2e-<run>-q<n>` room by design -- never `HOOKAI_ROOM_SLUG`. `/room`
+     * reads the venue roster, cannot place someone who is not on it, and
+     * bounces to `/`. Both endpoints are the fix working; `/quiz` and
+     * `/results` are the two this must never be.
+     */
+    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(counter(page, 15)).toHaveCount(0);
 
     expect(await participant.responses()).toHaveLength(15);
     expect(await participant.storedBlocks()).toHaveLength(15);
     expect(await participant.completedAt()).not.toBeNull();
 
-    // Completed means completed: /quiz never serves a block again.
+    // Completed means completed: /quiz never serves a block again -- and the
+    // Location header names the new destination exactly, with no roster in the
+    // way, which is the half an URL assertion cannot pin down here.
+    const handoff = await page.context().request.get("/quiz", {
+      maxRedirects: 0,
+      headers: { accept: "text/html" },
+    });
+    expect([302, 303, 307, 308]).toContain(handoff.status());
+    expect(handoff.headers().location ?? "").toContain("/room");
+
     await page.goto("/quiz");
-    await expect(page).toHaveURL(/\/results/);
     await expect(counter(page, 15)).toHaveCount(0);
   });
 
@@ -455,7 +473,10 @@ test.describe("safety invariants", () => {
       await tap(page, participant, position);
     }
 
-    await expect(page).toHaveURL(/\/results/);
+    // Off the quiz and onto the hand-off, wherever the roster puts this
+    // fixture's participant (see AC-4). Only the landmark for "all fifteen are
+    // answered"; the leak scan below is what this criterion is about.
+    await expect(page).toHaveURL(/\/(room)?$/);
     expect(captured.length).toBeGreaterThanOrEqual(20);
     for (const { where, html } of captured) {
       expect(html, `${where} names a pillar or a keying`).not.toMatch(

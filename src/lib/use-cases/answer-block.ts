@@ -17,7 +17,11 @@
  * `participants.markQuizCompleted` is never called from here.
  */
 
-import type { ParticipantId, SessionToken } from "../domain/participant";
+import type {
+  ParticipantId,
+  RoomId,
+  SessionToken,
+} from "../domain/participant";
 import type { BlockResponse, OptionKey } from "../domain/quiz/index.ts";
 import {
   BLOCK_COUNT,
@@ -52,6 +56,13 @@ export interface AnswerBlockInput {
 
 export interface AnswerBlockResult {
   participantId: ParticipantId;
+  /**
+   * The room this write was administered in. Already loaded and version-checked
+   * by `requireCurrentRoom` below, so reporting it costs nothing -- and it is
+   * what the completing caller needs to schedule scoring without a second
+   * round trip to rediscover who the participant is.
+   */
+  roomId: RoomId;
   /**
    * The first unanswered position AFTER the write, recomputed from the rows —
    * never `position + 1`. 15 when every position is answered.
@@ -153,6 +164,7 @@ export async function answerBlock(
   answered.add(position);
   return {
     participantId: participant.id,
+    roomId: participant.roomId,
     // From the rows after the write, never `position + 1`: a re-answer behind
     // the frontier leaves the frontier where it was.
     nextPosition: firstUnanswered(answered),

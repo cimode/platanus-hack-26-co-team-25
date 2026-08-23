@@ -76,6 +76,16 @@ export interface Deps {
   profiles: ProfilePort;
   /** `simulatePair`, likewise (issue #33). */
   timelines: TimelinePort;
+  /**
+   * `scoreParticipant`, repositories already bound (issue #30).
+   *
+   * Exposed on its own because scoring is no longer only a read-time repair:
+   * the quiz schedules it the moment block 15 lands, so the person who just
+   * finished has four posteriors before anyone ranks them. It is the SAME
+   * binding `rankingDeps()` builds -- one clock, one scorer -- not a second
+   * one that could drift.
+   */
+  scoreParticipant: PrepareResultsDeps["scoreParticipant"];
 }
 
 export type ServerDeps = Pick<
@@ -94,6 +104,7 @@ export type ServerDeps = Pick<
   | "ranking"
   | "profiles"
   | "timelines"
+  | "scoreParticipant"
 >;
 
 let cachedLlm: LlmPort | undefined;
@@ -224,6 +235,9 @@ export function serverDeps(): ServerDeps {
     },
     get timelines(): TimelinePort {
       return createDbTimelines(getDb(), getLlm());
+    },
+    get scoreParticipant(): PrepareResultsDeps["scoreParticipant"] {
+      return rankingDeps().scoreParticipant;
     },
     get photos() {
       return process.env.AWS_ENDPOINT_URL_S3

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { readSessionToken } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
@@ -25,9 +26,15 @@ import { isSinglePick } from "./single-pick";
  * The redirect is chosen from the outcome, and every branch is a fresh read of
  * the rows rather than an arithmetic guess about where they are:
  *
- *   completed          → /results
+ *   completed          → /room          (scoring scheduled first, see below)
  *   advanced           → /quiz          (the block, or the wait if it is not written yet)
  *   re-answer (behind) → /quiz?start=1  (straight to the frontier)
+ *
+ * `/results` used to be the completion target and was a dead end -- no link out
+ * of it, and the person who had just finished held a `dipia_session` and no
+ * `dipia_impersonating`, so every screen past it treated them as nobody. With
+ * `resolveViewerId` bridging the two cookies, `/room` is somewhere they arrive
+ * identified and can pick a lens, which is the actual next step of the demo.
  *
  * `InstrumentVersionMismatchError` propagates for the same reason it does on
  * the page: a room on another structural version must not be written to.
@@ -68,6 +75,10 @@ export async function answerBlockAction(formData: FormData): Promise<void> {
   if (!parsed.success) redirect("/quiz");
 
   const singlePick = isSinglePick();
+  // One clock reading, used for the row's `answered_at`, for
+  // `participants.quiz_completed_at` on the completing write, and for the
+  // completion gate the background scorer is handed below.
+  const now = new Date();
   const result = await answerBlock(
     {
       sessionToken: token,
@@ -76,16 +87,78 @@ export async function answerBlockAction(formData: FormData): Promise<void> {
       // Under single-pick any submitted "Menos yo" is dropped, not trusted.
       leastKey: singlePick ? null : parsed.data.leastKey,
       singlePick,
-      now: new Date(),
+      now,
     },
     serverDeps()
   );
 
   // `redirect` signals by throwing, so nothing below the first branch runs.
   revalidatePath("/quiz");
-  if (result.completed) redirect("/results");
+  if (result.completed) {
+    scoreInBackground(result.participantId, result.roomId, now);
+    redirect("/room");
+  }
   if (result.advanced) redirect("/quiz");
   redirect("/quiz?start=1");
+}
+
+/**
+ * Turn the fifteen answers into four posteriors, after the response is sent.
+ *
+ * Until now the ONLY thing that ever scored anyone was `prepareResults`, and it
+ * scores the VIEWER alone (`prepare-results.ts:273`). So everybody else in the
+ * room ranked on the imputed prior (mean 0.5, se 0.6) and their quiz changed
+ * nothing -- and `simulatePair` refuses a pair where either side has no
+ * posterior at all, which is a `notFound()` on `/simulate`. Scoring at the
+ * moment the quiz completes is what makes a finished form count for everyone
+ * who looks, not only for the person looking.
+ *
+ * Three things this has to get right:
+ *
+ *   - Nothing request-scoped inside the callback. `after` in a Server Function
+ *     may reach `cookies()`, but it does not need to: everything here is a
+ *     plain value closed over during the action, so the callback cannot be the
+ *     thing that makes this route dynamic in a way rendering did not.
+ *   - It must never reject. An unhandled rejection in a background task takes
+ *     the whole invocation down -- the same reason `continueQuizGeneration`
+ *     swallows and warns rather than throwing.
+ *   - `after` runs on the ROUTE's budget, not its own; `/quiz` declares
+ *     `maxDuration = 300`.
+ *
+ * `scoreParticipant` re-checks completion itself (`score-participant.ts:89`)
+ * and refuses an incomplete quiz, so scheduling it on a row that changed under
+ * us writes nothing rather than writing something fitted to half a form.
+ */
+function scoreInBackground(
+  participantId: string,
+  roomId: string,
+  completedAt: Date
+): void {
+  after(async () => {
+    try {
+      const deps = serverDeps();
+      const room = await deps.rooms.byId(roomId);
+      if (!room) {
+        // A non-null foreign key, so this is a room deleted under a live
+        // session. Named, not thrown: the answers are already saved.
+        console.warn(
+          `[quiz] room ${roomId} is gone; ${participantId} unscored`
+        );
+        return;
+      }
+      await deps.scoreParticipant({
+        participantId,
+        room,
+        quizCompletedAt: completedAt,
+      });
+    } catch (error) {
+      console.warn(
+        `[quiz] scoring ${participantId} failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  });
 }
 
 /** `formData.get` returns `File | string | null`; only a string is a field. */
