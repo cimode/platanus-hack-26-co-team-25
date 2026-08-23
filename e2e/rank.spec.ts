@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { rosterIdByName, rosterSeeded } from "./fixtures/roster";
 
 /**
  * Screen 1c -- `/rank`.
@@ -12,7 +13,13 @@ import { expect, type Page, test } from "@playwright/test";
  * this file is to isolate 1c.
  */
 
-const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
+/** Named, not hardcoded by id -- see the note in e2e/profile.spec.ts. */
+const VIEWER = {
+  name: "Laura Méndez",
+  get id() {
+    return rosterIdByName("Laura Méndez");
+  },
+};
 
 async function open(page: Page, lens?: string, url = "/rank") {
   await page.context().clearCookies();
@@ -31,6 +38,13 @@ function cards(page: Page) {
 }
 
 test.describe("1c · the ranking", () => {
+  // The ranking is scored from the room's rows now, not fabricated, so it
+  // needs the cast global setup seeds.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   test("AC-RANK-1 · the ranking belongs to the viewer, who is not in it", async ({
     page,
   }) => {
@@ -48,7 +62,13 @@ test.describe("1c · the ranking", () => {
     await open(page, "romantic");
     const plain = await page.locator("main").innerText();
 
-    await open(page, "romantic", "/rank?subject=p-diego-morales");
+    // A REAL id, so the assertion is that a subject the app could honour is
+    // still ignored -- a bogus one would pass even on a route that read it.
+    await open(
+      page,
+      "romantic",
+      `/rank?subject=${rosterIdByName("Diego Morales")}`
+    );
     const injected = await page.locator("main").innerText();
 
     expect(injected).toBe(plain);

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { rosterSeeded } from "./fixtures/roster";
 
 /**
  * The demo path -- the one flow that cannot break on stage.
@@ -15,6 +16,15 @@ import { expect, type Page, test } from "@playwright/test";
  */
 
 test.describe("1a · impersonate", () => {
+  // The chooser and the room read the `participants` table now, so both need
+  // the cast `e2e/global-setup.ts` seeds. Without a database there is nobody
+  // to pick and every assertion below would fail for that reason alone --
+  // which is the same convention the intake specs already follow.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   const combobox = (page: Page) =>
     page.getByRole("combobox", { name: /nombre del participante/i });
   const cta = (page: Page) => page.getByRole("button", { name: /ámonos/i });
@@ -92,6 +102,15 @@ test.describe("1a · impersonate", () => {
 });
 
 test.describe("1b · the room", () => {
+  // The chooser and the room read the `participants` table now, so both need
+  // the cast `e2e/global-setup.ts` seeds. Without a database there is nobody
+  // to pick and every assertion below would fail for that reason alone --
+  // which is the same convention the intake specs already follow.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   async function enterAs(page: Page, query: string) {
     await page.goto("/");
     const box = page.getByRole("combobox", {
