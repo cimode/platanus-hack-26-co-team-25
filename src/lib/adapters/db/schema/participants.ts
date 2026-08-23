@@ -39,6 +39,10 @@ export const participants = pgTable(
      */
     gender: gender("gender"),
     birthdate: date("birthdate"),
+    // The plate this person wears (`avatar1`..`avatar4`), decided from the
+    // gender at registration and never recomputed: a body that changed between
+    // the room and the ranking would read as a different person.
+    avatar: text("avatar"),
     /** Null until uploaded; part of the §0 floor. */
     photoUrl: text("photo_url"),
     team: text("team"),

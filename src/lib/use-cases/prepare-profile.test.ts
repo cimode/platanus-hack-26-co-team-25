@@ -159,6 +159,7 @@ function rankable(
       name,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: null,
       photoUrl: `https://blob.example/${id}.jpg`,
       team: null,
       track: null,

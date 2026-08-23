@@ -33,7 +33,7 @@ progreso que cubre los 19 pasos del recorrido (1 registro + 3 pantallas + 15 blo
 ## 3. ¿Cómo sabemos quién es quién? (la cookie)
 
 No hay login ni contraseña. En el paso 1 el servidor crea la persona y le da a su
-navegador una **cookie** llamada `hookai_session` con un código largo al azar (un
+navegador una **cookie** llamada `dipia_session` con un código largo al azar (un
 *uuid*, algo como `01a02a27-7af6-7dfe-ac61-6a93bfef6c1a`). Desde ahí, cada envío llega
 con esa cookie y el servidor sabe a qué fila de `participants` pertenece.
 

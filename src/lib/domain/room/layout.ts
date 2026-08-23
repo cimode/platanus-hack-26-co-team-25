@@ -1,3 +1,4 @@
+import { avatarSprite } from "../participant/avatar";
 import type { Participant } from "../participants/participant";
 
 /** The three ways two people can be compatible. */
@@ -196,7 +197,11 @@ export function placeInRoom(
       x,
       y,
       height: spriteHeightFraction(y),
-      sprite: AVATAR_SPRITES[index % AVATAR_SPRITES.length],
+      // The stored plate when the row has one; the index rotation is only for
+      // the demo roster, which predates `participants.avatar`.
+      sprite: participant.avatar
+        ? avatarSprite(participant.avatar)
+        : AVATAR_SPRITES[index % AVATAR_SPRITES.length],
       wander: `wander${(index % 4) + 1}`,
       wanderSeconds: 9 + (index % 5) * 2.4,
       hopSeconds: 2.6 + (index % 4) * 0.7,

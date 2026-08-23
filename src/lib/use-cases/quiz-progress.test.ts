@@ -118,6 +118,7 @@ function makeWorld(options: WorldOptions = {}) {
     name: "Ana Ramírez",
     gender: "F",
     birthdate: "1996-05-04",
+    avatar: null,
     photoUrl: null,
     team: null,
     track: null,

@@ -26,7 +26,11 @@
     "db:check": "drizzle-kit check",
     "db:seed": "node --env-file-if-exists=.env scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "issues:ready": "node scripts/ready.mjs"
+    "issues:ready": "node scripts/ready.mjs",
+    "emotes:generate": "node --env-file-if-exists=.env scripts/emotes/generate.mjs",
+    "emotes:pack": "node scripts/emotes/pack.mjs",
+    "emotes:generate-many": "node --env-file-if-exists=.env scripts/emotes/generate-many.mjs",
+    "emotes:normalize": "node scripts/emotes/normalize.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.62",

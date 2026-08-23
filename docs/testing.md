@@ -1,6 +1,6 @@
-# Testing hookai
+# Testing dipia
 
-hookai is a **non-deterministic LLM wrapped in deterministic mechanics**. Those are two
+dipia is a **non-deterministic LLM wrapped in deterministic mechanics**. Those are two
 unrelated testing problems, and conflating them is how a 36-hour team wastes an afternoon.
 
 | Layer        | Question it answers                                                                           | Tool                          | In CI?        |

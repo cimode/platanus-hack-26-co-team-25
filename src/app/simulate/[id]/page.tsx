@@ -18,6 +18,18 @@ import { cn } from "@/lib/utils";
  * reach the same `notFound()`. One check, not three -- a distinguishable 404 is
  * an oracle for who is in the room (AC-SIM-2).
  */
+/**
+ * A live pair simulation costs ~33s (`docs/domain.md` D19): the model narrates
+ * the beats year by year, and only a cache hit returns immediately. The
+ * platform default is well under that, so without this the request is killed
+ * mid-generation and the screen fails for a reason that has nothing to do with
+ * the code.
+ *
+ * 120s matches `/intake` and `/quiz`, the other two routes that wait on a
+ * model, and sits under every plan's ceiling.
+ */
+export const maxDuration = 120;
+
 export default async function SimulatePage({
   params,
 }: {

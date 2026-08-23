@@ -181,6 +181,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
@@ -233,6 +234,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
@@ -269,6 +271,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
@@ -302,6 +305,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
@@ -351,6 +355,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
@@ -358,6 +363,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
@@ -430,6 +436,7 @@ describe("createResponseRepository (resolved texts)", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });

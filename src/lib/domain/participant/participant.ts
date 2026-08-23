@@ -8,6 +8,7 @@
  * `participant_sessions` (D4), so no select, relation or serialiser can leak it.
  */
 
+import type { Avatar } from "./avatar";
 import type { Gender } from "./gates";
 
 /** Ids are uuids (D7); aliased for readability, not branded. */
@@ -71,6 +72,8 @@ export interface NewParticipant {
   name: string;
   gender: Gender;
   birthdate: IsoDate;
+  /** Decided from the gender at registration; see `avatarFor`. */
+  avatar: Avatar;
   consent: Consent;
   /**
    * The instant the person ticked the data-treatment box (issue #49). Optional
@@ -91,6 +94,8 @@ export interface Participant {
   /** Null only for rows registered before D18; below the floor until re-asked. */
   gender: Gender | null;
   birthdate: IsoDate | null;
+  /** The plate this person wears everywhere; null only on rows older than it. */
+  avatar: Avatar | null;
   photoUrl: string | null;
   team: string | null;
   track: string | null;

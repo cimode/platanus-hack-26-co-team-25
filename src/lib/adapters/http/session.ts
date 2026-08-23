@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import type { SessionToken } from "@/lib/domain/participant";
 
 /**
- * The `hookai_session` cookie -- the ONLY module that reads or writes it.
+ * The `dipia_session` cookie -- the ONLY module that reads or writes it.
  *
  * Identity is a session token in an httpOnly cookie (docs/domain.md D4): no
  * email, no login, and a new device is a new participant. Keeping both sides of
@@ -11,7 +11,7 @@ import type { SessionToken } from "@/lib/domain/participant";
  * a page.
  */
 
-export const SESSION_COOKIE = "hookai_session";
+export const SESSION_COOKIE = "dipia_session";
 
 /** A week: longer than the event, shorter than "forever" for a demo credential. */
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;

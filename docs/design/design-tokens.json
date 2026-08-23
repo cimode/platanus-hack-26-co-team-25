@@ -2,15 +2,15 @@
   "$schema": "https://tr.designtokens.org/format/",
   "$description": "Dipia design tokens. Generated from src/app/globals.css -- that file is the source of truth; this is a portable mirror for design tools. Light-only: there is no dark theme, and `--dark` below is a surface, not a mode. All colours are sRGB hex.",
   "meta": {
-    "product": "hookai",
+    "product": "dipia",
     "system": "Dipia",
     "tagline": "A simulation engine for human relationships.",
-    "wordmark": "hookai (always lowercase, one word, tight tracking -- the wordmark IS the logo)",
+    "wordmark": "dipia (always lowercase, one word, tight tracking -- the wordmark IS the logo)",
     "world": "Life-sim, warm and playful: pixel-art sprites over clean modern UI. The pixel lives in the ART -- avatars, venue, board. Type and controls stay crisp.",
     "stack": "Next.js 16 App Router, React 19, Tailwind CSS v4 (CSS-first @theme, no config file), shadcn/ui on Radix, lucide icons",
     "source": "src/app/globals.css",
     "livingReference": "/design -- every token, every lens, every component state, rendered",
-    "replaces": "The dark hookai system (brand cyan, OKLCH, Instrument Serif + Geist, .glow). Removed in commit d6e0d4d. Nothing from it is current."
+    "replaces": "The earlier dark system (brand cyan, OKLCH, Instrument Serif + Geist, .glow). Removed in commit d6e0d4d. Nothing from it is current."
   },
 
   "theme": {

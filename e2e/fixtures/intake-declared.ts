@@ -8,6 +8,7 @@ import type {
   Gender,
   SessionToken,
 } from "../../src/lib/domain/participant";
+import { avatarFor } from "../../src/lib/domain/participant/avatar";
 
 /**
  * Seeds a participant straight into the `e2e-<run>` room (issue #8).
@@ -17,7 +18,7 @@ import type {
  * the declared round read as a failure in the photo step. So this fixture
  * creates the participant through the #4 repositories -- photo, consents and,
  * when asked, a complete declared profile -- and hands the session token to a
- * browser context as the `hookai_session` cookie, the same credential the app
+ * browser context as the `dipia_session` cookie, the same credential the app
  * would have set (docs/domain.md D4).
  *
  * It writes only into `e2e-<run>`, the room e2e/global-setup.ts created for
@@ -37,7 +38,7 @@ try {
 /** The cookie name is #6's, written as a literal so this file stays out of
  * `src/lib/adapters/http/session.ts` -- importing it would pull `next/headers`
  * into the Playwright process. */
-const SESSION_COOKIE = "hookai_session";
+const SESSION_COOKIE = "dipia_session";
 
 /** Matches playwright.config.ts; `addCookies` wants a URL, not a domain. */
 const BASE_URL = "http://localhost:3000";
@@ -127,6 +128,7 @@ export async function seedParticipant(
     name,
     gender: options.gender ?? "F",
     birthdate: options.birthdate ?? "1996-05-04",
+    avatar: avatarFor(options.gender ?? "F", name),
     // D18: registering is consenting, so this is what the real screen writes.
     consent: {
       romantic: options.consent?.romantic ?? true,

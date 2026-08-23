@@ -14,6 +14,26 @@
 
 ## Workflows
 
+- **create_emotes** (`.claude/workflows/create_emotes.js`) — The whole catalogue at
+  once: for every avatar in parallel, `pnpm emotes:generate-many` (concurrency-capped
+  batch through the AI Gateway, polled from a summary file) → a judge agent reads every
+  contact sheet and picks clip, start and trim → one regeneration round for what failed
+  → `pnpm emotes:pack --floor strip` per winner. Args: `{ avatars?, emotions?, skip?:
+  { avatar2: ["celebrate"] }, concurrency?: 4, tag?: "v2" }`. 12 emotes × 4 avatars ≈
+  48 clips; budget an hour and the gateway credit for it. Ends with
+  `pnpm emotes:normalize`, which pads every one-shot to one length per emote across
+  avatars (`emotes.test.ts` enforces it).
+- **create_emote** (`.claude/workflows/create_emote.js`) — Generates one reaction
+  (celebrate / wave / cry / walk / angry / fight / defeat / love) for every avatar: image-to-video attempts through
+  the AI Gateway → a judge agent reads the contact sheets → chroma key, pixelize,
+  spritesheet → `public/sprites/emotes/<avatar>/<emote>.webp` (lossless) + manifest. Args:
+  `{ emotion, avatars?, attempts?: 2, model? }`. Needs `AI_GATEWAY_API_KEY` in
+  `.env`. The deterministic halves are plain scripts: `pnpm emotes:generate` and
+  `pnpm emotes:pack` (`scripts/emotes/`). Runtime library:
+  `src/components/emotes/` (`AvatarSprite`, `useEmotePlayer`, `useParticipantEmotes`,
+  `reactToEvent`; README there) over the domain catalogue `src/lib/domain/emotes/`;
+  playable reference at `/design/emotes`.
+
 - **create_quest** (`.claude/workflows/create_quest.js`) — Generates the full 15-block
   quiz in 3 delivered batches (5 questions + 20 image prompts each) via quest-skill:
   author → desirability judge → repair → persist to `quiz/batch-N.json`, batch by

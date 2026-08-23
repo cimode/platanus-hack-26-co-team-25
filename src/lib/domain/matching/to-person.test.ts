@@ -54,6 +54,7 @@ const PARTICIPANT: Participant = {
   name: "Ana",
   gender: "F",
   birthdate: "1996-05-04",
+  avatar: null,
   photoUrl: "https://blob.example/ana.jpg",
   team: "alpha",
   track: null,

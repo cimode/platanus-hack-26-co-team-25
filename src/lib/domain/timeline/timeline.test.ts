@@ -36,6 +36,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 
 import type { Gender } from "../matching/engine.ts";
@@ -839,7 +840,9 @@ const GOTTMAN_RE = new RegExp(
 );
 
 /** This directory — the moved engine, not the bake-off harness. */
-const TIMELINE_DIR = new URL(".", import.meta.url).pathname;
+// `fileURLToPath`, not `.pathname`: a checkout under a path with a space is
+// "%20" in the URL and ENOENT on disk.
+const TIMELINE_DIR = fileURLToPath(new URL("./", import.meta.url));
 
 /** Every .ts/.md file in the moved engine (recursive, node_modules excluded). */
 function timelineFiles(): string[] {

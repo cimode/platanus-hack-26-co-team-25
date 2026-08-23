@@ -240,6 +240,7 @@ describe("safety invariants", () => {
         roomId: room.id,
         gender: "F",
         birthdate: "1996-05-04",
+        avatar: "avatar3",
         consent: { romantic: true, business: true, friendship: true },
         name: "Ana",
       })
@@ -249,6 +250,7 @@ describe("safety invariants", () => {
         roomId: room.id,
         gender: "F",
         birthdate: "1996-05-04",
+        avatar: "avatar3",
         consent: { romantic: true, business: true, friendship: true },
         name: "Beto",
       })

@@ -50,7 +50,7 @@ try {
  * owns it (`src/lib/adapters/http/session.ts`) imports `next/headers`, which
  * has no meaning outside a request.
  */
-const SESSION_COOKIE = "hookai_session";
+const SESSION_COOKIE = "dipia_session";
 
 const MISSING_URL =
   "DATABASE_URL is not set, so e2e/helpers/quiz-participant.ts cannot seed a " +
@@ -125,12 +125,13 @@ export async function createQuizParticipant(
     roomId: room.id,
     gender: "F",
     birthdate: "1996-05-04",
+    avatar: "avatar3",
     consent: { romantic: true, business: true, friendship: true },
     // Issue #49: registered rows carry the moment they authorised the
     // treatment of their data, so a seeded one does too.
     dataConsentAt: new Date(),
     name: options.name ?? "Quiz participant",
-    team: "hookai",
+    team: "dipia",
     track: "AI",
   });
 

@@ -26,8 +26,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "hookai · design system",
-  description: "Token and component reference for the hookai design system.",
+  title: "dipia · design system",
+  description: "Token and component reference for the dipia design system.",
 };
 
 /* -------------------------------------------------------------------------- */
@@ -231,7 +231,7 @@ export default function DesignSystemPage() {
         <div className="flex items-center gap-2.5">
           <span className="size-2 rounded-full bg-brand" />
           <span className="text-xl font-semibold tracking-tight lowercase">
-            hookai
+            dipia
           </span>
         </div>
         <div className="space-y-2">
@@ -239,7 +239,7 @@ export default function DesignSystemPage() {
             A simulation engine for human relationships.
           </h1>
           <p className="max-w-xl text-sm text-muted-foreground">
-            Design system reference. Every screen in hookai is built from these
+            Design system reference. Every screen in dipia is built from these
             tokens — nothing here is decoration, and nothing outside here is
             allowed.
           </p>
@@ -268,7 +268,7 @@ export default function DesignSystemPage() {
             <Card>
               <CardContent className="flex h-28 items-center justify-center">
                 <span className="text-2xl font-semibold tracking-tight lowercase">
-                  hookai
+                  dipia
                 </span>
               </CardContent>
             </Card>
@@ -276,14 +276,14 @@ export default function DesignSystemPage() {
               <CardContent className="flex h-28 items-center justify-center gap-2">
                 <span className="size-2 rounded-full bg-brand" />
                 <span className="text-2xl font-semibold tracking-tight lowercase">
-                  hookai
+                  dipia
                 </span>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="flex h-28 items-center justify-center">
                 <span className="text-sm font-medium tracking-tight lowercase">
-                  hookai{" "}
+                  dipia{" "}
                   <span className="text-muted-foreground">· romantic</span>
                 </span>
               </CardContent>
@@ -605,7 +605,7 @@ export default function DesignSystemPage() {
 
       <footer className="pt-6">
         <p className="font-mono text-[0.7rem] text-muted-foreground">
-          hookai · design reference · tokens live in{" "}
+          dipia · design reference · tokens live in{" "}
           <span className="text-foreground">src/app/globals.css</span>
         </p>
       </footer>

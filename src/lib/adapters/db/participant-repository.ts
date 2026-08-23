@@ -26,6 +26,7 @@ import type {
   ParticipantRepository,
   RankingParticipants,
 } from "@/lib/ports/participant-repository";
+import { isAvatar } from "../../domain/participant/avatar";
 import type { Db } from "./client.ts";
 import {
   acquaintances,
@@ -58,6 +59,7 @@ const PARTICIPANT_COLUMNS = {
   name: participants.name,
   gender: participants.gender,
   birthdate: participants.birthdate,
+  avatar: participants.avatar,
   photoUrl: participants.photoUrl,
   team: participants.team,
   track: participants.track,
@@ -122,6 +124,7 @@ type ParticipantRow = {
   name: string;
   gender: Gender | null;
   birthdate: string | null;
+  avatar: string | null;
   photoUrl: string | null;
   team: string | null;
   track: string | null;
@@ -159,6 +162,7 @@ function toParticipant(
     name: row.name,
     gender: row.gender,
     birthdate: row.birthdate,
+    avatar: isAvatar(row.avatar) ? row.avatar : null,
     photoUrl: row.photoUrl,
     team: row.team,
     track: row.track,
@@ -241,6 +245,7 @@ export function createParticipantRepository(
             name: input.name,
             gender: input.gender,
             birthdate: input.birthdate,
+            avatar: input.avatar,
             // D18: participating is consenting, so the three flags are written
             // by the registration itself rather than by a screen of their own.
             consentRomantic: input.consent.romantic,
@@ -267,7 +272,7 @@ export function createParticipantRepository(
     async bySessionToken(token: SessionToken): Promise<Participant | null> {
       // A cookie is attacker-controlled input. `participant_sessions.token` is
       // a Postgres `uuid`, which errors on a malformed literal instead of
-      // matching nothing -- so a stale or tampered `hookai_session` would 500
+      // matching nothing -- so a stale or tampered `dipia_session` would 500
       // every screen rather than taking the unknown-session path to /intake.
       if (!isUuid(token)) return null;
 

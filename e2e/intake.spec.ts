@@ -61,7 +61,7 @@ const dataBox = (page: Page) =>
   page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
 const sessionCookies = async (context: BrowserContext) =>
-  (await context.cookies()).filter((c) => c.name === "hookai_session");
+  (await context.cookies()).filter((c) => c.name === "dipia_session");
 
 /** `YYYY-MM-DD` for someone who turns `age` today. */
 function bornAgo(age: number): string {
@@ -91,7 +91,6 @@ const FORBIDDEN = [
   "gate",
   "interested",
   "hard filters",
-  "hookai",
   "step",
   "paso",
   "team",
@@ -268,7 +267,7 @@ test.describe("safety invariants", () => {
     expect(html).not.toContain(cookie.value);
 
     const documentCookie = await page.evaluate(() => document.cookie);
-    expect(documentCookie).not.toContain("hookai_session");
+    expect(documentCookie).not.toContain("dipia_session");
   });
 });
 

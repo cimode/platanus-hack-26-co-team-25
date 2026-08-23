@@ -68,6 +68,7 @@ function fakeParticipants() {
         name: input.name,
         gender: input.gender,
         birthdate: input.birthdate,
+        avatar: input.avatar,
         photoUrl: null,
         team: input.team ?? null,
         track: input.track ?? null,
@@ -146,6 +147,9 @@ describe("registerParticipant", () => {
     expect(participant.name).toBe("Ana Ramírez");
     expect(participant.gender).toBe("F");
     expect(participant.birthdate).toBe(BORN_27);
+    // Dressed from the gender, once, and stored with the row (feminine pair).
+    expect(participant.avatar).toMatch(/^(avatar3|avatar4)$/);
+    expect(rows.get(participant.id)?.avatar).toBe(participant.avatar);
     expect(participant.photoUrl).toBe(
       `https://photos.example/${participant.id}.jpg`
     );

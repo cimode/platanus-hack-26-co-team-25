@@ -56,14 +56,15 @@ and everything under `public/`. What stays open without the cookie
 (`isOpen` in `src/lib/site-gate/gate.ts`):
 
 - `/gate`, any method — where the password is typed.
-- `/qr`, GET/HEAD, exact path — the code the host holds up. It shows a
-  wordmark and a room name; the link it encodes (`/intake`) is gated like
-  everything else, so a scan lands on the gate and continues via `?next=`.
-- The stylesheets (`/_next/static/**/*.css`) and self-hosted fonts
-  (`/_next/static/media/*`), GET/HEAD — so an open page renders as designed.
-  The client JavaScript (`/_next/static/chunks/*.js`) is **not** open: open
-  pages are server-rendered and read fine without hydration, and the chunks
-  are where the rest of the app's UI would leak from.
+- The participant's flow, any method (Server Actions are POSTs to the page
+  route): `/qr` (exact), `/intake` and everything under it, `/quiz` and
+  everything under it, `/results` (exact — `/results/<lens>` is the reveal,
+  and the reveal is the product). A person who scanned the code never types
+  the password; it protects `/`, `/room`, `/rank`, `/match`, `/simulate`,
+  `/design` and the reveal.
+- Everything under `/_next/static/` and `/favicon.ico`, GET/HEAD — styles,
+  fonts and the client JavaScript, because the registration screen is
+  interactive (photo re-encode, camera) and must hydrate.
 
 - A navigation (GET/HEAD asking for `text/html`) → `302` to
   `/gate?next=<same-origin path>`.
