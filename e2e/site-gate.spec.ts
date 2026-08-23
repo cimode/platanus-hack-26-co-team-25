@@ -22,12 +22,12 @@ test.describe("site gate", () => {
     page,
     request,
   }) => {
-    const response = await page.goto("/intake");
+    const response = await page.goto("/room");
 
     const url = new URL(page.url());
     expect(url.pathname).toBe("/gate");
-    expect(url.searchParams.get("next")).toBe("/intake");
-    expect(response?.request().redirectedFrom()?.url()).toContain("/intake");
+    expect(url.searchParams.get("next")).toBe("/room");
+    expect(response?.request().redirectedFrom()?.url()).toContain("/room");
     expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 
     await expect(page.getByLabel("Contraseña")).toBeVisible();
@@ -35,7 +35,7 @@ test.describe("site gate", () => {
 
     // The raw document, not the serialised DOM: a <script> the browser already
     // executed would still be in the source.
-    const html = await (await request.get("/gate?next=/intake")).text();
+    const html = await (await request.get("/gate?next=/room")).text();
     expect(html).not.toContain("<script");
     for (const word of ["dipia", "hookai", "quiz"]) {
       expect(
@@ -49,13 +49,12 @@ test.describe("site gate", () => {
     request,
   }) => {
     const cases: Array<[string, string, Record<string, string>?]> = [
-      ["GET", "/_next/static/chunks/anything.js"],
+      ["GET", "/_next/image?url=%2Fvenue.jpg&w=640&q=75"],
       ["GET", "/api/anything"],
       ["GET", "/robots.txt"],
-      ["GET", "/favicon.ico"],
       ["HEAD", "/"],
-      ["OPTIONS", "/intake"],
-      ["POST", "/intake", { "Next-Action": "0000000000" }],
+      ["OPTIONS", "/room"],
+      ["POST", "/room", { "Next-Action": "0000000000" }],
     ];
 
     for (const [method, path, headers] of cases) {
@@ -75,7 +74,7 @@ test.describe("site gate", () => {
   });
 
   test("AC-3 · a wrong password keeps you out", async ({ page, context }) => {
-    await page.goto("/intake");
+    await page.goto("/room");
     await page.getByLabel("Contraseña").fill("not-the-password");
     await page.getByRole("button", { name: "Entrar" }).click();
 
@@ -85,7 +84,7 @@ test.describe("site gate", () => {
       (await context.cookies()).filter((c) => c.name === "dipia_gate")
     ).toHaveLength(0);
 
-    await page.goto("/intake");
+    await page.goto("/room");
     expect(new URL(page.url()).pathname).toBe("/gate");
   });
 
@@ -93,8 +92,7 @@ test.describe("site gate", () => {
     page,
     context,
   }) => {
-    const slug = process.env.E2E_ROOM_SLUG;
-    const target = slug ? `/intake?room=${slug}` : "/intake";
+    const target = "/";
 
     const assets: number[] = [];
     page.on("response", (response) => {
@@ -107,8 +105,7 @@ test.describe("site gate", () => {
     await page.getByLabel("Contraseña").fill(PASSWORD);
     await page.getByRole("button", { name: "Entrar" }).click();
 
-    await expect(page).toHaveURL(/\/intake/);
-    expect(new URL(page.url()).pathname).toBe("/intake");
+    expect(new URL(page.url()).pathname).toBe("/");
 
     const cookie = (await context.cookies()).find(
       (c) => c.name === "dipia_gate"
@@ -122,63 +119,70 @@ test.describe("site gate", () => {
     expect(cookie?.secure).toBe(false);
     expect(cookie?.value).not.toContain(PASSWORD);
 
-    // The registration screen itself -- and the `/_next/*` assets that were 401
-    // a moment ago now load.
-    if (slug) {
-      await expect(
-        page.getByRole("button", { name: /^empezar$/i })
-      ).toBeVisible();
-    }
+    // The product screen itself -- and its `/_next/*` assets -- now load.
+    await expect(page.getByText(/dipia/i).first()).toBeVisible();
+    await page.waitForLoadState("load");
     expect(assets.length).toBeGreaterThan(0);
     expect(assets.every((status) => status < 400)).toBe(true);
   });
 
-  test("AC-5 · /qr stays open, with its styles and fonts but not the app's JavaScript", async ({
+  test("AC-5 · the participant's flow is open: /qr and /intake render without the password, assets included", async ({
     request,
   }) => {
     const slug = process.env.E2E_ROOM_SLUG;
-    const response = await request.get(slug ? `/qr?room=${slug}` : "/qr", {
+    for (const path of [
+      slug ? `/qr?room=${slug}` : "/qr",
+      slug ? `/intake?room=${slug}` : "/intake",
+      "/quiz",
+      "/results",
+    ]) {
+      const response = await request.get(path, {
+        maxRedirects: 0,
+        headers: { accept: "text/html" },
+      });
+      // 200, or the page's own redirect (no session -> /intake); never the gate.
+      const location = response.headers().location ?? "";
+      expect(
+        [200, 302, 307, 308].includes(response.status()),
+        `${path} answered ${response.status()}`
+      ).toBe(true);
+      expect(location, `${path} must not bounce to the gate`).not.toContain(
+        "/gate"
+      );
+    }
+
+    const qr = await request.get(slug ? `/qr?room=${slug}` : "/qr", {
       maxRedirects: 0,
       headers: { accept: "text/html" },
     });
-    expect(response.status()).toBe(200);
-    expect(response.headers()["x-robots-tag"]).toBe("noindex, nofollow");
-    const html = await response.text();
+    expect(qr.status()).toBe(200);
+    const html = await qr.text();
     if (slug) expect(html).toContain("Escanea y entra");
-
-    // The page renders as designed: every stylesheet and font it links loads...
-    const styles = [
+    // The page renders AND hydrates as designed: every stylesheet and every
+    // script it references loads without the cookie.
+    const assets = [
       ...html.matchAll(/<link[^>]+href="([^"]+\.css[^"]*)"/g),
+      ...html.matchAll(/<script[^>]+src="([^"]+)"/g),
     ].map((m) => m[1]);
-    expect(
-      styles.length,
-      "the page links at least one stylesheet"
-    ).toBeGreaterThan(0);
-    for (const href of styles) {
+    expect(assets.length, "the page references assets").toBeGreaterThan(0);
+    for (const href of assets) {
       expect(
         (await request.get(href, { maxRedirects: 0 })).status(),
         href
       ).toBe(200);
     }
+  });
 
-    // ...while every script it references is still 401: no client code leaks.
-    const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(
-      (m) => m[1]
-    );
-    expect(scripts.length, "the page references client chunks").toBeGreaterThan(
-      0
-    );
-    for (const src of scripts) {
-      expect((await request.get(src, { maxRedirects: 0 })).status(), src).toBe(
-        401
-      );
+  test("AC-6 · the product stays behind the gate: /, /room, /rank, /match", async ({
+    request,
+  }) => {
+    for (const path of ["/", "/room", "/rank", "/match", "/results/romantic"]) {
+      const response = await request.get(path, {
+        maxRedirects: 0,
+        headers: { accept: "text/html" },
+      });
+      expect(response.status(), path).toBe(302);
+      expect(response.headers().location, path).toContain("/gate?next=");
     }
-
-    // And what the code points at is still behind the gate.
-    const intake = await request.get("/intake", {
-      maxRedirects: 0,
-      headers: { accept: "text/html" },
-    });
-    expect(intake.status()).toBe(302);
   });
 });
