@@ -28,7 +28,12 @@ const EVENTS: readonly LifeEvent[] = [
 
 const PAIRED: PairedTimeline = {
   lens: "romantic",
-  subject: { id: "ana", name: "Ana Ramírez", avatar: "avatar3" },
+  subject: {
+    id: "ana",
+    name: "Ana Ramírez",
+    avatar: "avatar3",
+    photoUrl: null,
+  },
   other: {
     id: "sofia",
     name: "Sofía Guzmán",
@@ -42,7 +47,12 @@ const PAIRED: PairedTimeline = {
 
 const FRIENDS: FriendshipTimeline = {
   lens: "friendship",
-  subject: { id: "ana", name: "Ana Ramírez", avatar: "avatar3" },
+  subject: {
+    id: "ana",
+    name: "Ana Ramírez",
+    avatar: "avatar3",
+    photoUrl: null,
+  },
   other: {
     id: "bruno",
     name: "Bruno Cortés",

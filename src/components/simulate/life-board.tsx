@@ -2,10 +2,13 @@
 
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fireEvent } from "@/components/emotes/action-bus";
+import { BabyOnBoard, type BabyPhase } from "@/components/emotes/baby-on-board";
 import { TimelineRail } from "@/components/simulate/timeline-rail";
 import type { SimulatedLife } from "@/lib/domain/reveal/timeline";
 import type { Lens } from "@/lib/domain/room/layout";
+import { cn } from "@/lib/utils";
 
 const LENS_LABEL: Record<Lens, string> = {
   romantic: "lente romántico",
@@ -25,8 +28,56 @@ const LENS_LABEL: Record<Lens, string> = {
  * the port and paints the venue. Only the number that changes as you drag is
  * on the wire.
  */
+/** Rows older than the avatar column still get a body in the reveal. */
+const FALLBACK_AVATAR = "avatar1" as const;
+
 export function LifeBoard({ life, lens }: { life: SimulatedLife; lens: Lens }) {
   const [year, setYear] = useState(life.events[0]?.year ?? 1);
+
+  // ─── DEMO ONLY · revert after the event ────────────────────────────────
+  // See openspec/changes/demo-baby-always/. The reveal plays through the
+  // action bus rather than by rendering it directly, so the presenter's
+  // `dipiaActions.fireEvent("kid", "babyOnBoard")` keeps working and the
+  // simulation and the console reach it the same way.
+  const kidYear =
+    life.events.find((event) => event.kind === "kid")?.year ?? null;
+  const [phase, setPhase] = useState<BabyPhase | null>(null);
+  const fired = useRef(false);
+
+  const pair = useMemo(
+    () => ({
+      a: {
+        avatar: life.other.avatar ?? FALLBACK_AVATAR,
+        faceUrl: life.other.photoUrl,
+        name: life.other.name,
+      },
+      b: {
+        avatar: life.subject.avatar ?? FALLBACK_AVATAR,
+        faceUrl: life.subject.photoUrl,
+        name: "Tú",
+      },
+    }),
+    [life.other, life.subject]
+  );
+
+  // The rail reports the centred year; the kid card arriving IS the cue.
+  useEffect(() => {
+    if (kidYear === null || fired.current || year < kidYear) return;
+    fired.current = true;
+    // The bus carries who and their faces; the avatars ride the props.
+    fireEvent("kid", "babyOnBoard", {
+      a: { id: life.other.id, name: pair.a.name, faceUrl: pair.a.faceUrl },
+      b: { id: life.subject.id, name: pair.b.name, faceUrl: pair.b.faceUrl },
+    });
+  }, [year, kidYear, pair, life.other.id, life.subject.id]);
+
+  // The reveal is the last beat; hold it, then give the rail back.
+  useEffect(() => {
+    if (phase !== "reveal") return;
+    const timer = setTimeout(() => setPhase(null), 5200);
+    return () => clearTimeout(timer);
+  }, [phase]);
+  // ─── end DEMO ONLY ─────────────────────────────────────────────────────
 
   return (
     <>
@@ -71,6 +122,30 @@ export function LifeBoard({ life, lens }: { life: SimulatedLife; lens: Lens }) {
       </header>
 
       <TimelineRail life={life} onYear={setYear} />
+
+      {/* DEMO ONLY · revert after the event. Mounted always so it hears the
+          action bus; invisible until a take begins. */}
+      <button
+        aria-hidden={phase === null}
+        className={cn(
+          "fixed inset-0 z-50 transition-opacity duration-500",
+          phase === null ? "pointer-events-none opacity-0" : "opacity-100"
+        )}
+        onClick={() => setPhase(null)}
+        tabIndex={phase === null ? -1 : 0}
+        type="button"
+      >
+        <BabyOnBoard
+          a={pair.a}
+          auto={false}
+          b={pair.b}
+          child={{
+            avatar: life.subject.avatar ?? FALLBACK_AVATAR,
+            faceUrl: null,
+          }}
+          onPhase={setPhase}
+        />
+      </button>
     </>
   );
 }

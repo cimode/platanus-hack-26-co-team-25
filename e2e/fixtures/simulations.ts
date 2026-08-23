@@ -102,7 +102,12 @@ function lifeFor(spec: PairSpec): SimulatedLife {
   const base = {
     // Different plates on purpose: a swap bug that puts one person's body on
     // the other is invisible when both wear the same one.
-    subject: { id: lo.id, name: lo.name, avatar: "avatar3" as const },
+    subject: {
+      id: lo.id,
+      name: lo.name,
+      avatar: "avatar3" as const,
+      photoUrl: null,
+    },
     other: {
       id: hi.id,
       name: hi.name,

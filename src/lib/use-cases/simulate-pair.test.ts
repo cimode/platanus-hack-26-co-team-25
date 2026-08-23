@@ -678,7 +678,14 @@ describe("simulatePair", () => {
     }
 
     expect(life.lens).toBe("romantic");
-    expect(life.subject).toEqual({ id: ANA, name: "Ana", avatar: null });
+    // The viewer's own photo travels with them now, so the reveal can put a
+    // face on both parents. Their own is the first exception D11 names.
+    expect(life.subject).toEqual({
+      id: ANA,
+      name: "Ana",
+      avatar: null,
+      photoUrl: `https://blob.example/${ANA}.jpg`,
+    });
     expect(life.other).toEqual({
       id: BRUNO,
       name: "Bruno",
@@ -1098,7 +1105,7 @@ describe("SimulatedLife friendship branch (AC-5 type pin)", () => {
     };
     probe({
       lens: "friendship",
-      subject: { id: ANA, name: "Ana", avatar: "avatar3" },
+      subject: { id: ANA, name: "Ana", avatar: "avatar3", photoUrl: null },
       other: { id: BRUNO, name: "Bruno", photoUrl: null, avatar: "avatar1" },
       events: [],
     });
