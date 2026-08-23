@@ -83,6 +83,25 @@ export interface Person {
 export interface EngineOptions {
   /** Restores the business Agency .05/.10 column — the stage ablation (PILLARS §3). */
   agencyOverlay?: boolean;
+  /**
+   * Terms the INSTRUMENT does not collect, so their weight is redistributed
+   * over the terms it does — proportionally, so the surviving weights keep the
+   * exact ratios PILLARS §3 published.
+   *
+   * This is not a loosening of AUDIT S15. S15 forbids renormalizing for
+   * MISSING DATA: if this person answered and that one did not, rescaling
+   * would dress the gap up as certainty, so a per-person gap still scores at
+   * its neutral midpoint with the weights untouched. What this handles is a
+   * term nobody in the room can have, because the form stopped asking (D20
+   * dropped the declared round). A term that is constant across every pair
+   * ranks nobody above anybody; leaving its weight in place does not preserve
+   * caution, it just shrinks the range the band cutoffs (AUDIT S14) were
+   * frozen against, until the whole room lands in one band.
+   *
+   * `rankRoom` derives this from the room when the caller says nothing, so it
+   * stops applying by itself the day the instrument asks again.
+   */
+  unmeasured?: readonly TermName[];
 }
 
 export interface Driver {
@@ -305,14 +324,64 @@ export function getWeights(
   opts?: EngineOptions
 ): { rank: WeightVector; sim: WeightVector } {
   const base = WEIGHTS[lens];
-  if (lens !== "business" || opts?.agencyOverlay) return base;
+  const dropAgency = lens === "business" && !opts?.agencyOverlay;
+  const drop = new Set<TermName>(opts?.unmeasured ?? []);
+  if (dropAgency) drop.add("agency");
+  if (drop.size === 0) return base;
+
   const strip = (v: WeightVector): WeightVector => {
-    const out = { ...v, agency: 0 };
-    const keep = 1 - v.agency;
+    const out = { ...v };
+    let keep = 0;
+    for (const t of TERM_ORDER) {
+      if (drop.has(t)) out[t] = 0;
+      else keep += v[t];
+    }
+    // Everything dropped would leave nothing to rank on: keep the published
+    // vector rather than divide by zero and score every pair NaN.
+    if (keep <= 0) return v;
     for (const t of TERM_ORDER) out[t] = out[t] / keep;
     return out;
   };
   return { rank: strip(base.rank), sim: strip(base.sim) };
+}
+
+/**
+ * The terms no one in this room can score on, because nothing feeds them.
+ *
+ * Read off the people themselves rather than declared in a constant, so it
+ * needs no maintenance: the day registration collects tags again,
+ * `commonGround` stops appearing here on its own.
+ */
+export function unmeasuredTerms(people: Person[]): TermName[] {
+  if (people.length === 0) return [];
+  const any = (has: (p: Person) => boolean) => people.some(has);
+  const out: TermName[] = [];
+  const shape = (p: Person) =>
+    p.declared.lifeShape.moneyPosture !== undefined ||
+    p.declared.lifeShape.rootedness !== undefined ||
+    p.declared.lifeShape.familyGravity !== undefined ||
+    p.declared.lifeShape.capacityHoursBand !== undefined ||
+    p.declared.chronotype !== undefined;
+  if (!any(shape)) out.push("lifeShape");
+  if (!any((p) => p.declared.distanceBand !== undefined)) out.push("distance");
+  if (!any((p) => p.declared.tags.length > 0)) out.push("commonGround");
+  // Structural also reads team/track/cohort, so it is only dead when every
+  // one of its inputs is.
+  const structural = (p: Person) =>
+    (p.structural.acquaintances?.length ?? 0) > 0 ||
+    p.structural.team !== undefined ||
+    p.structural.track !== undefined ||
+    p.structural.cohort !== undefined;
+  if (!any(structural)) out.push("structural");
+  for (const pillar of [
+    "regulation",
+    "politeness",
+    "reliability",
+    "agency",
+  ] as const) {
+    if (!any((p) => p.latents[pillar] !== undefined)) out.push(pillar);
+  }
+  return out;
 }
 
 /**
@@ -814,10 +883,14 @@ export function rankRoom(
 ): RankedEntry[] {
   const subject = people.find((p) => p.id === subjectId);
   if (!subject) throw new Error(`unknown subject id: ${subjectId}`);
+  const effective: EngineOptions = {
+    ...opts,
+    unmeasured: opts?.unmeasured ?? unmeasuredTerms(people),
+  };
   const out: RankedEntry[] = [];
   for (const other of people) {
     if (other.id === subject.id) continue;
-    const score = scorePair(subject, other, lens, opts);
+    const score = scorePair(subject, other, lens, effective);
     if (score.eligible) out.push({ id: other.id, name: other.name, ...score });
   }
   out.sort((x, y) => y.rank - x.rank || (x.id < y.id ? -1 : 1));
