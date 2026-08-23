@@ -2,8 +2,18 @@ name: CI
 
 on:
   pull_request:
+  # Every branch, not just `main`. PRs live on the platanus-hack repo, whose
+  # NEON_API_KEY cannot be set -- so `neon branch` 401s there and every test
+  # job skips. The real suite runs on the personal mirror, which receives the
+  # same commits by push but never sees a `pull_request` event. Scoped to
+  # `main`, that mirror only ever validated code *after* it was merged.
+  # A branch push is the only trigger that reaches it in time to matter.
+  #
+  # Cost: on platanus-hack a PR branch now runs twice (push + pull_request),
+  # since `concurrency` groups them under different refs. Both die at the 401
+  # in ~20s, so this is cheaper than merging blind.
   push:
-    branches: [main]
+    branches: ["**"]
 
 # Cancel a running pipeline when the same ref is pushed again. During a 36h
 # crunch with three people pushing, this is the difference between useful
