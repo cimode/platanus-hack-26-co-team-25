@@ -1,35 +1,44 @@
+import type { ProfileView } from "@/components/profile/mock";
 import { TagChips } from "@/components/profile/tag-chips";
-import type { PersonProfile } from "@/lib/domain/reveal/profile";
 
 /**
- * The dashed card: why the two of you, in the design's own shape.
+ * The dashed card: who this person is, then why the two of you.
  *
- * The design labels this "SMALL BIO" and fills it with free prose. **We do not
- * have a bio and do not invent one** -- `PersonProfile` carries no such field,
- * and adding one would widen a contract issue #10 implements, on our own
- * authority, to put fabricated sentences in a named participant's mouth (R17).
- * Fabricating a band is a fixture doing its job; fabricating someone's
- * self-description is not.
+ * Near-opaque, not translucent. The venue sits behind this screen and the first
+ * attempt let it through at 55% -- which looked atmospheric in a thumbnail and
+ * made the bio unreadable at arm's length, with the sponsor wall showing between
+ * the lines. Text gets a solid ground. Everything else can be atmosphere.
  *
- * So the card keeps the design's shape and holds what we actually have: the
- * named reasons AC-PROF-3 requires, and the shared tags as chips inside the
- * card rather than loose beneath it.
+ * The bio leads because it is what you read first when you are deciding whether
+ * to spend a life with someone -- the compatibility reasons are the machine's
+ * opinion, and the machine goes second. The reasons stay in the card anyway:
+ * AC-PROF-3 requires one bond line and at most one friction line on this
+ * screen, and a card that dropped them to look cleaner would be prettier and
+ * wrong.
+ *
+ * The bio is MOCKED and stands in for an AI step over intake's declared data.
+ * It is composed from this person's own tags, so the sentence and the chips
+ * below it can never contradict each other.
  */
-export function ProfileCard({ profile }: { profile: PersonProfile }) {
+export function ProfileCard({ profile }: { profile: ProfileView }) {
   return (
     <section
-      aria-label="Por qué encajan"
-      className="mx-6 rounded-[18px] border-2 border-ink-faint/30 border-dashed px-4 pt-3 pb-3.5"
+      aria-label="Quién es y por qué encajan"
+      className="mx-6 rounded-[18px] border-2 border-ink-faint/45 border-dashed bg-background/95 px-4 pt-3 pb-3.5 backdrop-blur-[2px]"
     >
       <p className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.1em]">
-        por qué encajan
+        small bio
       </p>
 
       <p className="mt-2 font-display text-[15px] text-ink leading-relaxed">
+        {profile.bio}
+      </p>
+
+      <p className="mt-3 font-mono text-[10.5px] text-ink-muted leading-relaxed">
         {profile.standing.bond.label}
       </p>
       {profile.standing.friction ? (
-        <p className="mt-0.5 font-display text-[15px] text-ink-muted leading-relaxed">
+        <p className="font-mono text-[10.5px] text-ink-faint leading-relaxed">
           {profile.standing.friction.label}
         </p>
       ) : null}

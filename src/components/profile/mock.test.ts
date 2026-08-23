@@ -132,6 +132,39 @@ describe("mockProfile", () => {
     }
   });
 
+  it("writes a bio from THEIR tags, never from the shared ones", () => {
+    // A bio is a person describing themselves. Composing it from the
+    // intersection would describe them as a function of whoever is looking,
+    // and two viewers would read two different people.
+    const a = room("romantic");
+    const b = room("friendship");
+    if (a.status !== "ranked" || b.status !== "ranked") throw new Error("x");
+    const id = a.entries[0].id;
+    expect(mockProfile(id, a, CANDIDATES)?.bio).toBe(
+      mockProfile(id, b, CANDIDATES)?.bio
+    );
+  });
+
+  it("keeps the bio in neutral Spanish", () => {
+    // A REGRESSION GUARD with a story: the persona this assistant writes in is
+    // Rioplatense, and it leaked into six UI strings on screens 1c and 1d
+    // before anyone caught it. Generated prose is exactly where it would leak
+    // again, so the rule is a test now rather than a note.
+    const current = room("romantic");
+    if (current.status !== "ranked") throw new Error("not ranked");
+    for (const entry of current.entries) {
+      const bio = mockProfile(entry.id, current, CANDIDATES)?.bio ?? "";
+      expect(bio.length, entry.id).toBeGreaterThan(20);
+      expect(bio, entry.id).not.toMatch(
+        /\b(vos|sos|ten[eé]s|quer[eé]s|pod[eé]s|sab[eé]s)\b/i
+      );
+      // No gendered adjective: the roster carries names, not genders, and
+      // "Madrugadora" on a person who declared none is a guess.
+      expect(bio, entry.id).not.toMatch(/\b\w+(ador|adora|ito|ita)\b/);
+      expect(bio.endsWith("."), entry.id).toBe(true);
+    }
+  });
+
   it("is deterministic across calls", () => {
     for (const lens of LENSES) {
       expect(profile("p-ana-ramirez", lens)).toEqual(

@@ -1,3 +1,4 @@
+import { mockBio } from "@/components/profile/bio";
 import type { RankCandidate } from "@/components/rank/mock";
 import { TAGS } from "@/lib/domain/participant/tags";
 import type { PersonProfile } from "@/lib/domain/reveal/profile";
@@ -58,6 +59,20 @@ export function mockTagsFor(id: string): readonly string[] {
 }
 
 /**
+ * What screen 1d paints: the shared contract plus the one thing the contract
+ * does not carry.
+ *
+ * `bio` is NOT on `PersonProfile` and must not become so. Issue #10 produces a
+ * ranking, not prose; the bio comes from an AI step over intake's declared data
+ * and has its own source. Composing them here -- a view type beside the screen
+ * -- is the same rule R9/R13 settled: contract if someone else implements it,
+ * otherwise view.
+ */
+export interface ProfileView extends PersonProfile {
+  readonly bio: string;
+}
+
+/**
  * One person, as this viewer is allowed to see them.
  *
  * Every suppression cause returns the SAME `null`: unknown id, the viewer
@@ -70,7 +85,7 @@ export function mockProfile(
   personId: string,
   room: RankedRoom,
   candidates: readonly RankCandidate[]
-): PersonProfile | null {
+): ProfileView | null {
   if (room.status !== "ranked") return null;
   if (personId === room.viewer.id) return null;
 
@@ -83,9 +98,14 @@ export function mockProfile(
   // ground even by accident, and the way to guarantee that is to never send
   // them (AC-PROF-3).
   const mine = new Set(mockTagsFor(room.viewer.id));
-  const shared = mockTagsFor(personId).filter((tag) => mine.has(tag));
+  const theirs = mockTagsFor(personId);
+  const shared = theirs.filter((tag) => mine.has(tag));
 
   return {
+    // Written from THEIR tags, not the shared ones: a bio is a person
+    // describing themselves, and trimming it to what you happen to have in
+    // common would be describing them as a function of you.
+    bio: mockBio(personId, theirs),
     id: entry.id,
     name: entry.name,
     photoUrl: entry.photoUrl,

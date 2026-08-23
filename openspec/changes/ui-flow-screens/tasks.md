@@ -539,17 +539,41 @@ It remains the ONLY number on the screen and nothing else here may become a
 second one. If the product decides otherwise it is one line in
 `components/profile/standing-pill.tsx`.
 
-**2. A "SMALL BIO" card of free prose.** Not built, and deliberately.
-`PersonProfile` carries no bio field, and adding one would widen a contract issue
-#10 implements — on our own authority, to put fabricated sentences in a named
-participant's mouth. **Fabricating a band is a fixture doing its job;
-fabricating someone's self-description is not.** The card keeps the design's
-shape (dashed border, mono label, chips inside) and holds what we actually have:
-the bond and friction lines AC-PROF-3 requires, plus the shared tags.
+**2. A "SMALL BIO" card of free prose. BUILT — the objection was answered, not
+sustained.** The first pass refused to fabricate it: `PersonProfile` carries no
+bio field, and adding one would put invented sentences in a named participant's
+mouth. **The product owner overruled it, and correctly** — the bio is real
+product, written by an AI over intake's declared data once that data exists, and
+mocking a stand-in is what a fixture is for.
 
-**3. The venue background is dropped on 1d.** 1c carries it because the user
-asked for it there; the 1d design is plain, and the sprite is the subject of the
-lower half. Following the design beat inventing continuity it does not ask for.
+What the objection DID change is where it lives. `bio` is **not** on
+`PersonProfile` and must not become so: issue #10 produces a ranking, not prose,
+and the bio has its own future source. It sits on `ProfileView`, a screen-local
+type in `components/profile/mock.ts` that extends the contract — the same rule
+R9/R13 settled, applied to a field instead of a function.
+
+`mockBio` composes from the person's OWN tags, not the shared ones. A bio is
+someone describing themselves; composing it from the intersection would describe
+them as a function of whoever is looking, and two viewers would read two
+different people. It carries no gendered adjective either — the roster holds
+names, not genders, and "Madrugadora" on a person who declared none is a guess
+the product has no business making. Both properties are tested, along with a
+**voseo regression guard**: generated prose is exactly where the assistant's
+Rioplatense persona would leak back in, so the rule is a test now, not a note.
+
+**3. The venue background stays on 1d**, by the product owner's call — the flow
+never leaves the room. It is veiled harder than on 1c and for a concrete reason:
+1c's content is short chips and big ordinals, this screen's content is a
+paragraph, and a paragraph read over a sponsor wall is not atmospheric, it is
+unreadable. So the wash is **opaque across the top third** and only opens below
+the CTA, and the card itself is near-solid. The room shows where there is
+nothing to read — which is where the person is standing anyway.
+
+**4. The sprite caption is gone.** The first build shipped the design's
+annotation, "la foto real se inserta en la cara del sprite", as if it were
+product copy. It was a note to whoever reads the mockup, not to whoever uses the
+app. Explaining your own art on screen is the tell of a screen that does not
+trust it.
 
 ### R16 — AC-PROF-2's lens scenario is not reachable, and the e2e says so
 

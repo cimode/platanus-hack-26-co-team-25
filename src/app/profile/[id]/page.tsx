@@ -69,10 +69,12 @@ export default async function ProfilePage({
     <main
       className={cn(
         `lens-${lens}`,
-        "mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden"
+        "relative mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden"
       )}
     >
-      <header className="flex shrink-0 items-center gap-1.5 px-6 pt-5 pb-3">
+      <VenueFloor />
+
+      <header className="relative flex shrink-0 items-center gap-1.5 px-6 pt-5 pb-3">
         <Link
           aria-label="Volver al ranking"
           className="-ml-1 shrink-0 text-ink-muted transition-colors hover:text-ink"
@@ -99,7 +101,7 @@ export default async function ProfilePage({
         the viewer is never in a URL, so a link that leaks out of this session
         names a person and nothing about who was looking at them (AC-PROF-5).
       */}
-      <div className="shrink-0 px-6 pt-4">
+      <div className="relative shrink-0 px-6 pt-4">
         <Link
           className={cn(
             "flex w-full items-center justify-center rounded-[16px] bg-primary px-5 py-3.5",
@@ -113,10 +115,42 @@ export default async function ProfilePage({
         </Link>
       </div>
 
-      <div className="mt-5 h-px shrink-0 bg-ink-faint/20" />
+      <div className="relative mt-5 h-px shrink-0 bg-ink-faint/20" />
 
       <AvatarStage name={profile.name} photoUrl={profile.photoUrl} />
     </main>
+  );
+}
+
+/**
+ * The same room as 1b and 1c, so the flow never leaves the venue.
+ *
+ * The veil is OPAQUE across the top third and only opens up below the CTA.
+ * Screen 1c could afford a lighter wash because its content is short chips and
+ * big ordinals; this screen's content is a paragraph, and a paragraph read over
+ * a sponsor wall is not atmospheric, it is unreadable. The room shows where
+ * there is nothing to read -- which is where the person is standing anyway.
+ */
+function VenueFloor() {
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="pixelated pointer-events-none absolute inset-0 bg-cover opacity-[0.2]"
+        style={{
+          backgroundImage: "url(/venue.jpg)",
+          backgroundPosition: "center 74%",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, var(--background) 0%, var(--background) 22%, color-mix(in oklab, var(--background) 84%, transparent) 46%, color-mix(in oklab, var(--background) 55%, transparent) 100%)",
+        }}
+      />
+    </>
   );
 }
 
