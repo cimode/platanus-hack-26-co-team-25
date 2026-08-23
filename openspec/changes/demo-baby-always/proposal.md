@@ -40,12 +40,24 @@ Two things had to be true and only one of them was:
 
 - The survival window on the kid arc, suspended so that every romantic pair
   gets one regardless of when they split.
+- `e2e` removed from the production deploy gate in `.github/workflows/ci.yml`,
+  so main deploys without waiting for Playwright. Playwright is ~6 of the ~8
+  minutes of a main run and every other check finishes inside one; in the hours
+  before the event, a deploy that lands in two minutes is worth more than one
+  that is provably browser-clean in nine. The job still runs and still reports
+  — it is a signal now, not a gate. The cost is real and is why this is
+  temporary: a browser regression now reaches production and is caught minutes
+  after rather than before.
 
 ## Revert
 
 1. `src/lib/domain/timeline/index.ts` — restore `if (maxKid >= 3) {` around the
    kid-arc block and drop the `window` / `Math.max(1, …)` clamp.
-2. Decide whether `LifeBoard`'s overlay stays. It is harmless with the window
+2. `.github/workflows/ci.yml` — put `e2e` back in `migrate-production.needs`,
+   in `deploy-production.needs`, and restore
+   `&& needs.e2e.result == 'success'` in `deploy-production`'s `if`. Both
+   blocks carry a `DEMO ONLY` banner marking exactly what to undo.
+3. Decide whether `LifeBoard`'s overlay stays. It is harmless with the window
    restored: no kid event, no fire, nothing renders.
 
 ## What was NOT touched
