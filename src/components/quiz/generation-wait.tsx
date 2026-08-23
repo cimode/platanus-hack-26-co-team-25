@@ -34,7 +34,7 @@ export function GenerationWait({ avatar }: { avatar: Avatar | null }) {
         </p>
       </SceneStage>
 
-      <AutoRefresh everyMs={3000} />
+      <AutoRefresh everyMs={4000} />
     </main>
   );
 }

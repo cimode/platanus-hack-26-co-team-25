@@ -7,7 +7,7 @@ import { readSessionToken } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
 import { intakeStepOf } from "@/lib/domain/participant";
 import { topUpQuizPool } from "@/lib/use-cases/ensure-quiz-batch";
-import { poolTarget } from "./pool-target";
+import { poolSlots, poolTarget } from "./pool-target";
 
 /**
  * `/intake` -- the one registration screen (issue #42, docs/domain.md D18).
@@ -77,7 +77,8 @@ export default async function IntakePage(props: PageProps<"/intake">) {
   // Closed over as a plain string: nothing request-scoped inside the callback.
   const roomId = room.id;
   const target = poolTarget();
-  after(() => topUpQuizPool({ roomId, target }, serverDeps()));
+  const slots = poolSlots();
+  after(() => topUpQuizPool({ roomId, target, slots }, serverDeps()));
 
   return (
     <IntakeShell step={FLOW_REGISTER_STEP}>

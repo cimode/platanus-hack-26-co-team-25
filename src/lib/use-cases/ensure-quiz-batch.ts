@@ -61,13 +61,26 @@ export interface GenerationDeps {
 const BATCH_COUNT = BLOCK_COUNT / BLOCKS_PER_BATCH;
 
 /**
- * How many unclaimed forms a room keeps warm. Registrations arrive in bursts
- * when the QR goes up; four covers a burst while the slots below refill.
+ * How many unclaimed forms a room keeps warm.
+ *
+ * Sized for the room, not for a trickle: ~100 people scan the same QR within
+ * a few minutes, and a form that is not already written costs its owner the
+ * wait screen. Twenty-four is what a ten-minute pre-warm produces at the
+ * concurrency below, and the pool only ever authors the deficit, so a quiet
+ * room never pays for it.
  */
-export const POOL_TARGET = 4;
+export const POOL_TARGET = 24;
 
-/** How many pool forms may be authored concurrently for one room. */
-export const POOL_SLOTS = 4;
+/**
+ * How many pool forms may be authored concurrently for one room.
+ *
+ * This is the room's throughput, not a safety limit: one form is ~130 s of
+ * waiting on the gateway, so the room produces `POOL_SLOTS / 130 s` forms —
+ * four slots is 1.85/min, which a hundred arrivals outrun ten times over.
+ * Twelve is 5.5/min and still only twelve in-flight HTTP calls per room.
+ * `HOOKAI_QUIZ_POOL_SLOTS` overrides it (`src/app/intake/pool-target.ts`).
+ */
+export const POOL_SLOTS = 12;
 
 /**
  * The chain's default budget. Batch 1 and then 2 ∥ 3 at 40–70 s each fit
@@ -75,6 +88,17 @@ export const POOL_SLOTS = 4;
  * `after()` with, so an invocation stops itself before the platform does.
  */
 export const DEFAULT_BUDGET_MS = 240_000;
+
+/**
+ * What one pool form may spend before it stores what it has.
+ *
+ * `after()` is killed at the page's `maxDuration` (300 s), and a form that is
+ * killed mid-write stores NOTHING: the gateway spend is lost and the slot's
+ * claim sits held until it goes stale. So the form watches its own clock and
+ * settles for what it has — a set of five or ten blocks is a usable set (the
+ * adopter's chain writes the rest), an empty invocation is not.
+ */
+export const FORM_BUDGET_MS = 220_000;
 
 /** How many of the room's latest scenarios the author is told to avoid. */
 const RECENT_SCENARIOS = 40;
@@ -129,59 +153,87 @@ async function releaseQuietly(
 function laterPlan(
   seed: string,
   batches: number[],
-  known: Block[],
-  recent: string[]
-): { avoid: string[]; domainsFor: (batch: number) => string[] } {
-  const avoid = unique([...known.map((b) => b.scenario), ...recent]);
+  known: Block[]
+): { domainsFor: (batch: number) => string[] } {
   const knownDomains = known.map((b) => b.domain);
   const plannedTwo = batches.includes(2)
     ? assignmentsForBatch(seed, 2, knownDomains).map((a) => a.domain)
     : [];
   return {
-    avoid,
     domainsFor: (batch) =>
       batch === 3 ? [...knownDomains, ...plannedTwo] : knownDomains,
   };
 }
 
-/** One complete form for `seed`: batch 1, then batches 2 and 3 side by side. */
+/**
+ * One form for `seed`: batch 1, then batches 2 and 3 side by side, inside
+ * `budgetMs`.
+ *
+ * Best-effort past batch 1. A set of five or ten blocks is a usable set —
+ * `adoptPoolSet` stores whatever it holds and the adopter's own chain writes
+ * the rest — so a late or failing batch 3 costs the adopter one wait, while
+ * giving the whole form up costs ~150 s of gateway spend and leaves the room
+ * with nothing. Batch 1 is the exception: a form without it is not a form.
+ */
 async function authorForm(
   seed: string,
   roomId: string,
   language: string | undefined,
-  deps: GenerationDeps
+  deps: GenerationDeps,
+  budgetMs: number
 ): Promise<Block[]> {
+  const startedAt = Date.now();
+  const left = () => budgetMs - (Date.now() - startedAt);
+
   const recent = await deps.pool.recentScenarios(roomId, RECENT_SCENARIOS);
   const first = await generateQuizBatch(
-    { participantId: seed, batch: 1, previousScenarios: recent, language },
+    {
+      participantId: seed,
+      batch: 1,
+      previousScenarios: recent,
+      language,
+      deadlineMs: left(),
+    },
     { llm: deps.llm }
   );
+  if (left() <= 0) return first.blocks;
 
-  const plan = laterPlan(seed, [2, 3], first.blocks, recent);
+  const plan = laterPlan(seed, [2, 3], first.blocks);
+  const avoid = unique([...first.blocks.map((b) => b.scenario), ...recent]);
   const authorLater = (batch: number) =>
     generateQuizBatch(
       {
         participantId: seed,
         batch,
-        previousScenarios: plan.avoid,
+        previousScenarios: avoid,
         storedDomains: plan.domainsFor(batch),
         language,
+        deadlineMs: left(),
       },
       { llm: deps.llm }
     );
 
-  // A batch that still has an invalid position after its own repair and final
-  // passes gets one fresh attempt before the whole form is given up: losing
-  // ~150 s of authoring over one nine-word option is the expensive outcome,
-  // and a re-sample nearly always lands.
+  // One fresh attempt for a batch that came back invalid, but only while
+  // there is real time for it: under load the clock is the scarce thing, and
+  // a partial set beats an invocation killed with nothing written.
   const settled = await Promise.allSettled([2, 3].map(authorLater));
   const later = await Promise.all(
-    settled.map((outcome, i) =>
-      outcome.status === "fulfilled" ? outcome.value : authorLater(i + 2)
-    )
+    settled.map(async (outcome, i) => {
+      if (outcome.status === "fulfilled") return outcome.value.blocks;
+      if (left() < RETRY_FLOOR_MS) return [];
+      try {
+        return (await authorLater(i + 2)).blocks;
+      } catch (error) {
+        warn(`pool form batch ${i + 2} gave up for room ${roomId}`, error);
+        return [];
+      }
+    })
   );
-  return [...first.blocks, ...later.flatMap((result) => result.blocks)];
+  return [...first.blocks, ...later.flat()];
 }
+
+/** Below this much of the budget, a failed later batch is left to the adopter. */
+const RETRY_FLOOR_MS = 90_000;
 
 /**
  * Write every batch this participant is missing — batch 1 first, then 2 and 3
@@ -232,7 +284,19 @@ export async function continueQuizGeneration(
     );
     if (missing.length === 0) return;
 
-    const recent = await deps.pool.recentScenarios(roomId, RECENT_SCENARIOS);
+    // Read once, lazily, and only from inside a won claim: every poll from a
+    // waiting phone reaches this function, and this is its only expensive
+    // query (a join over the room's blocks). A poll that loses the claim must
+    // not pay for it -- at a hundred waiting phones that was the difference
+    // between ~10 statements per poll and ~4.
+    let roomScenarios: string[] | null = null;
+    const recentScenarios = async (): Promise<string[]> => {
+      roomScenarios ??= await deps.pool.recentScenarios(
+        roomId,
+        RECENT_SCENARIOS
+      );
+      return roomScenarios;
+    };
     // Everything this person has been or may be shown, fallback rows included:
     // the avoid list is about what they read, not about who wrote it.
     const ownScenarios = () => own.map((row) => row.block.scenario);
@@ -273,7 +337,10 @@ export async function continueQuizGeneration(
           {
             participantId,
             batch: 1,
-            previousScenarios: unique([...ownScenarios(), ...recent]),
+            previousScenarios: unique([
+              ...ownScenarios(),
+              ...(await recentScenarios()),
+            ]),
             storedDomains: ownBlocks()
               .filter((block) => block.batch !== 1)
               .map((block) => block.domain),
@@ -302,11 +369,9 @@ export async function continueQuizGeneration(
 
     // Both batches are planned from one snapshot, then authored at once; each
     // claims, writes and releases on its own, so one lost claim costs nothing
-    // to the other.
-    const plan = laterPlan(participantId, later, ownBlocks(), [
-      ...ownScenarios(),
-      ...recent,
-    ]);
+    // to the other. The plan is pure (no I/O), so it is safe to build before
+    // the claims; only the avoid list waits until a claim is won.
+    const domainsFor = laterPlan(participantId, later, ownBlocks()).domainsFor;
     await Promise.all(
       later.map((batch) =>
         write(batch, async () => {
@@ -314,8 +379,11 @@ export async function continueQuizGeneration(
             {
               participantId,
               batch,
-              previousScenarios: plan.avoid,
-              storedDomains: plan.domainsFor(batch),
+              previousScenarios: unique([
+                ...ownScenarios(),
+                ...(await recentScenarios()),
+              ]),
+              storedDomains: domainsFor(batch),
               language,
             },
             { llm: deps.llm }
@@ -335,22 +403,32 @@ export async function continueQuizGeneration(
  *
  * Each form is planned for a synthetic seed so `assignmentsFor` draws fresh
  * settings and twists; the room's latest scenarios are the avoid list, so two
- * forms written the same minute still tell different stories. `target` is the
- * driving adapter's call (the e2e server passes 0): the use case only knows
- * the default.
+ * forms written the same minute still tell different stories. `target` and
+ * `slots` are the driving adapter's call (the e2e server passes target 0): the
+ * use case only knows the defaults.
  */
 export async function topUpQuizPool(
-  input: { roomId: string; language?: string; target?: number },
+  input: {
+    roomId: string;
+    language?: string;
+    target?: number;
+    slots?: number;
+    budgetMs?: number;
+  },
   deps: GenerationDeps
 ): Promise<void> {
   const { roomId, language } = input;
   const target = input.target ?? POOL_TARGET;
+  const slots = Math.max(0, input.slots ?? POOL_SLOTS);
+  const budgetMs = input.budgetMs ?? FORM_BUDGET_MS;
   try {
     const deficit = target - (await deps.pool.unclaimedCount(roomId));
-    if (deficit <= 0) return;
+    if (deficit <= 0 || slots === 0) return;
 
+    // One claim statement per slot, so the loop stops at the deficit rather
+    // than probing slots this call has no work for.
     const scopes: string[] = [];
-    for (let slot = 0; slot < POOL_SLOTS && scopes.length < deficit; slot++) {
+    for (let slot = 0; slot < slots && scopes.length < deficit; slot++) {
       const candidate = poolScope(roomId, slot);
       if (await deps.claims.claim(candidate)) scopes.push(candidate);
     }
@@ -363,7 +441,8 @@ export async function topUpQuizPool(
             `pool:${crypto.randomUUID()}`,
             roomId,
             language,
-            deps
+            deps,
+            budgetMs
           );
           await deps.pool.add(roomId, blocks);
           await releaseQuietly(deps.claims, scope, "ready");

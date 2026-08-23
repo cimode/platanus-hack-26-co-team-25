@@ -578,7 +578,7 @@ describe("topUpQuizPool", () => {
     const pool = fakePool({ unclaimed: [[]] });
     const w = world("unused", { pool });
 
-    await topUpQuizPool({ roomId: ROOM }, w.deps);
+    await topUpQuizPool({ roomId: ROOM, target: 4 }, w.deps);
 
     // One warm, target four: three forms, three slots, three releases.
     expect(w.claims.claimed).toEqual([
@@ -592,7 +592,34 @@ describe("topUpQuizPool", () => {
       "ready",
     ]);
     expect(pool.added).toHaveLength(3);
-    expect(pool.unclaimed).toHaveLength(POOL_TARGET);
+    expect(pool.unclaimed).toHaveLength(4);
+  });
+
+  it("scales with the room: a deficit of twelve is twelve forms at once", async () => {
+    // The room's throughput IS this number -- one form is ~130 s of waiting on
+    // the gateway, so four slots is 1.85 forms a minute and a hundred people
+    // outrun it ten times over (the event's failure mode).
+    const pool = fakePool();
+    const w = world("unused", { pool });
+
+    await topUpQuizPool({ roomId: ROOM, target: 12, slots: 12 }, w.deps);
+
+    expect(w.claims.claimed).toHaveLength(12);
+    expect(pool.added).toHaveLength(12);
+    expect(pool.unclaimed).toHaveLength(12);
+    for (const form of pool.added) {
+      expect(form.map((b) => b.position)).toHaveLength(15);
+    }
+  });
+
+  it("never opens more slots than the deficit", async () => {
+    const pool = fakePool({ unclaimed: [[], []] });
+    const w = world("unused", { pool });
+
+    await topUpQuizPool({ roomId: ROOM, target: 3, slots: 12 }, w.deps);
+
+    expect(w.claims.claimed).toEqual([`pool:${ROOM}:0`]);
+    expect(pool.added).toHaveLength(1);
   });
 
   it("does nothing when the room already holds the target", async () => {
@@ -602,6 +629,7 @@ describe("topUpQuizPool", () => {
     const w = world("unused", { pool });
 
     await topUpQuizPool({ roomId: ROOM }, w.deps);
+    // POOL_TARGET warm and POOL_TARGET asked for: no deficit, no claim probe.
 
     expect(w.claims.claimed).toHaveLength(0);
     expect(w.model.sent).toHaveLength(0);
@@ -622,7 +650,7 @@ describe("topUpQuizPool", () => {
     const pool = fakePool();
     const w = world("unused", { pool, lose: () => true });
 
-    await topUpQuizPool({ roomId: ROOM }, w.deps);
+    await topUpQuizPool({ roomId: ROOM, target: 4, slots: 4 }, w.deps);
 
     expect(w.claims.claimed).toEqual([
       `pool:${ROOM}:0`,
@@ -632,6 +660,16 @@ describe("topUpQuizPool", () => {
     ]);
     expect(w.model.sent).toHaveLength(0);
     expect(pool.added).toHaveLength(0);
+  });
+
+  it("does nothing when the room has no slots", async () => {
+    const pool = fakePool();
+    const w = world("unused", { pool });
+
+    await topUpQuizPool({ roomId: ROOM, target: 4, slots: 0 }, w.deps);
+
+    expect(w.claims.claimed).toHaveLength(0);
+    expect(w.model.sent).toHaveLength(0);
   });
 
   it("takes the first free slot when earlier ones are held", async () => {
@@ -672,7 +710,7 @@ describe("topUpQuizPool", () => {
     };
 
     await topUpQuizPool(
-      { roomId: ROOM, target: 1 },
+      { roomId: ROOM, target: 1, slots: 1 },
       { ...inner.deps, llm: stubborn }
     );
 

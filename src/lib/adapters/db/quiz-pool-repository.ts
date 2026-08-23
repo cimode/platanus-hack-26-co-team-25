@@ -9,7 +9,7 @@
 
 import { and, count, desc, eq, isNull, ne, sql } from "drizzle-orm";
 
-import type { Block } from "../../domain/quiz/index.ts";
+import { BLOCK_COUNT, type Block } from "../../domain/quiz/index.ts";
 import type { QuizPoolRepository } from "../../ports/quiz-pool.ts";
 import type { Db } from "./client";
 import { participants } from "./schema/participants";
@@ -97,8 +97,8 @@ export function createQuizPoolRepository(db: Db): QuizPoolRepository {
           .from(quizPoolSets)
           .where(eq(quizPoolSets.roomId, roomId))
           .orderBy(desc(quizPoolSets.createdAt))
-          // A set holds at least five; enough sets to fill the limit on their own.
-          .limit(Math.ceil(limit / 5)),
+          // A set holds a whole form; enough sets to fill the limit alone.
+          .limit(Math.ceil(limit / BLOCK_COUNT)),
       ]);
 
       const dated: { scenario: string; at: number }[] = [
