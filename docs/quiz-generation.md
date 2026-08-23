@@ -57,7 +57,22 @@ about 45 s after starting; a batch takes 40–70 s to author. Anything written
 after registration is outrun — first at block 6, then at block 11 — so the
 pool holds **whole forms**: batch 1, then batches 2 and 3 side by side (~100–
 150 s per form), written while the QR is on the wall (`/qr`) and while the
-registration form is open (`/intake`), up to four per room at once. Adoption
+registration form is open (`/intake`), `POOL_SLOTS` per room at once.
+
+That number is the room's throughput, and it is the whole ballgame at event
+scale: a form takes ~130 s, so four slots is 1.85 forms/min and a hundred
+people arriving over ten minutes outrun it five times over — 84 of them would
+meet the wait screen. Twelve slots is 5.5/min, and a pool opened ten minutes
+before the doors is already full when the first phone scans. Both numbers are
+operator knobs (`HOOKAI_QUIZ_POOL_TARGET`, `HOOKAI_QUIZ_POOL_SLOTS`, read in
+`src/app/intake/pool-target.ts`), because the right value is a property of the
+room, not of the code. **Open `/qr` a few minutes before the first scan.**
+
+A form is also bounded and best-effort: `FORM_BUDGET_MS` (220 s) keeps it
+inside the page's 300 s `maxDuration`, and batches 2 and 3 are stored if they
+land — a five- or ten-block set is a usable set, and the adopter's own chain
+writes the rest. Before that budget existed, a form killed at `maxDuration`
+stored nothing at all and the gateway spend was lost. Adoption
 hands over all fifteen blocks, zero wait anywhere. The chain is the cold-room
 fallback and follows the same shape, 1 then 2 ∥ 3, so even then there is at
 most one wait, at block 1.

@@ -94,6 +94,7 @@ export function BlockScreen({
   const player = useEmotePlayer();
   const formRef = useRef<HTMLFormElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const giveUp = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The reaction sheet is ~160KB; fetched once, after hydration, while the
   // scenario is being read, so the first celebration has a frame to show and
@@ -106,6 +107,7 @@ export function BlockScreen({
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
+      if (giveUp.current) clearTimeout(giveUp.current);
     },
     []
   );
@@ -126,6 +128,13 @@ export function BlockScreen({
       timer.current = setTimeout(() => {
         formRef.current?.requestSubmit(submitter);
       }, SUBMIT_DELAY_MS);
+      // Venue wifi drops requests. Without this the screen locks on the first
+      // tap that never reaches the server -- the four rows stay out of play,
+      // the block never advances, and the only way out is a reload nobody
+      // thinks to try. A tap that has not navigated in ten seconds is a tap
+      // that failed, so the rows come back and the participant can try again.
+      // (The Server Action upserts by position, so a double answer is one row.)
+      giveUp.current = setTimeout(() => setSubmitting(false), GIVE_UP_MS);
       return;
     }
 
@@ -206,7 +215,12 @@ export function BlockScreen({
         {/* Four full-width replies, centred in whatever height the bubble
             left. `min-h-0` keeps the last row on screen at 390x844 whatever
             the copy does -- a row below the fold is a row nobody taps (§7.1). */}
-        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
+        {/* `overflow-y-auto` is the concession to a phone smaller than the
+            390x844 target: the column cannot scroll (h-dvh, overflow-hidden),
+            so without it a long scenario plus four long options would push the
+            fourth row off a 640px screen with no way to reach it. At the
+            target size nothing overflows and nothing scrolls. */}
+        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 overflow-y-auto">
           {rows.map((option) => (
             <OptionRow
               key={option.key}
@@ -235,6 +249,9 @@ export function BlockScreen({
 
 /** Long enough for the press and the hop to read; short enough to feel like a tap. */
 const SUBMIT_DELAY_MS = 650;
+
+/** After this, a tap that has not navigated is assumed lost and can be retaken. */
+const GIVE_UP_MS = 10_000;
 
 /**
  * `block.options` in the slots `order` names, e.g. `"dacb"` → d, a, c, b.

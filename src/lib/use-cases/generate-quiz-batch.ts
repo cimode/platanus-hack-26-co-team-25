@@ -73,6 +73,13 @@ export interface GenerateQuizBatchInput {
    */
   storedDomains?: string[];
   language?: string;
+  /**
+   * Wall-clock ceiling for the whole batch, from the first call. Reached, the
+   * remaining passes are skipped and the batch throws with whatever it could
+   * not fill — deliberately, because a batch that outlives
+   * `STALE_CLAIM_SECONDS` has its claim taken over and is authored twice.
+   */
+  deadlineMs?: number;
 }
 
 export interface GenerateQuizBatchResult {
@@ -116,6 +123,14 @@ export class QuizAuthoringError extends Error {
 
 /** How many times the first author call is retried when the model itself fails. */
 const AUTHOR_ATTEMPTS = 3;
+
+/**
+ * The default ceiling: seven serial gateway calls at 60 s each is 420 s, and a
+ * batch that runs that long is authored twice (its claim goes stale at 240 s
+ * and its invocation is killed at 300 s). 200 s covers every measured batch —
+ * 40–70 s nominal, ~120 s with a repair — and cuts the pathological tail.
+ */
+const DEADLINE_MS = 200_000;
 /** Targeted calls after the repair pass, for what is still missing. */
 const FINAL_PASSES = 2;
 
@@ -215,6 +230,11 @@ export async function generateQuizBatch(
   if (![1, 2, 3].includes(batch)) {
     throw new QuizGenerationError(`batch must be 1, 2 or 3, got ${batch}`);
   }
+
+  const startedAt = Date.now();
+  const deadlineMs = input.deadlineMs ?? DEADLINE_MS;
+  /** False once there is no time for another gateway call. */
+  const inTime = () => Date.now() - startedAt < deadlineMs;
 
   const plan = assignmentsForBatch(participantId, batch, input.storedDomains);
   const planAt = new Map(plan.map((a) => [a.position, a]));
@@ -339,7 +359,11 @@ export async function generateQuizBatch(
   // --- stage 1: author the batch, retrying only a failed model ------------
   let authored: AuthoredBlocks | null = null;
   let lastFailure: unknown;
-  for (let attempt = 1; attempt <= AUTHOR_ATTEMPTS && !authored; attempt++) {
+  for (
+    let attempt = 1;
+    attempt <= AUTHOR_ATTEMPTS && !authored && inTime();
+    attempt++
+  ) {
     authored = await author(`quiz.author.batch-${batch}`, plan, false);
     if (!authored) lastFailure = `author attempt ${attempt} failed`;
   }
@@ -355,12 +379,11 @@ export async function generateQuizBatch(
 
   // --- stages 2 and 3: validate, then judge what validated -----------------
   const candidates = candidatesIn(authored);
-  const rejected = await judgeTone(
-    [...candidates.values()],
-    previousScenarios,
-    deps,
-    note
-  );
+  // The judge only ever REMOVES blocks, so out of time it is skipped rather
+  // than waited for: five structurally valid blocks beat none.
+  const rejected = inTime()
+    ? await judgeTone([...candidates.values()], previousScenarios, deps, note)
+    : new Map<number, string[]>();
   for (const [position, stated] of rejected) {
     if (!candidates.delete(position)) continue;
     problems.set(position, stated.join("; "));
@@ -368,7 +391,7 @@ export async function generateQuizBatch(
   accept(candidates, false);
 
   // --- stage 4: repair only what failed, quoting the complaints ------------
-  if (missing().length > 0) {
+  if (missing().length > 0 && inTime()) {
     replanRepeats(1);
     const repaired = await author(
       `quiz.author.batch-${batch}.repair`,
@@ -382,7 +405,11 @@ export async function generateQuizBatch(
   // Two, not one: a position that survives a repair and a final pass is rare,
   // but with the pool of whole forms one such position is a lost form, and a
   // third targeted call is ten seconds against three minutes of authoring.
-  for (let pass = 1; pass <= FINAL_PASSES && missing().length > 0; pass++) {
+  for (
+    let pass = 1;
+    pass <= FINAL_PASSES && missing().length > 0 && inTime();
+    pass++
+  ) {
     replanRepeats(1 + pass);
     const final = await author(
       `quiz.author.batch-${batch}.final${pass > 1 ? `-${pass}` : ""}`,

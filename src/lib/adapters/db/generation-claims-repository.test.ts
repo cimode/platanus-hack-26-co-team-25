@@ -3,7 +3,10 @@ import { eq, like, sql } from "drizzle-orm";
 import { describe, expect, it, onTestFinished, type TestContext } from "vitest";
 import type { Deps } from "@/lib/composition";
 import type { Db } from "./client";
-import { createGenerationClaimsRepository } from "./generation-claims-repository";
+import {
+  createGenerationClaimsRepository,
+  FAILED_COOLDOWN_SECONDS,
+} from "./generation-claims-repository";
 import { quizGenerationClaims } from "./schema";
 import { integrationDb } from "./test-db";
 
@@ -13,9 +16,10 @@ import { integrationDb } from "./test-db";
  * carries this run's id and is deleted on teardown.
  *
  * What is asserted is the lock's contract, not its SQL: a held scope is lost
- * by a second caller, a released scope is won again (a finished batch can
- * need regenerating), a stale scope is taken over, and two callers racing for
- * a free scope produce exactly one winner.
+ * by a second caller, a scope released as `ready` is won again (a finished
+ * batch can need regenerating), a scope released as `failed` rests for its
+ * cooldown first, a stale scope is taken over, and two callers racing for a
+ * free scope produce exactly one winner.
  */
 
 type Repos = Pick<Deps, "claims">;
@@ -77,7 +81,18 @@ describe("createGenerationClaimsRepository", () => {
     expect(held?.outcome).toBeNull();
     expect(held?.finishedAt).toBeNull();
 
+    // A failed attempt rests: the wait screen asks again within seconds, and
+    // re-arming immediately is how a failing room becomes a retry storm.
     await claims.release(scope, "failed");
+    expect(await claims.claim(scope)).toBe(false);
+
+    // Once the cooldown has passed, the next caller may try again.
+    await db
+      .update(quizGenerationClaims)
+      .set({
+        finishedAt: sql`now() - make_interval(secs => ${FAILED_COOLDOWN_SECONDS + 5})`,
+      })
+      .where(eq(quizGenerationClaims.scope, scope));
     expect(await claims.claim(scope)).toBe(true);
   });
 

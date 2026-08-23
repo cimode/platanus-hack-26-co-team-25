@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { intakePath } from "@/app/intake/path";
-import { poolTarget } from "@/app/intake/pool-target";
+import { poolSlots, poolTarget } from "@/app/intake/pool-target";
 import { QrCode } from "@/components/qr/qr-code";
 import { serverDeps } from "@/lib/composition";
 import { topUpQuizPool } from "@/lib/use-cases/ensure-quiz-batch";
@@ -48,7 +48,8 @@ export default async function QrPage(props: PageProps<"/qr">) {
   // scoped reaches the callback.
   const roomId = room.id;
   const target = poolTarget();
-  after(() => topUpQuizPool({ roomId, target }, serverDeps()));
+  const slots = poolSlots();
+  after(() => topUpQuizPool({ roomId, target, slots }, serverDeps()));
 
   const link = `${await requestOrigin()}${intakePath(room.slug)}`;
 

@@ -99,8 +99,18 @@ export function createGeneratedBlockRepository(
             source,
           }))
         )
-        // Regenerating a position overwrites it. Without this a retried batch
-        // would violate the unique index and lose the whole write.
+        // A retried batch must not violate the unique index, so the conflict
+        // is an update -- but only over a row nobody authored for this person.
+        //
+        // `setWhere` is the guard, and it is not defensive coding: a claim can
+        // be taken over (a killed invocation), so two writers can hold the
+        // same batch, and the loser's write would otherwise replace a block
+        // that is already ON SOMEONE'S SCREEN. The response row denormalises
+        // the question text when the tap lands, so the participant's answer
+        // would be recorded against a question they never read. An existing
+        // generated row is therefore final; only the legacy `fallback` rows
+        // -- the committed instrument, never written for this person -- are
+        // replaced (docs/domain.md D20).
         .onConflictDoUpdate({
           target: [generatedBlocks.participantId, generatedBlocks.position],
           // `excluded` is the row that was proposed. Naming the table's own
@@ -114,6 +124,7 @@ export function createGeneratedBlockRepository(
             options: sql`excluded.options`,
             source: sql`excluded.source`,
           },
+          setWhere: sql`${generatedBlocks.source} = 'fallback'`,
         });
     },
   };
