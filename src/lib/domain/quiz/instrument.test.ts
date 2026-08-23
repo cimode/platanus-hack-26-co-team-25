@@ -11,17 +11,22 @@ import {
 import { type BlockResponse, validateResponse } from "./response";
 
 /**
- * The instrument constant (issue #4, docs/domain.md §2 D2): `INSTRUMENT` is
- * built at import from quiz/batch-{1,2,3}.json, validated block by block, and
- * frozen by `instrumentHash()` over its content plus `INSTRUMENT.version`.
+ * `INSTRUMENT` after the question bank (bank.ts): it is no longer the form
+ * anybody answers — `formFor()` deals twelve blocks out of `quiz/bank/` — but it
+ * is still the structural version marker a room records, and still a fixed,
+ * valid form for anything that needs one without inventing it.
  *
- * AC-1 pins the hash to a hex literal. The literal is recorded the first time
- * the module builds and never edited afterwards (AUDIT.md F1 "irreversible"):
- * an edited instrument needs a new version, and a new version needs a new room.
+ * So AC-1 pins two things that are true NOW: the shape of a form (twelve
+ * positions, one reversed slot per block, three per pillar) and the content
+ * hash, which covers `INSTRUMENT.version` as well as the blocks. The version is
+ * "bank-1" because the SHAPE changed, not because a scenario was edited:
+ * responses gathered on the fifteen-position form cannot be re-scored onto a
+ * twelve-position one, and the room↔version check is what refuses to try
+ * (AUDIT.md F1 "irreversible once the form ships").
  *
- * The literal below was recorded from the three committed JSON files with the
- * canonicalisation D2 specifies, which `instrumentHash()` has to reproduce
- * byte for byte:
+ * The literal below was recorded from the first twelve blocks of the committed
+ * quiz/batch-{1,2,3}.json with the canonicalisation D2 specifies, which
+ * `instrumentHash()` has to reproduce byte for byte:
  *
  *     JSON.stringify({
  *       version: instrument.version,
@@ -37,7 +42,7 @@ import { type BlockResponse, validateResponse } from "./response";
  *
  * hashed with 64-bit FNV-1a (offset basis 0xcbf29ce484222325, prime
  * 0x100000001b3) over the UTF-8 bytes of that string, printed as 16 lowercase
- * hex characters, zero-padded. Blocks contribute in position order 1..15;
+ * hex characters, zero-padded. Blocks contribute in position order 1..12;
  * `batch`, `domain`, `language` and the image prompts stay outside the hash --
  * they are delivery and generation metadata, not the instrument.
  */
@@ -45,14 +50,14 @@ import { type BlockResponse, validateResponse } from "./response";
 const PILLARS: Pillar[] = ["regulation", "politeness", "reliability", "agency"];
 const OPTION_KEYS = ["a", "b", "c", "d"];
 
-/** Recorded from quiz/batch-{1,2,3}.json at version "v1". Never edited. */
-const INSTRUMENT_HASH_V1 = "7d22a9738ae27d2b";
+/** Recorded from quiz/batch-{1,2,3}.json at version "bank-1". Never edited. */
+const INSTRUMENT_HASH_BANK_1 = "0dbdc4a54b9c75a0";
 
-/** How often the reversed slot falls on each pillar across the 15 blocks. */
+/** How often the reversed slot falls on each pillar across the 12 blocks. */
 const REVERSED_PER_PILLAR: Record<Pillar, number> = {
-  regulation: 4,
-  politeness: 4,
-  reliability: 4,
+  regulation: 3,
+  politeness: 3,
+  reliability: 3,
   agency: 3,
 };
 
@@ -84,11 +89,11 @@ function responseAt(overrides: Partial<BlockResponse>): BlockResponse {
 }
 
 describe("INSTRUMENT", () => {
-  it("AC-1 · INSTRUMENT is the 15 committed blocks, versioned v1 and pinned by hash", () => {
-    expect(INSTRUMENT.version).toBe("v1");
-    expect(INSTRUMENT.blocks).toHaveLength(15);
+  it("AC-1 · INSTRUMENT is a valid 12-position form, versioned bank-1 and pinned by hash", () => {
+    expect(INSTRUMENT.version).toBe("bank-1");
+    expect(INSTRUMENT.blocks).toHaveLength(12);
     expect(INSTRUMENT.blocks.map((block) => block.position)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
     ]);
 
     const reversedPerPillar: Record<string, number> = {};
@@ -113,24 +118,27 @@ describe("INSTRUMENT", () => {
       reversedPerPillar[reversed[0].pillar] =
         (reversedPerPillar[reversed[0].pillar] ?? 0) + 1;
     }
-    // PILLARS.md §7.2 / §8: the reversed slot rotates 4/4/4/3 over 15 blocks.
+    // PILLARS.md §7.2 / §8: the reversed slot rotates evenly, 3 per pillar
+    // over 12 blocks -- the balance formFor() reproduces for every participant.
     expect(reversedPerPillar).toEqual(REVERSED_PER_PILLAR);
 
     // D2: the version lives on INSTRUMENT and nowhere else.
     expect(Object.keys(quiz)).not.toContain("INSTRUMENT_VERSION");
 
-    expect([batchOf(1), batchOf(5), batchOf(6), batchOf(15)]).toEqual([
+    // "batch" is an internal grouping now (four positions each, still 1..3);
+    // no screen names it.
+    expect([batchOf(1), batchOf(4), batchOf(5), batchOf(12)]).toEqual([
       1, 1, 2, 3,
     ]);
 
     // The freeze (AUDIT.md F1). Any change to a block's position, focus
     // pillar, scenario or option text / pillar / keying moves this hex.
-    expect(instrumentHash()).toBe(INSTRUMENT_HASH_V1);
+    expect(instrumentHash()).toBe(INSTRUMENT_HASH_BANK_1);
     // ... and a version bump alone moves it too, which is what makes the hash
     // a version freeze rather than a content checksum.
     expect(
-      instrumentHash({ version: "v2", blocks: INSTRUMENT.blocks })
-    ).not.toBe(INSTRUMENT_HASH_V1);
+      instrumentHash({ version: "bank-2", blocks: INSTRUMENT.blocks })
+    ).not.toBe(INSTRUMENT_HASH_BANK_1);
   });
 });
 

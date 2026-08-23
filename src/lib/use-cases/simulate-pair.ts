@@ -20,7 +20,10 @@ import type {
 import { generateTimeline } from "../domain/timeline/index";
 import type { Timeline, TimelineNarrator } from "../domain/timeline/shared";
 import { hashSeed } from "../domain/timeline/shared";
-import type { PairSimulationRepository } from "../ports/pair-simulation-repository";
+import type {
+  PairSimulationRepository,
+  StoredPairSimulation,
+} from "../ports/pair-simulation-repository";
 import type { PrepareResultsDeps } from "./prepare-results";
 import { rankSubjectRoom } from "./prepare-results";
 
@@ -48,6 +51,7 @@ function mapEvents(timeline: Timeline): LifeEvent[] {
       year: event.year,
       kind: event.kind,
       text: event.text,
+      emote: event.emote,
     }))
     .sort((a, b) => a.year - b.year);
 }
@@ -72,11 +76,16 @@ function toCanonicalLife(
   hiRow: RankableParticipant
 ): SimulatedLife {
   const base = {
-    subject: { id: loRow.participant.id, name: loRow.participant.name },
+    subject: {
+      id: loRow.participant.id,
+      name: loRow.participant.name,
+      avatar: loRow.participant.avatar,
+    },
     other: {
       id: hiRow.participant.id,
       name: hiRow.participant.name,
       photoUrl: hiRow.participant.photoUrl,
+      avatar: hiRow.participant.avatar,
     },
     events: mapEvents(timeline),
   };
@@ -110,11 +119,19 @@ function projectForViewer(
   if (canonical.lens === "friendship") {
     return {
       lens: "friendship",
-      subject: { id: canonical.other.id, name: canonical.other.name },
+      subject: {
+        id: canonical.other.id,
+        name: canonical.other.name,
+        // The plate travels WITH the person, not with the slot. Leaving this
+        // reading `canonical.subject.avatar` is how each viewer ends up
+        // watching their own story acted out in the other person's body.
+        avatar: canonical.other.avatar,
+      },
       other: {
         id: canonical.subject.id,
         name: canonical.subject.name,
         photoUrl: otherPhotoUrl,
+        avatar: canonical.subject.avatar,
       },
       events: canonical.events,
     };
@@ -122,11 +139,16 @@ function projectForViewer(
 
   return {
     lens: canonical.lens,
-    subject: { id: canonical.other.id, name: canonical.other.name },
+    subject: {
+      id: canonical.other.id,
+      name: canonical.other.name,
+      avatar: canonical.other.avatar,
+    },
     other: {
       id: canonical.subject.id,
       name: canonical.subject.name,
       photoUrl: otherPhotoUrl,
+      avatar: canonical.subject.avatar,
     },
     events: canonical.events,
     horizonYears: canonical.horizonYears,
@@ -156,19 +178,23 @@ async function pairAuthorised(
   return scorePair(personLo, personHi, lens).eligible;
 }
 
-async function freshnessMatches(
-  deps: SimulatePairDeps,
-  lo: string,
-  hi: string,
+/**
+ * Is this cached row still sealed to the posteriors it was narrated from?
+ *
+ * Takes the LIVE values rather than reading them: they are read once, above
+ * both the cache branch and the generation branch, and the same two `Date`s
+ * are what `pairSimulations.save` stamps the new row with. One read, one
+ * meaning — a second read here could disagree with the one the seal is
+ * written from.
+ */
+function freshnessMatches(
+  cached: StoredPairSimulation,
   loComputedAt: Date,
   hiComputedAt: Date
-): Promise<boolean> {
-  const liveLo = await deps.latents.computedAtFor(lo);
-  const liveHi = await deps.latents.computedAtFor(hi);
-  if (liveLo === null || liveHi === null) return false;
+): boolean {
   return (
-    liveLo.getTime() === loComputedAt.getTime() &&
-    liveHi.getTime() === hiComputedAt.getTime()
+    cached.loComputedAt.getTime() === loComputedAt.getTime() &&
+    cached.hiComputedAt.getTime() === hiComputedAt.getTime()
   );
 }
 
@@ -193,19 +219,32 @@ export async function simulatePair(
 
   const posteriors = await deps.latents.byParticipants([lo, hi]);
 
+  /*
+   * BOTH sides must hold a posterior, and this is checked BEFORE anything is
+   * narrated.
+   *
+   * It used to be checked after `generateTimeline`, which costs ~33s of model
+   * time (docs/domain.md D19) — so a pair with one unscored side made the
+   * viewer wait out a full generation and then handed them a 404. Nothing
+   * downstream of here could have rescued it: an absent posterior is not a
+   * thing generation produces.
+   *
+   * Read ONCE. These same two values are the cache's freshness seal, compared
+   * against the stored row below and stamped onto the row `save` writes at the
+   * end, so there is exactly one reading of `computed_at` per request and the
+   * seal cannot describe a posterior other than the one the life was narrated
+   * from.
+   */
+  const loComputedAt = await deps.latents.computedAtFor(lo);
+  const hiComputedAt = await deps.latents.computedAtFor(hi);
+  if (loComputedAt === null || hiComputedAt === null) return null;
+
   const cached = await deps.pairSimulations.byPair(lens, lo, hi);
   if (cached !== null) {
     const stillOk = await pairAuthorised(loRow, hiRow, lens, posteriors);
     if (!stillOk) return null;
 
-    const fresh = await freshnessMatches(
-      deps,
-      lo,
-      hi,
-      cached.loComputedAt,
-      cached.hiComputedAt
-    );
-    if (fresh) {
+    if (freshnessMatches(cached, loComputedAt, hiComputedAt)) {
       return projectForViewer(cached.life, subjectId, entry.photoUrl);
     }
   }
@@ -224,15 +263,19 @@ export async function simulatePair(
       seed: pairSeed(lo, hi, lens),
       offspringConsentA: true,
       offspringConsentB: true,
+      // Verification input only: an emote the pair cannot both play falls back
+      // to the deterministic map inside the narrator.
+      avatarA: loRow.participant.avatar,
+      avatarB: hiRow.participant.avatar,
     },
     deps.narrator
   );
 
   const canonical = toCanonicalLife(timeline, loRow, hiRow);
-  const loComputedAt = await deps.latents.computedAtFor(lo);
-  const hiComputedAt = await deps.latents.computedAtFor(hi);
-  if (loComputedAt === null || hiComputedAt === null) return null;
 
+  // `loComputedAt` / `hiComputedAt` are the values read before generation, not
+  // a fresh pair: they are the freshness seal of THIS row, and re-reading them
+  // here would stamp the row with a posterior the narration never saw.
   await deps.pairSimulations.save({
     lens,
     participantLo: lo,

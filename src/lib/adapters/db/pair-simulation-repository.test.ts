@@ -58,8 +58,13 @@ describe("pair-simulation-repository", () => {
       participantHi: hiId,
       life: {
         lens: "romantic",
-        subject: { id: loId, name: lo.name },
-        other: { id: hiId, name: hi.name, photoUrl: hi.photoUrl },
+        subject: { id: loId, name: lo.name, avatar: "avatar1" },
+        other: {
+          id: hiId,
+          name: hi.name,
+          photoUrl: hi.photoUrl,
+          avatar: "avatar3",
+        },
         horizonYears: 10,
         ending: { outcome: "together" },
         events: [{ year: 1, kind: "milestone", text: "Se cruzan." }],

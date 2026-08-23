@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { AvatarSprite } from "@/components/emotes/avatar-sprite";
 import type { Playing } from "@/components/emotes/use-emote-player";
+import { FacedAvatar } from "@/components/faces/faced-avatar";
 import type { Avatar } from "@/lib/domain/participant/avatar";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * whatever the screen has to say -- a scenario, the opening line, the wait.
  *
  * The drawing is the emotes library's `AvatarSprite`, the same element the
- * room uses, so the person who picks their way through fifteen scenes is
+ * room uses, so the person who picks their way through twelve scenes is
  * visibly the same body that later stands in the crowd. It is the one client
  * component in here; this file itself has no `"use client"`, so the opening
  * beat and the wait screen render it on the server and only the block island
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
  */
 export function SceneStage({
   avatar,
+  photoUrl,
   eyebrow,
   children,
   playing = null,
@@ -37,7 +38,9 @@ export function SceneStage({
   className,
 }: {
   avatar: Avatar | null;
-  /** The mono line above the text, e.g. "escena 3 de 15". */
+  /** The viewer's own photo, for the face on that plate. Null draws it blank. */
+  photoUrl: string | null;
+  /** The mono line above the text, e.g. "escena 3 de 12". */
   eyebrow?: string;
   children: ReactNode;
   /** From `useEmotePlayer`; null is idle. Only the block island sets it. */
@@ -50,12 +53,13 @@ export function SceneStage({
   return (
     <div className={cn("flex w-full items-end gap-3", className)}>
       {avatar && (
-        <AvatarSprite
+        <FacedAvatar
           avatar={avatar}
           className="shrink-0"
           height="8.5rem"
           label="Tu avatar"
           onEnd={onEnd}
+          photoUrl={photoUrl}
           playing={playing}
           preload={false}
         />

@@ -22,6 +22,7 @@ const RANKED: RankedRoom = {
       id: "sofia",
       name: "Sofía Guzmán",
       photoUrl: null,
+      avatar: null,
       position: 1,
       band: "high",
       bond: { term: "commonGround", label: "Gustos en común" },

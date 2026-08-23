@@ -23,7 +23,7 @@ import { SceneStage, SceneText } from "./scene-stage";
  * the four options are the replies of an RPG dialogue menu.
  *
  * This is the island -- `"use client"` sits here and not on the page, so the
- * fifteen blocks cost one small component on the wire instead of a whole route
+ * twelve blocks cost one small component on the wire instead of a whole route
  * (`ui-composition` §3; the phone is on venue wifi and completion is the demo).
  *
  * What it receives is deliberately thin: `{ position, scenario, options: [{
@@ -40,7 +40,7 @@ import { SceneStage, SceneText } from "./scene-stage";
  * -- enough for the press and the hop to read -- the form is submitted with
  * that row as the submitter. A second tap inside that window is ignored, not
  * queued: two submits for one block would upsert the same row twice and, on
- * block 15, race the completing write.
+ * the last block, race the completing write.
  *
  * MOST + LEAST (`HOOKAI_QUIZ_MOST_LEAST=1`): the two-mark elicitation as the
  * issue decided it --
@@ -55,7 +55,7 @@ import { SceneStage, SceneText } from "./scene-stage";
  * The four rows are laid out in `order` -- `shownOrderFor(participantId,
  * position)`, the very string written to `quiz_responses.shown_order` (D10).
  * Rendering `block.options` in its stored `a,b,c,d` order instead would put the
- * same pillar in the same slot fifteen times (the mapping AUDIT.md calls
+ * same pillar in the same slot twelve times (the mapping AUDIT.md calls
  * learnable) AND make every recorded `shown_order` a fiction, so the position-
  * bias analysis it exists for would read an order nobody was shown.
  */
@@ -66,11 +66,12 @@ export function BlockScreen({
   order,
   singlePick,
   avatar,
+  photoUrl,
   initialMost = null,
   initialLeast = null,
 }: {
   block: PublicBlock;
-  /** 15 -- passed rather than imported so the island never reads the constant. */
+  /** 12 -- passed rather than imported so the island never reads the constant. */
   total: number;
   /** `/quiz?block=N-1`, or null on the first block: there is nothing behind it. */
   backTo: string | null;
@@ -82,6 +83,8 @@ export function BlockScreen({
   singlePick: boolean;
   /** The participant's stored plate; null only for a row older than the column. */
   avatar: Avatar | null;
+  /** Their own photo, composited onto that plate in the browser. */
+  photoUrl: string | null;
   /** The stored row's marks, so a re-answer opens on what was written. */
   initialMost?: OptionKey | null;
   initialLeast?: OptionKey | null;
@@ -94,6 +97,7 @@ export function BlockScreen({
   const player = useEmotePlayer();
   const formRef = useRef<HTMLFormElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const giveUp = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The reaction sheet is ~160KB; fetched once, after hydration, while the
   // scenario is being read, so the first celebration has a frame to show and
@@ -106,6 +110,7 @@ export function BlockScreen({
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
+      if (giveUp.current) clearTimeout(giveUp.current);
     },
     []
   );
@@ -126,6 +131,13 @@ export function BlockScreen({
       timer.current = setTimeout(() => {
         formRef.current?.requestSubmit(submitter);
       }, SUBMIT_DELAY_MS);
+      // Venue wifi drops requests. Without this the screen locks on the first
+      // tap that never reaches the server -- the four rows stay out of play,
+      // the block never advances, and the only way out is a reload nobody
+      // thinks to try. A tap that has not navigated in ten seconds is a tap
+      // that failed, so the rows come back and the participant can try again.
+      // (The Server Action upserts by position, so a double answer is one row.)
+      giveUp.current = setTimeout(() => setSubmitting(false), GIVE_UP_MS);
       return;
     }
 
@@ -183,6 +195,7 @@ export function BlockScreen({
       <SceneStage
         avatar={avatar}
         className="shrink-0"
+        photoUrl={photoUrl}
         eyebrow={`escena ${block.position} de ${total}`}
         onEnd={player.stop}
         playing={player.playing}
@@ -206,7 +219,12 @@ export function BlockScreen({
         {/* Four full-width replies, centred in whatever height the bubble
             left. `min-h-0` keeps the last row on screen at 390x844 whatever
             the copy does -- a row below the fold is a row nobody taps (§7.1). */}
-        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
+        {/* `overflow-y-auto` is the concession to a phone smaller than the
+            390x844 target: the column cannot scroll (h-dvh, overflow-hidden),
+            so without it a long scenario plus four long options would push the
+            fourth row off a 640px screen with no way to reach it. At the
+            target size nothing overflows and nothing scrolls. */}
+        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 overflow-y-auto">
           {rows.map((option) => (
             <OptionRow
               key={option.key}
@@ -235,6 +253,9 @@ export function BlockScreen({
 
 /** Long enough for the press and the hop to read; short enough to feel like a tap. */
 const SUBMIT_DELAY_MS = 650;
+
+/** After this, a tap that has not navigated is assumed lost and can be retaken. */
+const GIVE_UP_MS = 10_000;
 
 /**
  * `block.options` in the slots `order` names, e.g. `"dacb"` → d, a, c, b.
@@ -282,7 +303,7 @@ function hint(
  *
  * Its own component so `useFormStatus` can read *this* form's pending state:
  * a second submit while the first is in flight would upsert the same row
- * twice and, on block 15, race the completing write.
+ * twice and, on the last block, race the completing write.
  */
 function Submit({ isLast, ready }: { isLast: boolean; ready: boolean }) {
   const { pending } = useFormStatus();

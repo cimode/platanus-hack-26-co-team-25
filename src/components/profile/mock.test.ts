@@ -89,6 +89,7 @@ describe("mockProfile", () => {
           id: VIEWER.id,
           name: VIEWER.name,
           photoUrl: null,
+          avatar: null,
           position: 1,
           band: "high",
           bond: { term: "lifeShape", label: "les une: ritmo de vida" },

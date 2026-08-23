@@ -1142,3 +1142,746 @@ two more rows written the way R16 was written.
 **Recommended next**: `sdd-apply` for C1, C2, C4 and the R16/W1 disclosure rows,
 then re-verify — **against whatever the in-flight redesign (W9) settles into, not
 against `8a97665`**. Do not archive.
+
+# Verification Report — UI Flow Screens, work unit U9 (`/simulate/[id]`, screen 1f)
+
+**Change**: `ui-flow-screens` · work unit **U9 only**
+**Commit**: `4f9d094` on `feat/ui-flow-u9-simulate`, stacked on `feat/ui-flow-u7-profile`
+**Diff under review**: `git diff feat/ui-flow-u7-profile...HEAD` — 12 files, 1,445 insertions / 61 deletions
+**Mode**: Strict TDD (`pnpm run test`, vitest 4.1.11, `environment: "node"`)
+**Artifact store**: hybrid; file twins authoritative
+**Scope note**: U1, U2, U3, U6, U7 were NOT re-verified. Where U9 inherits a
+prior finding it is named, not restated.
+
+The working tree was clean at `4f9d094` when this run started and clean at
+`4f9d094` when it ended. Every mutation below was applied from a `/tmp` backup
+and restored, with `git status --porcelain` empty after each. R19 honoured.
+
+## Completeness
+
+| Metric | Value |
+|--------|-------|
+| U9 tasks (9.0–9.10) | 11 |
+| U9 tasks complete | 11 |
+| U9 tasks incomplete | 0 |
+| Phase 10 tasks (10.1–10.8) | 8 |
+| Phase 10 marked complete in `tasks.md` | **0 — all still `[ ]`** |
+| Phase 10 actually passing when re-run here | **8 of 8** |
+
+9.11 and 9.12 are narrative subsections, not checkboxes; `apply-progress.md`
+Batch 8's "11/11 tasks" is consistent with 9.0–9.10.
+
+## Diff scope (verified, not assumed)
+
+| File | Status | Changed |
+|---|---|---|
+| `src/app/simulate/[id]/page.tsx` | added | 138 |
+| `src/components/simulate/mock.ts` | added | 240 |
+| `src/components/simulate/mock.test.ts` | added | 206 |
+| `src/components/simulate/timeline-rail.tsx` | added | 103 |
+| `src/components/simulate/event-card.tsx` | added | 68 |
+| `src/components/simulate/ending-card.tsx` | added | 65 |
+| `src/components/simulate/timeline-path.tsx` | added | 61 |
+| `src/components/simulate/walking-pair.tsx` | added | 24 |
+| `e2e/simulate.spec.ts` | added | 309 |
+| `e2e/profile.spec.ts` | modified | 31 |
+| `openspec/.../apply-progress.md` | modified | 85 |
+| `openspec/.../tasks.md` | modified | 176 |
+
+**Zero files touched under `src/lib/**`.** The `e2e/profile.spec.ts` edit is a
+disclosed flake fix (two single samples became `expect.poll`) that strengthens
+both assertions; it is recorded in 9.11 and Batch 8, so it is not a silent edit
+to another unit's suite.
+
+## Build & Tests Execution
+
+**`pnpm run verify`**: ✅ green
+```text
+next typegen && tsc --noEmit   -> clean
+biome check .                  -> 229 files, no fixes applied
+vitest run                     -> 40 files | 222 passed | 16 skipped (238)
+```
+Matches Batch 8's claim of 222/16 exactly.
+
+**`pnpm exec playwright test simulate.spec.ts`**: ✅ **26 passed** across
+`[mobile]` and `[desktop]`. Matches task 9.10's claim.
+
+**Flakiness — five consecutive parallel runs, `test-results` cleared between each:**
+```text
+pnpm exec playwright test rank.spec.ts profile.spec.ts simulate.spec.ts demo-path.spec.ts
+run 1  110 passed |  8 skipped (23.7s)
+run 2  110 passed |  8 skipped (23.3s)
+run 3  110 passed |  8 skipped (23.0s)
+run 4  110 passed |  8 skipped (24.0s)
+run 5  110 passed |  8 skipped (26.6s)
+```
+**Zero flakes in 550 test executions.** Batch 8's "six consecutive clean parallel
+runs, 110/110" is independently corroborated. `quiz.spec.ts` and
+`intake-declared.spec.ts` were not run; they need `DATABASE_URL` and U9's diff
+touches nothing they reach (confirmed against the file list above).
+
+**`env -u DATABASE_URL pnpm run build`**: ✅ green. 11 routes,
+`ƒ /simulate/[id]` server-rendered on demand, 11/11 static pages generated. No
+database connection is opened (AC-PORT-9).
+
+**Coverage**: ➖ Not applicable by project decision. `vitest.config.mts` sets
+`coverage.include: ["src/lib/**"]` ("Only the engine is worth a coverage number.
+UI coverage from unit tests would be a vanity metric here"), and U9 touched no
+file under `src/lib/**`. The changed-file coverage table is therefore empty for
+structural reasons, not because a tool is missing.
+
+## Spec Compliance Matrix
+
+### simulated-life-screen
+
+| Requirement | Scenario | Covering test | Result |
+|---|---|---|---|
+| Scoped to the viewer's ranking | AC-SIM-1 · a ranked pair simulates | `simulate.spec.ts:46` | ✅ COMPLIANT |
+| | AC-SIM-2 · unranked person 404s | `simulate.spec.ts:59` (unknown id only) | ⚠️ PARTIAL |
+| | AC-SIM-2 · simulating yourself 404s | `simulate.spec.ts:59` | ✅ COMPLIANT |
+| Header reads the horizon it was given | AC-SIM-3 · the horizon is data | `simulate.spec.ts:71` | ❌ **PARTIAL/DEAD** (C1) |
+| | AC-SIM-3 · no literal horizon in the tree | `simulate.spec.ts:88` | ❌ **PARTIAL/DEAD** (C1) |
+| Friendship has no horizon | AC-SIM-4 · no pill under friendship | `simulate.spec.ts:103` | ✅ COMPLIANT |
+| | AC-SIM-4 · the union is enforced by the type | `domain/reveal/timeline.test.ts:58,68` | ✅ COMPLIANT |
+| Exactly one tag from the seven | AC-SIM-5 · 16 kinds render tagged | `simulate.spec.ts:115` | ⚠️ PARTIAL (W2) |
+| | AC-SIM-5 · year order | `simulate.spec.ts:211` | ✅ COMPLIANT |
+| | AC-SIM-5 · bands and tags share no token | `simulate.spec.ts:180` | ⚠️ PARTIAL (W1) |
+| Ending card states the ending | AC-SIM-6 · a dissolution ending | (none — branch never renders) | ❌ **UNTESTED** (C2) |
+| | AC-SIM-6 · together at the horizon | `simulate.spec.ts:219`, does not distinguish | ⚠️ PARTIAL (C2) |
+| | AC-SIM-6 · an epilogue follows the ending | (none — never renders) | ❌ **UNTESTED** (C2) |
+| | AC-SIM-6 · no probability or `%` | `simulate.spec.ts:227-229` | ✅ COMPLIANT |
+| Path behind a two-prop contract | AC-SIM-7 · a third prop fails `tsc` | (no probe in the tree) | ❌ **UNTESTED** (W4) |
+| | AC-SIM-7 · the pair advances with progress | `simulate.spec.ts:232` | ✅ COMPLIANT |
+| | AC-SIM-7 · motion stops under `reduce` | `simulate.spec.ts:283` | ⚠️ PARTIAL (W3) |
+| Meet CTA renders and mutates nothing | AC-SIM-8 · present and focusable | `simulate.spec.ts:249-254` | ✅ COMPLIANT |
+| | AC-SIM-8 · activating it is inert | `simulate.spec.ts:256-263` | ⚠️ PARTIAL (W5) |
+| Nothing offspring-shaped, consent-invariant | AC-SIM-9 · consent-invariant output | (none) | ❌ **UNTESTED** (C3) |
+| | AC-SIM-9 · no offspring accessible name | `simulate.spec.ts:266` | ✅ COMPLIANT |
+
+### ui-read-ports (only what bears on U9)
+
+| Scenario | Covering test | Result |
+|---|---|---|
+| AC-PORT-1 · impersonation cookie resolves the viewer | `simulate.spec.ts:46` + `:59` (self-404) | ✅ COMPLIANT |
+| AC-PORT-3 · no score in the type | `domain/reveal/timeline.test.ts:87` (`@ts-expect-error` on `sim: 0.82`) | ✅ COMPLIANT |
+| AC-PORT-3 · no score in the DOM | `simulate.spec.ts:227` + flight-payload walk below | ✅ COMPLIANT |
+| AC-PORT-7 · `tagFor` total over 16 kinds | `event-tag.test.ts` (U2, unchanged) | ✅ COMPLIANT |
+| AC-PORT-8 · the gate is mutual / romantic-only | `offspring.test.ts` (U2, unchanged) | ✅ COMPLIANT |
+| AC-PORT-8 · the UI cannot leak consent | (none) | ❌ **UNTESTED** (C3) |
+| AC-PORT-9 · no connection opened | `env -u DATABASE_URL pnpm run build` | ✅ COMPLIANT |
+| AC-PORT-9 · the hexagon rule holds | grep, re-run here | ✅ COMPLIANT |
+
+**Compliance summary**: 13 COMPLIANT / 6 PARTIAL / 5 UNTESTED across 24 scenarios.
+
+## Adversarial findings — the nine pressure points
+
+### 1. AC-SIM-5's "exactly one chip" — can a card render two, or zero?
+
+**Yes for two, if the second is not a `<span>`.** The filter is
+`[...card.querySelectorAll("span")].filter(painted)`.
+
+| Mutation on `event-card.tsx` | Result |
+|---|---|
+| a second `<span>` chip painted from `TAG_TONE[tag.token]` | ❌ fails — `Expected 1, Received 2` |
+| the chip's tone class replaced with `""` (untagged) | ❌ fails — `Expected 1, Received 0` |
+| a second **`<div>`** chip painted from `TAG_TONE.roce` | ✅ **PASSES — two visible chips on every card, suite green** |
+
+So the assertion is live in both directions for span-shaped chips and blind to
+any other element. "Exactly one chip" is implemented as "exactly one painted
+`<span>`". Low risk today — `EventCard` is 68 lines and structurally renders one
+chip — but the assertion is narrower than the words it carries. (W2)
+
+### 2. The band/tag token collision — is the source grep actually sufficient?
+
+**No, and I broke it.** `--band-high` and `--tag-ritual` are both `#fbe3de`
+(`globals.css:174,188`), so the runtime colour comparison is provably blind for
+that family. The author knows this and says so; the grep at
+`simulate.spec.ts:180` is the compensating control.
+
+First, the author's own probe reproduces verbatim:
+
+| Mutation | Observed |
+|---|---|
+| `roce: "bg-band-high text-band-high-foreground"` inside `event-card.tsx` | ❌ grep fails, `offenders: ["event-card.tsx"]`; the **colour test stayed green**, exactly as 9.12 claims |
+
+Then the bypass. The guard is
+`for (const file of readdirSync("src/components/simulate")) { if (!file.endsWith(".tsx")) continue; ... }`.
+**It reads `.tsx` only, in one directory.** I moved the same violation one file
+sideways:
+
+```ts
+// event-tag.ts  — a .ts file, in the SAME directory
+export const ROCE_TONE = "bg-band-high text-band-high-foreground";
+// event-card.tsx
+roce: ROCE_TONE,
+```
+
+**All six AC-SIM-5 tests passed.** The `roce` chip was painted from a rank-band
+token and neither the colour assertion (blind by construction) nor the grep
+(wrong file extension) noticed.
+
+This is not a contrived escape route. `event-tag.ts` is the file that already
+owns the token vocabulary — `TAG_TOKENS`, `TagToken`, `TimelineTag`, `TAGS` — so
+a class map is the single most likely thing to be moved there. The same hole
+covers `src/components/shared/**` and any class string imported from
+`components/rank/**`. (W1)
+
+The narrowing itself is right: the pattern
+`/\b(?:bg|text|border|ring)-band-|var\(--band-/` correctly ignores the docblock
+in `event-card.tsx` that explains the rule. It is the file filter that leaks.
+
+### 3. AC-SIM-4 / the union — can `horizonYears` be read off a friendship at runtime?
+
+**No, and the probes are live — verified today, not taken on trust.** I added
+`readonly horizonYears: number` to `FriendshipTimeline` and ran `tsc`:
+
+```text
+src/lib/domain/reveal/timeline.test.ts(60,7): error TS2578: Unused '@ts-expect-error' directive.
+src/lib/domain/reveal/timeline.test.ts(70,7): error TS2578: Unused '@ts-expect-error' directive.
+src/lib/domain/reveal/timeline.test.ts(38,7): error TS2741: Property 'horizonYears' is missing ...
+src/components/simulate/mock.ts(223,5): error TS2322: Type '{ lens: "friendship"; ... }' is not assignable to 'SimulatedLife | null'
+```
+
+Four independent gates, including `mockSimulatedLife` itself refusing to
+compile. `timeline-rail.tsx:51` narrows on `life.lens === "friendship"` before
+reading `horizonYears`, so no component reads it unguarded. AC-SIM-4 is the
+best-defended criterion in the unit.
+
+One caveat on the *runtime* half. 9.12's first probe reproduces verbatim
+(`Expected 0, Received 1` at `simulate.spec.ts:107`) — but only because I
+hardcoded a numeric horizon alongside it. If the horizon leaked as `undefined`
+the pill would read `"Año 1 de "`, which does not match `/Año \d+ de \d+/` and
+the e2e would pass. The type is the real gate here; the e2e is corroboration.
+
+### 4. AC-SIM-8 / inertness — would it catch a Server Action, a beacon, a GET?
+
+**Server Action: yes, proven.** I wrapped the CTA in
+`<form action={async () => { "use server"; }}>` with `type="submit"`:
+
+```text
+- Expected  - Array []
++ Received  + Array ["http://localhost:3000/simulate/p-diego-morales"]
+```
+
+**`navigator.sendBeacon`: yes, proven.** A throwaway probe spec (created, run,
+deleted) confirmed the exact listener shape observes both:
+
+```text
+CAPTURED: ["POST http://localhost:3000/probe-beacon","POST http://localhost:3000/probe-fetch"]
+```
+
+**Three residual holes, none of them exercised today:**
+
+1. **GET is explicitly excluded.** `if (request.method() !== "GET")`. A
+   side-effecting `fetch("/api/propose?other=…")` sails through. Unconventional,
+   but the spec says "MUST NOT write anything", not "MUST NOT POST".
+2. **The window is 400 ms.** A beacon fired on `pagehide`/`visibilitychange` —
+   which is the *idiomatic* use of `sendBeacon` — fires after the test ends.
+3. **The scenario's second clause is not asserted at all.** AC-SIM-8 says "no
+   network mutation is issued **and the fixture state is unchanged**". Only the
+   first half has an assertion.
+
+The static structure is far stronger than the test: `page.tsx` has no
+`"use client"`, the button is `type="button"`, there is no form, no handler and
+no client boundary anywhere near it. The property holds. The guard against it
+regressing is narrower than the property. (W5)
+
+### 5. AC-PORT-3 — does any number that is or implies a score reach the client?
+
+**No.** I fetched the rendered `/simulate/p-diego-morales` and walked the RSC
+flight payload directly:
+
+```text
+keys matching rank|sim|score|position|band|bond|friction|contribution|
+             shortfall|probability|survival|consent|latent|posterior   -> 0 hits
+roster names other than the two people involved                        -> 0 hits
+p-* ids present                          -> exactly p-laura-mendez, p-diego-morales
+```
+
+`TimelineRail` is a client component, so the whole `SimulatedLife` crosses the
+boundary — and `SimulatedLife` carries `subject`, `other`, `events`,
+`horizonYears`, `ending` and nothing else. The 17-entry `RankedRoom` is built on
+the server, read for one row, and never serialised.
+
+The only `%` in the document are CSS gradient stops and
+`backgroundPosition: "center 74%"` inside `VenueFloor`'s inline styles. They are
+attribute values, not text, so `main.innerText()` does not see them and
+`simulate.spec.ts:228` produces no false positive.
+
+**One near-miss worth recording as an invariant.** `horizonYears` is seeded from
+`hash("life:{lens}:{viewer}:{other}")` while the ranking order is seeded from
+`hash("{lens}:{viewer}:{other}")`. Different prefixes, so the horizon is
+uncorrelated with position. Had both used one seed, `horizonYears` would have
+been a monotone function of affinity — a rank oracle rendered in 18-point type at
+the top of the screen. Nothing in the code says this must stay true. (S5)
+
+### 6. AC-SIM-2 / the 404 oracle — same rigour as U7
+
+**It holds, at the byte level.** Three requests with viewer `p-laura-mendez`:
+
+| Request | Status | Bytes |
+|---|---|---|
+| `/simulate/p-nobody-at-all` (unknown, 15 chars) | 404 | 18,601 |
+| `/simulate/p-zzz-not-real` (unknown, 14 chars) | 404 | 18,599 |
+| `/simulate/p-laura-mendez` (self, 14 chars) | 404 | 18,599 |
+
+Headers are identical. Bodies are **byte-identical, zero residual diff lines**,
+once the requester's own URL segment and Next's dev nonce / `_rsc` token are
+normalised — and a same-length unknown id produces the identical byte count with
+no normalisation at all. Neither 404 contains a roster name, a lens, or anything
+the requester did not supply.
+
+**The third case has no subject, and this is not recorded anywhere.**
+`mockSimulatedLife` has four `null` paths; `page.tsx` can only reach two of them:
+
+| Path | Reachable from `page.tsx`? |
+|---|---|
+| `room.status !== "ranked"` | **No** — `mockRankedRoom` always returns `"ranked"` |
+| `otherId === room.viewer.id` | Yes (self) |
+| not in `room.entries` | Yes, but only via an unknown id |
+| not in `candidates` | Same condition — one array feeds both |
+
+`mockRankedRoom` ranks **every** candidate it is handed, and `page.tsx` passes
+the same array to both functions, so "a below-floor person", "a gate-failed
+pair" and "a person who has not consented to the lens" — three of the spec's
+four indistinguishable cases — cannot exist. R15 records this class of gap for
+1c and R16 for 1d. Nothing records it for 1f. (W6)
+
+### 7. Flakiness — is the "six consecutive clean runs" claim real?
+
+**Yes.** Five further parallel runs of the same four specs, `test-results`
+cleared between each, produced 110 passed / 8 skipped every time — 550 clean
+test executions, zero retries, zero flaky annotations.
+
+**But the reduced-motion guard is not deterministic, and the bug it guards is the
+one 9.11 is about.** I reintroduced `transition-[left] duration-500` on
+`TimelinePath`'s wrapper — the exact regression — and ran the guard four times:
+
+| Attempt | mobile | desktop |
+|---|---|---|
+| 1 | ❌ caught (`Expected 0, Received 1`) | ✅ **missed** |
+| 2 | ❌ caught | ❌ caught |
+| 3 | ❌ caught | ❌ caught |
+| 4 | ❌ caught | ❌ caught |
+
+**7 of 8 project-runs.** The "is stopped" half is deliberately unpolled, for a
+reason I agree with — polling for zero waits for a page to go quiet and calls
+that a pass. But that leaves the sample racing the scroll settling, which is
+precisely the intermittency 9.11 diagnosed. The fix removed the bug; the guard
+against its return still has the property that produced the original 4-in-5
+failure. The deterministic form is not polling — it is forcing a `left` change
+(one `scrollLeft` write) before sampling. (W3)
+
+The fix itself is correct and the reasoning in `timeline-path.tsx:33-47` is
+right: a CSS transition is an entry in `getAnimations()`, `globals.css`'s block
+matches `[style*="animation"]` plus seven class names, and that wrapper carries
+none of them.
+
+### 8. Task honesty — are 9.0–9.12 complete as claimed?
+
+**Yes. Every claim I could falsify reproduced.** This is the cleanest task ledger
+of the three units — no 6.4/6.6-shaped overstatement.
+
+| Task | Claim | Verified |
+|---|---|---|
+| 9.0 | `mockSimulatedLife(otherId, room, candidates)`, deliberately not `TimelinePort`-shaped; RED was 6 assertion failures against a Fake-It `null` | ✅ **exact** — see below |
+| 9.1 | 16 kinds each, horizons in 8–14 / 5–10, events inside horizon, both endings + both epilogue states in one roster | ✅ asserted in `mock.test.ts:83,114,144`, all green |
+| 9.2 | Server Component, viewer from the impersonation cookie, one `notFound()` | ✅ `page.tsx:31-57` |
+| 9.3 | exactly one chip via `tagFor(kind)`, per-item `pop-in` delay inline | ✅ |
+| 9.4 | the only client island; `useDragScroll({initial:"center"})`; one number | ✅ `timeline-rail.tsx` is the only `"use client"` in the tree |
+| 9.5 | pill from data, narrowed by the union, source grep | ⚠️ built as claimed; the **grep is dead for any literal but `12`** (C1) |
+| 9.6 | props are exactly `{events, progress}` | ✅ property holds (TS2322 on a third prop) — but no probe defends it (W4) |
+| 9.7 | two branches, never three | ✅ `ending-card.tsx` has no `"open"` case |
+| 9.8 | `<button type="button">`, e2e listens for non-GET | ✅ |
+| 9.9 | `offspringVisible` imported nowhere outside its own module | ✅ `rg` returns only `offspring.ts` and `offspring.test.ts` |
+| 9.10 | 26/26 across both viewports | ✅ re-run here |
+| 9.12 | both probes | ✅ **both reproduce verbatim** |
+
+The Fake-It claim is worth reproducing exactly, because it is precise and it is
+also the finding. `mockSimulatedLife` reduced to `return null`:
+
+```text
+Tests  6 failed | 6 passed (12)
+```
+
+Six, as claimed. **And six of the twelve properties survive an implementation
+that returns nothing at all** — see C4.
+
+### 9. Strict TDD — real RED-before-GREEN, and were the probes live?
+
+**Evidence is present, reproducible, and not table-shaped.**
+
+The branch is one squashed commit (`4f9d094`), so RED **ordering** cannot be
+reconstructed from history for 9.0 or 9.1. What can be checked is the RED
+*signature*, and it matches to the test: the claimed "6 assertion failures
+against a Fake-It `null`" reproduces as exactly `6 failed | 6 passed`, with the
+six failures being the six properties that are not vacuous.
+
+Both mutation probes in 9.12 reproduce verbatim (findings 2 and 3), and I proved
+two more of the unit's guards live that the report does not claim (the chip count
+in both directions, the Server Action). That is a stronger probe record than
+either prior unit.
+
+`apply-progress.md` Batch 8 carries **no TDD Cycle Evidence table** —
+no RED/GREEN/TRIANGULATE/SAFETY-NET columns, no Files Changed table. The strict
+TDD verify module prescribes CRITICAL for a missing table. **I am filing it
+WARNING (W8), and saying why**: the substance is present in prose across Batch 8
+and `tasks.md` 9.0–9.12, the one falsifiable RED claim reproduces exactly, and
+this is the fourth consecutive batch in the same format (U6 was flagged for the
+same deviation as W5). It is a reporting-format failure, not a protocol failure.
+The orchestrator can escalate it if consistency with the module matters more than
+the substance.
+
+## TDD Compliance
+
+| Check | Result | Details |
+|---|---|---|
+| TDD evidence reported | ⚠️ | Present in prose; canonical table absent (W8) |
+| All tasks have tests | ⚠️ | 9.0–9.5, 9.7–9.10 covered; **9.6's type contract has no probe** (W4) |
+| RED confirmed | ✅ | Fake-It signature reproduced exactly: `6 failed | 6 passed` |
+| GREEN confirmed | ✅ | 222/16 unit, 26/26 e2e, re-executed here |
+| Triangulation adequate | ⚠️ | 12 unit + 13 e2e cases; **AC-SIM-6's `apart` branch has no case at all** (C2) |
+| Safety net for modified files | ✅ | `e2e/profile.spec.ts` is the only modified file; 8/8 before and after, and the change strengthens both assertions |
+| Probes proven live | ✅ | 2/2 claimed reproduce; 4 further guards proven live here; **2 guards proven DEAD** (C1, W1) |
+
+**TDD compliance**: 4 of 7 clean, 3 qualified.
+
+## Test Layer Distribution
+
+| Layer | Tests | Files | Tool |
+|---|---|---|---|
+| Unit (node) | 12 | 1 (`mock.test.ts`) | vitest |
+| Component / integration | **0** | 0 | none — `environment: "node"`, no jsdom (R15) |
+| E2E (browser) | 11 × 2 projects = 22 | 1 (`simulate.spec.ts`) | Playwright |
+| E2E (node-layer source greps) | 2 × 2 = 4 | same file | Playwright as a runner |
+| **Total for U9** | **38 executions** | **2** | |
+
+Five new `.tsx` components — `event-card`, `ending-card`, `timeline-path`,
+`walking-pair`, `timeline-rail` — sit at 0% unit coverage and are reachable only
+through the single fixture path Playwright walks. R15's harness gap now covers
+eight component files across 1c/1d/1f. (S3)
+
+## Assertion Quality
+
+| File | Test | Issue | Severity |
+|---|---|---|---|
+| `mock.test.ts:94` | "resolves every event to exactly one of the seven tokens" | **Ghost loop** — `for (const event of found?.events ?? [])` with no count guard. Zero iterations, zero assertions, green | CRITICAL |
+| `mock.test.ts:179` | "narrates in neutral Spanish" | **Ghost loop** — same shape, same `?? []` | CRITICAL |
+| `mock.test.ts:165` | "carries nothing offspring-shaped and no score" | `JSON.stringify(null) === "null"` matches none of the forbidden patterns. **A safety assertion (AC-PORT-8, AC-PORT-3) that passes on absent data** | CRITICAL |
+| `mock.test.ts:103` | "sorts events ascending by year, always" | `expect([]).toEqual([])` when the life is null | WARNING |
+| `mock.test.ts:192` | "is deterministic across calls" | `null` equals `null` | WARNING |
+| `simulate.spec.ts:211` | "cards appear in ascending year order" | No card-count guard of its own; vacuous on an empty page. Companioned by `:119`'s `toBe(16)` in a sibling test | WARNING |
+
+**Not flagged, on evidence**: the two `expect(offenders).toEqual([])` empty-array
+assertions at `simulate.spec.ts:100` and `:208` look like orphan empty checks,
+but I proved both fire under mutation. Their defect is scope, not vacuity — filed
+as C1 and W1.
+
+**Praised, because it is the correct pattern and it is right there in the same
+file**: `simulate.spec.ts:163` asserts `cardChips.length === 16` *before*
+iterating, so the AC-SIM-5 loop cannot be a ghost loop. The e2e author knew to do
+this; the unit author did not.
+
+**Assertion quality**: 3 CRITICAL, 3 WARNING.
+
+## Quality Metrics
+
+**Linter**: ✅ biome clean over 229 files.
+**Type checker**: ✅ `next typegen && tsc --noEmit` clean.
+**`Record<string, string>`**: ⚠️ `event-card.tsx:6` types `TAG_TONE` as
+`Record<string, string>` rather than `Record<TagToken, string>`, and
+`noUncheckedIndexedAccess` is off. An eighth `TAG_TOKENS` member would compile
+and render an unpainted chip. Contained by the runtime chip count, which I proved
+fires (`Expected 1, Received 0`). (W7)
+
+## Correctness (static evidence)
+
+| Requirement | Status | Note |
+|---|---|---|
+| Viewer from cookies, never the URL | ✅ | `page.tsx:38`; the segment is only ever `otherId` |
+| One `notFound()`, not three | ✅ | `page.tsx:57` |
+| Lens checked before any data call | ✅ | `page.tsx:33-35`, returns before `enterRoom` |
+| `SimulatedLife` is a lens-discriminated union | ✅ | Four compile gates, proven live |
+| `Ending` has two variants, no `"open"` | ✅ | `ending-card.tsx` writes no third case |
+| Exactly one chip, via `tagFor` | ✅ | one `<span>`, no local kind lookup |
+| `TimelinePath` props are `{events, progress}` | ✅ | third prop ⇒ TS2322, proven |
+| Nothing offspring-shaped | ✅ | `offspringVisible` unreferenced; `SimulatedLife` has no offspring field |
+| CTA is inert | ✅ | Server Component, `type="button"`, no handler, no form |
+| Render is consent-invariant | ✅ | **no consent field exists anywhere on 1f's data path** — `RankCandidate` is `{id,name,photoUrl,team?}`, `SimulatedLife` has none. Property holds by construction; nothing tests it (C3) |
+
+## Coherence (design + reconciliation rows)
+
+| Row | Followed? | Note |
+|---|---|---|
+| R3 — design's kind→token map | ✅ | `exit`→`mudanza`, `decision`→`roce`, `epilogue`→`ritual`, `vignette`→`viaje`. Exact |
+| R4 — union on lens, `Ending` union | ✅ | Built as decided; the spec's nullable `dissolution`/`epilogue` shape is absent |
+| R8 — assert the TOKEN, never the label | ✅ | `simulate.spec.ts:8-13` states it and the assertions honour it |
+| R10 — colocated `mock.ts`, no port, no composition entry | ✅ | No `TimelinePort` implementation, no `composition.ts` edit. Correctly not reported as a defect |
+| R11 — viewer via `enterRoom` + impersonation cookie | ✅ | Identical to `RoomPage` |
+| R15 — `environment: "node"`, no component branch unit-testable | ✅ inherited | Five more files added to the far side of it (S3) |
+| 9.6 — "no sibling reads layout geometry" | ⚠️ | `timeline-rail.tsx:64-77`'s `onScroll` reads `scrollWidth`, `scrollLeft` and `children.length`. That is the *parent* measuring its own scroller and passing a normalised scalar down, and the docblock argues it explicitly. The design intent (1e is a one-file swap) is preserved; the spec's literal wording is not (S1) |
+| 10.8 — every `mock.ts` names the issue that deletes it | ✅ | `mock.ts:13` names #33 |
+| Phase 10 (10.1–10.8) | ✅ all eight re-run and passing | but all eight still `[ ]` in `tasks.md` (W8) |
+
+Phase 10 results in full: no `getDb` / `adapters/db/**` / `drizzle-orm` under
+`src/app/**` or `src/components/**` (only `adapters/http/session`, in six files —
+`tasks.md` still says seven, S4); `excludedFromRoom` unreachable; none of the
+protected modules in the diff; `globals.css` and `components/ui/**` untouched;
+all eight contract files present; `domain/reveal/index.ts` exports only types.
+
+## Issues Found
+
+### CRITICAL
+
+**C1 — a hardcoded horizon passes the whole green suite. Both AC-SIM-3 guards are
+mutation-dead for every literal but `12`.** The requirement is unambiguous: "A
+literal year count MUST NOT be hardcoded anywhere in the component tree."
+
+I replaced `de {life.horizonYears}` with `de 11` in `timeline-rail.tsx:54` and
+ran both AC-SIM-3 tests: **4 passed.**
+
+Neither half can see it. The runtime test asserts only
+`8 <= horizon <= 14` — the whole romantic range — so any hardcoded value in that
+range is indistinguishable from data. The source grep is
+`/de\s*\{?\s*12\b|horizonYears\s*[=:]\s*\d+/`: the first alternative is pinned to
+the single literal `12`, and the second requires a digit immediately after `=` or
+`:`, which `horizonYears={life.horizonYears}` never produces.
+
+The guard *is* live for `12` — I confirmed `de 12` fails with
+`offenders: ["timeline-rail.tsx"]` — which is exactly what makes this dangerous:
+it looks proven. This is U7's C1 in a new place, and it is the same
+demonstration: **a violation of the spec's own words shipped past a green suite.**
+
+Cheapest honest close: assert the pill's denominator equals the horizon the
+fixture returned for that pair, or widen the grep to
+`/\bde\s+\d+\b/` over the JSX text.
+
+**C2 — the ending card's `apart` branch and the epilogue are rendered by no test
+at any layer, and the AC-SIM-6 e2e passes on the wrong branch.** Third occurrence
+of the U6-C2 / U7-C2 defect class.
+
+The e2e visits exactly one pair, `p-diego-morales`, as `p-laura-mendez`. I
+fetched both paired lenses and both render the **`together`** branch:
+
+```text
+romantic: "hasta donde alcanza esta simulación, siguen ahí."
+business: "hasta donde alcanza esta simulación, siguen ahí."
+```
+
+`simulate.spec.ts:225` asserts `toContainText(/año \d+/i)`, which the `together`
+copy — "Llegan juntos al año 12." — satisfies just as well as the `apart` copy.
+So the test named for AC-SIM-6's dissolution scenario cannot tell the two
+branches apart, and `ending-card.tsx:48-57` — the dissolution line **and** the
+epilogue paragraph — is code nobody has ever seen run.
+
+`mock.test.ts:144` proves both outcomes exist **in the data**. Nothing proves the
+component renders them. That distinction is the whole of C2, and it is exactly
+what 9.1's own rationale says it exists to prevent: *"a probabilistic split would
+ship one branch of the ending card rendered by nothing, which is the exact defect
+the 1c and 1d verifies found."* The fixture did its job; the e2e did not use it.
+
+**The branch is one URL away.** For the e2e's existing viewer under `romantic`,
+7 of 17 pairs are `apart` and 5 carry an epilogue. Verified live:
+`/simulate/p-fernanda-lopez` renders "Se separan en el año …" **and** "Un año
+después, la conversación vuelve por su cuenta." and does not render "Llegan
+juntos". One extra `open()` covers both missing scenarios.
+
+**C3 — AC-SIM-9 / AC-PORT-8's consent-invariance scenario has no test and no
+reconciliation row. This is U7's C3, verbatim, one unit later.** The spec wants
+two fixture pairs identical except the other person's `consent.romantic`,
+rendered and compared. No such comparison exists.
+`simulate.spec.ts:266` iterates three *lenses* over one person and checks for
+offspring-shaped words — which is the offspring half of the requirement, not the
+invariance half, and the test's name honestly says so.
+
+The property **is** true and unbreakable by construction: no consent field exists
+anywhere on 1f's data path (`RankCandidate` is `{id, name, photoUrl, team?}`;
+`SimulatedLife` has none), so the render cannot vary with it. That makes this a
+disclosure failure, not a behaviour failure — and U7's C3 was closed by writing a
+test that asserts *what is true* plus a row saying it must be REPLACED when #10
+lands. U9 did neither. R15 and R16 exist because this author knows how to record
+a substitution honestly; the third instance got no row at all.
+
+**C4 — six of `mock.test.ts`'s twelve properties survive an implementation that
+returns `null` for every input, and five of those six are vacuous.** Proven:
+
+```text
+mockSimulatedLife -> return null
+✓ suppresses an unknown id, the viewer, and anyone unranked   (correct to pass)
+× names both people, and never a third
+× gives every one of the sixteen kinds a subject (AC-SIM-5)
+✓ resolves every event to exactly one of the seven tokens     GHOST LOOP
+✓ sorts events ascending by year, always                      [] === []
+× keeps paired events inside the horizon it declared (AC-SIM-3)
+× gives friendship no horizon KEY and no ending KEY (AC-SIM-4)
+× makes both endings, and both epilogues, reachable in one roster
+✓ carries nothing offspring-shaped and no score               JSON.stringify(null)
+✓ narrates in neutral Spanish                                 GHOST LOOP
+✓ is deterministic across calls                               null === null
+× makes the lens change the life
+Tests  6 failed | 6 passed (12)
+```
+
+The cause is one idiom repeated five times: `found?.events ?? []` and
+`JSON.stringify(life(...))` with no guard that `life(...)` returned anything. The
+loops iterate zero times; the safety assertion scans the four bytes `null`.
+
+The most serious is `"carries nothing offspring-shaped and no score"` — it is the
+unit-layer evidence for AC-PORT-8 and AC-PORT-3, and it passes on no data at all.
+
+The remedy is one line each, and the correct pattern is already in this
+repository: `simulate.spec.ts:163` asserts the collection length before
+iterating. `mock.test.ts:83` does it too (`expect(kinds.length).toBe(16)`), which
+is why that test correctly fails. Five of its siblings do not.
+
+This also qualifies the RED claim. "6 assertion failures against a Fake-It
+`null`" is arithmetically exact — and materially incomplete, because half the
+file was green against a stub and the report does not say so.
+
+### WARNING
+
+**W1 — AC-SIM-5's band-token guard is bypassable by moving the violation into a
+`.ts` file in the same directory.** Proven green with `roce` painted from
+`bg-band-high`. See finding 2. The guard scans `*.tsx` under
+`src/components/simulate` only; `event-tag.ts` — the file that already owns the
+token vocabulary — is the most likely place for a class map to land, and it is
+invisible. Also invisible: `src/components/shared/**` and anything imported from
+`components/rank/**`. Not CRITICAL because the assertion *can* fail and the
+property holds today; C1's cannot fail for the realistic case.
+
+**W2 — "exactly one chip" is implemented as "exactly one painted `<span>`".** A
+second `<div>` chip passes. See finding 1.
+
+**W3 — the reduced-motion guard caught the reintroduced regression in 7 of 8
+project-runs.** See finding 7. The unpolled sample is the right call; the missing
+piece is a deterministic `left` change before it.
+
+**W4 — AC-SIM-7's "a third prop fails `tsc`" has no probe in the tree.** I proved
+the property holds — a third prop gives `TS2322` at `timeline-rail.tsx:59` — but
+that is my mutation, not the suite's. `domain/reveal/timeline.test.ts` shows this
+author knows how to pin a type contract with `@ts-expect-error`; the same pattern
+applied to `TimelinePath` would be three lines. Today, widening the props to
+`{events, progress, ...rest}` breaks nothing.
+
+**W5 — AC-SIM-8's inertness guard excludes GET, closes after 400 ms, and never
+asserts the scenario's "fixture state is unchanged" clause.** See finding 4. The
+non-GET half is proven live for a Server Action, `sendBeacon` and `fetch`.
+
+**W6 — three of AC-SIM-2's four indistinguishable causes have no subject, and no
+row records it.** `mockRankedRoom` ranks every candidate; `page.tsx` feeds the
+same array to both functions; `mock.ts:206`'s `status !== "ranked"` guard is dead
+from the page. R15 records this class for 1c, R16 for 1d, nothing for 1f. See
+finding 6.
+
+**W7 — `TAG_TONE: Record<string, string>` defeats its own exhaustiveness story.**
+`event-card.tsx:6`. The docblock says a seventeenth `EventKind` "fails
+`pnpm run typecheck` right here" — true of `tagFor`'s `Record<EventKind, …>`, not
+of this map. An eighth *token* compiles and renders nothing.
+`Record<TagToken, string>` is the one-word fix.
+
+**W8 — the plan's own ledger is behind the work.** All eight Phase 10 checkboxes
+are still `[ ]` after the last unit, though I re-ran all eight and all eight
+pass. And Batch 8 carries no TDD Cycle Evidence table — the fourth consecutive
+batch in that format (U6/W5 flagged it, U7/C4 escalated it). The strict-TDD
+module prescribes CRITICAL for the missing table; I am filing WARNING because the
+substance is present and reproducible, and saying so explicitly rather than
+silently downgrading.
+
+**W9 — Review Workload Guard: U9's code slice is ~1,245 changed lines against a
+~420 forecast and a 400-line budget.** `tasks.md:18` calls U9 "the only one at
+the line"; it is roughly 3× over it. The plan's own warning that "forecasts here
+read ~2.5× low" is the accurate one. Not a defect in the work — it is the last
+unit and it is coherent — but the reviewer of this PR is being handed three
+budgets' worth, and the guard exists to say so out loud.
+
+**W10 — `simulate.spec.ts:211`'s year-order test has no card-count guard.**
+Vacuous on an empty page. Companioned by `:119`, so low risk.
+
+### SUGGESTION
+
+**S1 — 9.6's "no sibling reads layout geometry" is satisfied in intent, not in
+letter.** `timeline-rail.tsx`'s `onScroll` reads `scrollWidth`/`scrollLeft`/
+`children.length` from the card scroller — a sibling of `<TimelinePath>` in the
+same JSX. The parent measuring its own scroller and passing a normalised scalar
+is the right design, and the docblock argues it. Reword the criterion to
+"`<TimelinePath>` reads no geometry it was not passed", which is what is actually
+true and what actually keeps 1e a one-file swap.
+
+**S2 — four defensive branches are dead from the page**, in the R15 sense:
+`events[active]?.year ?? 1`, `Math.max(1, events.length - 1)`,
+`timeline-path.tsx:31`'s `events.length > 0 ? … : null`, and `mock.ts:206`.
+All four are harmless and none is wrong. R15's table records exactly this for 1c;
+1f's four are unrecorded.
+
+**S3 — five more components on the far side of the jsdom gap.** `event-card`,
+`ending-card`, `timeline-path`, `walking-pair`, `timeline-rail` at 0% unit
+coverage. U6's report asked for the harness decision "before U7 inherits it";
+U7 inherited it and added three, U9 inherited it and added five. Eight files now.
+
+**S4 — `tasks.md` 10.1 still says the `adapters/http/session` allowlist is "SEVEN
+files".** It is six: `intake/{page,actions,guards,declared/actions}` and
+`quiz/{page,actions}`. #46 deleted `intake/gates/actions`, which Batch 7 noted.
+The rule is about the module, so nothing is broken — but the sentence right after
+says "stop maintaining a file list" and then maintains one.
+
+**S5 — write down that the horizon seed and the ranking seed must stay
+different.** `hash("life:…")` vs `hash("{lens}:…")`. Today they diverge and
+`horizonYears` carries no ranking information. Unify them by accident and the
+horizon becomes a rank oracle rendered at the top of the screen. Nothing in the
+code, the tests or the plan says this must hold. See finding 5.
+
+**S6 — the `apart`/epilogue distribution is worth pinning in a comment.** For
+`p-laura-mendez`: romantic 10 together / 7 apart / 5 with epilogue; business
+11 / 6 / 4. That is what makes C2 a two-line fix rather than a fixture change,
+and it is currently only discoverable by reimplementing FNV-1a.
+
+## Verdict
+
+**FAIL** — on coverage and on two dead guards, not on behaviour.
+
+Everything that runs, runs green and was re-executed here: `pnpm run verify`
+222/16, `simulate.spec.ts` 26/26, five consecutive parallel runs of four specs at
+110/110 with zero flakes, and a database-free production build. **The flakiness
+claim is real** — 550 clean test executions.
+
+**Every safety property I attacked held, and two held more firmly than the suite
+proves.** The 404 is genuinely not an oracle: identical status, identical
+headers, byte-identical bodies with zero residual diff once the requester's own
+URL segment is normalised, and a same-length unknown id matching self to the
+byte with no normalisation at all. The RSC flight payload carries no rank, no
+position, no band, no bond, no friction and no third party's name — only the two
+people involved. The union is the best-defended thing in the change: four
+independent compile gates, and I fired the `@ts-expect-error` probes myself
+rather than trusting the report. The CTA is inert by structure, not by promise.
+Both claimed mutation probes reproduce verbatim, and I proved four more guards
+live that the report never claimed.
+
+**The blockers are four, and three of them are a defect class this project has
+now found three times.** C1: a hardcoded horizon — a violation of the spec's
+literal words — passes both AC-SIM-3 guards, because one asserts a range wide
+enough to swallow it and the other greps for the single literal `12`. C2: the
+ending card's dissolution branch and its epilogue are rendered by no test at any
+layer, and the e2e carrying AC-SIM-6's id passes on the `together` branch —
+the exact defect 9.1's own rationale cites U6 and U7 for. C3: consent-invariance
+has no test and, unlike R15 and R16, no row admitting why — U7's C3, one unit
+later, from the author who wrote R16. C4: five of `mock.test.ts`'s twelve
+properties are vacuous, including the safety assertion that is the unit-layer
+evidence for AC-PORT-8.
+
+**The pattern worth naming is that the correct idiom is in the diff.**
+`simulate.spec.ts:163` counts the collection before it iterates;
+`mock.test.ts:83` does too. Five sibling tests in the same file do not, and the
+one e2e that would have caught C2 needed one more URL — a URL the fixture was
+deliberately built to make available. This unit's judgement is good and its
+instincts are right. What is missing is the last turn of the same crank.
+
+Nothing here threatens the demo. C1 and C4 are guard repairs; C2 is two lines;
+C3 is most honestly a reconciliation row rather than a test. None of them changes
+a pixel of screen 1f.
+
+**Recommended next**: `sdd-apply` for C1–C4 and the W1/W3/W4 guard repairs, then
+re-verify. **Do not archive** — and note that U9 cannot be the change's last word
+while U7's own re-verify (R18/W9) is still outstanding against its settled
+screen.
+
+---

@@ -17,6 +17,8 @@
  * from them (AC-PORT-3). The engine's numbers stop in the adapter.
  */
 
+import type { AvatarKey, ReactionEmote } from "../emotes/emotes";
+
 /**
  * COPIED from `timeline/shared.ts:78-82`. NOT imported, and not importable:
  * that directory is a separate package with its own `package.json` and
@@ -54,6 +56,17 @@ export interface LifeEvent {
   readonly kind: EventKind;
   /** Narrated prose, already safety-scanned by the adapter. */
   readonly text: string;
+  /**
+   * The reaction both avatars play while this card is the active one, chosen by
+   * the narrator and verified against the pair's plates.
+   *
+   * OPTIONAL, and that is a storage decision rather than a modelling one:
+   * `pair_simulations.life` is a `jsonb` blob cast without validation and its
+   * `scorer_version` is never compared on read, so rows cached before this
+   * field existed come back without it and must stay renderable. The screen
+   * closes the gap with `emoteForLifeEvent(kind)`, which is total.
+   */
+  readonly emote?: ReactionEmote;
 }
 
 /**
@@ -76,11 +89,24 @@ export type Ending =
 
 /** Everything both branches share. Not exported: the branches are the API. */
 interface SimulatedLifeBase {
-  readonly subject: { readonly id: string; readonly name: string };
+  readonly subject: {
+    readonly id: string;
+    readonly name: string;
+    /**
+     * The plate this person wears, so the screen can animate them.
+     *
+     * Not a widening of `RoomMember` (AC-8): that type is still exactly id,
+     * name and photoUrl, and this is a different one. The plate is already
+     * public -- everybody sees everybody's body in the room -- so naming it
+     * here reveals nothing new. Null on rows older than the column.
+     */
+    readonly avatar: AvatarKey | null;
+  };
   readonly other: {
     readonly id: string;
     readonly name: string;
     readonly photoUrl: string | null;
+    readonly avatar: AvatarKey | null;
   };
   /** Sorted by year ascending. */
   readonly events: readonly LifeEvent[];

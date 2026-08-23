@@ -13,7 +13,7 @@ document is stale.
 | File | What it is |
 | --- | --- |
 | `CLAUDE_DESIGN_BRIEF.md` | **The system prompt.** Paste from the `# THE PROMPT` heading down; everything above it is orientation for whoever runs the handoff. |
-| `CLAUDE_DESIGN_QUIZ_BLOCK.md` | **The quiz block prompt** — the one screen a participant sees fifteen times, and the highest-value open problem in the product. |
+| `CLAUDE_DESIGN_QUIZ_BLOCK.md` | **The quiz block prompt** — the one screen a participant sees twelve times, and the highest-value open problem in the product. |
 | `design-tokens.json` | Machine-readable token mirror: exact hex, the lens mechanism, the shadow system, the rules that must hold. Attach it so the model never re-derives a colour by eye. |
 | `screenshots/` | The system as actually rendered at 2× DPI, straight from `/design`. Nothing mocked. |
 | `sketch-quiz-block.png` | The original hand sketch the quiz grid came from. Historical — it shows image cards, which D14 cancelled. |

@@ -13,6 +13,7 @@
  * Pure: no SDK, no I/O, no `Math.random`, no `Date`.
  */
 
+import { emoteForLifeEvent } from "../emotes/actions.ts";
 import type { Lens, PairScore, Person } from "../matching/engine.ts";
 import type {
   Beat,
@@ -156,6 +157,9 @@ export function mockNarrate(
   const [a, b] = persons;
   return Promise.resolve({
     texts: beats.map((beat, i) => mockNarrateBeat(beat, a, b, opts.seed, i)),
+    // The same total mapping the live narrator falls back to, so an offline run
+    // and a model outage animate identically.
+    emotes: beats.map((beat) => emoteForLifeEvent(beat.kind)),
     narration: "mock",
   });
 }

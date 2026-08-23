@@ -93,8 +93,10 @@ check, is what prevents a duration claim.
 ### Skills & workflows ✅ committed
 - `.claude/skills/quest-skill/` — authors one funny 4-option forced-choice block (all four
   pillars, one reversed-keyed option) + per-option image prompts. **Never run yet.**
-- `.claude/workflows/create_quest.js` — 15 questions in 3 batches of 5 (+20 image prompts each).
-  **Never run yet.** Run: `Workflow({ scriptPath: '.claude/workflows/create_quest.js' })`.
+- `.claude/workflows/create_quest.js` — authors blocks in 3 batches of 5 (+20 image prompts
+  each). **No longer on any shipping path** (`docs/domain.md` D21): the deployed form is the
+  committed bank in `quiz/bank/*.json`, merged offline by `node scripts/quiz-bank/merge.mjs`.
+  Use the workflow to DRAFT candidates for the bank, never to serve a participant.
 
 ---
 
@@ -274,7 +276,9 @@ Y3 [kid]   In their bigger-city apartment, Sofia and Diego turn the living room 
 1. **Close `AUDIT.md` F2.** The score→event layer exists in code and **§4 now documents it**
    (pipeline, guards, decisions, evidence). What remains is a judgement call: either mark F2
    resolved citing §4, or extract §4 into the standalone `TIMELINE.md` the audit asked for.
-2. **Run `create_quest`** to author the 15 blocks — this is on the form's critical path (§3).
+2. ~~**Run `create_quest`** to author the 15 blocks~~ — **done and then superseded.** The form
+   is the committed 400-block bank (`quiz/bank/`, `docs/domain.md` D21); `formFor(participantId)`
+   deals each person twelve of them and nothing is authored at request time. Off the critical path.
 3. **The AI baby face has zero engineering spec** (`AUDIT.md` S17): no provider, model, latency,
    cost, or failure mode chosen; consent for offspring rendering is structurally separate from
    lens consent and must gate the render path. Pre-generate the hero pair as a cached fallback.

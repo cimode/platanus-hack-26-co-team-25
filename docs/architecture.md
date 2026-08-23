@@ -62,11 +62,17 @@ which port. Driving adapters call it and pass the result into a use case:
 const result = await submitIntake(input, serverDeps());
 ```
 
-`serverDeps()` currently returns only `{ db }`. `llm` is absent rather than
-stubbed: the sole implementations of `LlmPort` are the test doubles in
-`adapters/llm/fake.ts`, and giving production a fake that quietly returns
-fixtures is worse than failing to compile. It widens when
-`adapters/llm/anthropic.ts` exists.
+`serverDeps()` returns `{ db, participants, responses, generatedBlocks, latents,
+rooms, roster, photos, llm }`. Every member is a lazy getter, so a screen that
+never touches the model never builds a gateway client.
+
+`llm` is real — `adapters/llm/gateway.ts` — but **nothing on the quiz path
+reaches it**. Since `docs/domain.md` D21 the questions are the committed bank
+(`quiz/bank/`), dealt by `formFor(participantId)`, so a block costs zero model
+calls; `llm` survives for the timeline narrator and the offspring reveal, which
+are the only two workloads that still ask a model for anything at request time.
+D21 also removed two members that existed only for live authoring: `claims`
+(`GenerationClaims`) and `pool` (`QuizPoolRepository`), along with their tables.
 
 ## Two ways this goes wrong here
 

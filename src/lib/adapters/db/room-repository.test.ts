@@ -57,7 +57,7 @@ describe("createRoomRepository", () => {
     expect(found?.id).toBe(room.id);
     expect(found?.slug).toBe(room.slug);
     // D2: the room records which instrument it administered.
-    expect(found?.instrumentVersion).toBe("v1");
+    expect(found?.instrumentVersion).toBe(INSTRUMENT.version);
     expect(found?.createdAt).toBeInstanceOf(Date);
 
     // A uuid nobody minted is a miss, not a throw and not somebody else's room.

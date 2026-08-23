@@ -5,19 +5,30 @@
  * from the session token, checks the room's structural version
  * (`InstrumentVersionMismatchError` from `quiz-progress.ts`), then loads *this
  * participant's* block at `position` through
- * `generatedBlocks.byBatch(participantId, batchOf(position))` — a write never
- * authors, so neither `continueQuizGeneration` nor `saveBatch` is called here
- * (D16/D20) —
- * and validates the submitted keys against that block before anything is
- * written.
+ * `generatedBlocks.byBatch(participantId, batchOf(position))` — one query for
+ * the four blocks of `batchOf(position)`, which at twelve blocks and four per
+ * batch is still one of three groups — and validates the submitted keys
+ * against that block before anything is written.
+ *
+ * A write never assigns the form. `quizProgress` served the block, and
+ * serving it is what wrote the row, so by the time a tap arrives the row is
+ * there. The "no stored block" throw below is therefore the invariant stated
+ * out loud, not a degraded mode with a recovery: an answer written against a
+ * question nobody stored is an answer whose question nothing can recover
+ * afterwards, and assigning one here would invent the question after the fact.
  *
  * Every write goes through `ResponseRepository.save` (docs/domain.md §7). The
- * block-15 write that completes the set passes `{ completedAt: now }`, whose
- * adapter sets `participants.quiz_completed_at` in the same `db.batch()`;
- * `participants.markQuizCompleted` is never called from here.
+ * write that completes the set — the last position, `BLOCK_COUNT` — passes
+ * `{ completedAt: now }`, whose adapter sets `participants.quiz_completed_at`
+ * in the same `db.batch()`; `participants.markQuizCompleted` is never called
+ * from here.
  */
 
-import type { ParticipantId, SessionToken } from "../domain/participant";
+import type {
+  ParticipantId,
+  RoomId,
+  SessionToken,
+} from "../domain/participant";
 import type { BlockResponse, OptionKey } from "../domain/quiz/index.ts";
 import {
   BLOCK_COUNT,
@@ -40,7 +51,7 @@ export interface AnswerBlockDeps {
 
 export interface AnswerBlockInput {
   sessionToken: SessionToken;
-  /** 1..15. */
+  /** 1..`BLOCK_COUNT`. */
   position: number;
   mostKey: OptionKey;
   /** Required unless `singlePick`; stored as null under it. */
@@ -53,13 +64,20 @@ export interface AnswerBlockInput {
 export interface AnswerBlockResult {
   participantId: ParticipantId;
   /**
+   * The room this write was administered in. Already loaded and version-checked
+   * by `requireCurrentRoom` below, so reporting it costs nothing -- and it is
+   * what the completing caller needs to schedule scoring without a second
+   * round trip to rediscover who the participant is.
+   */
+  roomId: RoomId;
+  /**
    * The first unanswered position AFTER the write, recomputed from the rows —
-   * never `position + 1`. 15 when every position is answered.
+   * never `position + 1`. `BLOCK_COUNT` when every position is answered.
    */
   nextPosition: number;
   /** True only when this write moved the frontier (the position had no row). */
   advanced: boolean;
-  /** True only on the block-15 write that completed the quiz. */
+  /** True only on the last-position write that completed the quiz. */
   completed: boolean;
 }
 
@@ -83,8 +101,8 @@ export async function answerBlock(
     throw new Error(`position must be 1..${BLOCK_COUNT}, got ${position}`);
   }
 
-  // *This participant's* block, never the constant, and never authored here: a
-  // write for a block nobody was shown is a write with no question behind it.
+  // *This participant's* stored block, never the bank read afresh: a write for
+  // a block nobody was shown is a write with no question behind it.
   const batch = batchOf(position);
   const stored = await deps.generatedBlocks.byBatch(participant.id, batch);
   const block = stored.find((row) => row.block.position === position)?.block;
@@ -137,7 +155,7 @@ export async function answerBlock(
   const answered = new Set(rows.map((row) => row.position));
   const advanced = !answered.has(position);
 
-  // The completing write (docs/domain.md §7): the 15th distinct position, with
+  // The completing write (docs/domain.md §7): the last distinct position, with
   // the timestamp still null. One `save`, one `db.batch()`, no second path.
   const completesTheSet =
     position === BLOCK_COUNT &&
@@ -153,6 +171,7 @@ export async function answerBlock(
   answered.add(position);
   return {
     participantId: participant.id,
+    roomId: participant.roomId,
     // From the rows after the write, never `position + 1`: a re-answer behind
     // the frontier leaves the frontier where it was.
     nextPosition: firstUnanswered(answered),
@@ -161,7 +180,7 @@ export async function answerBlock(
   };
 }
 
-/** Positions 1..14 all hold a row, so position 15 is the fifteenth. */
+/** Every position below the last holds a row, so the last one completes the set. */
 function everyOtherPositionAnswered(answered: ReadonlySet<number>): boolean {
   for (let position = 1; position < BLOCK_COUNT; position++) {
     if (!answered.has(position)) return false;

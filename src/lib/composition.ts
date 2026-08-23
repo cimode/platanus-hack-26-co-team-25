@@ -1,26 +1,26 @@
 import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
 import { createGeneratedBlockRepository } from "./adapters/db/generated-block-repository";
-import { createGenerationClaimsRepository } from "./adapters/db/generation-claims-repository";
 import { createLatentRepository } from "./adapters/db/latent-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
-import { createQuizPoolRepository } from "./adapters/db/quiz-pool-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
 import { createDbRoster } from "./adapters/db/roster";
 import { createGatewayLlm } from "./adapters/llm/gateway";
+import { createFakeOffspringStudio } from "./adapters/offspring/fake";
+import { createOpenAiOffspringStudio } from "./adapters/offspring/openai";
+
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import { createDbTimelines } from "./adapters/timeline";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
-import type { GenerationClaims } from "./ports/generation-claims";
 import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
+import type { OffspringStudio } from "./ports/offspring";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
 import type { PhotoStore } from "./ports/photo-store";
 import type { ProfilePort } from "./ports/profile";
-import type { QuizPoolRepository } from "./ports/quiz-pool";
 import type { RankingPort } from "./ports/ranking";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
@@ -60,11 +60,8 @@ export interface Deps {
   db: Db;
   llm: LlmPort;
   roster: ParticipantsPort;
+  /** The rows recording which twelve bank blocks each participant was shown. */
   generatedBlocks: GeneratedBlockRepository;
-  /** The per-batch and per-pool-slot locks the generation chain takes. */
-  claims: GenerationClaims;
-  /** The room's pre-authored batch-1 sets. */
-  pool: QuizPoolRepository;
   participants: ParticipantRepository;
   rooms: RoomRepository;
   responses: ResponseRepository;
@@ -76,6 +73,18 @@ export interface Deps {
   profiles: ProfilePort;
   /** `simulatePair`, likewise (issue #33). */
   timelines: TimelinePort;
+  /** The AI-offspring studio for the `/match` reveal (CONTEXT.md §3 step 6). */
+  offspring: OffspringStudio;
+  /**
+   * `scoreParticipant`, repositories already bound (issue #30).
+   *
+   * Exposed on its own because scoring is no longer only a read-time repair:
+   * the quiz schedules it the moment block 15 lands, so the person who just
+   * finished has four posteriors before anyone ranks them. It is the SAME
+   * binding `rankingDeps()` builds -- one clock, one scorer -- not a second
+   * one that could drift.
+   */
+  scoreParticipant: PrepareResultsDeps["scoreParticipant"];
 }
 
 export type ServerDeps = Pick<
@@ -84,8 +93,6 @@ export type ServerDeps = Pick<
   | "llm"
   | "roster"
   | "generatedBlocks"
-  | "claims"
-  | "pool"
   | "participants"
   | "rooms"
   | "responses"
@@ -94,6 +101,8 @@ export type ServerDeps = Pick<
   | "ranking"
   | "profiles"
   | "timelines"
+  | "offspring"
+  | "scoreParticipant"
 >;
 
 let cachedLlm: LlmPort | undefined;
@@ -146,15 +155,14 @@ function rankingDeps(): PrepareResultsDeps {
 /**
  * Dependencies available on the server today.
  *
- * `llm` used to be deliberately absent -- the only implementations of `LlmPort`
- * were the test doubles in `adapters/llm/fake.ts`, and handing production a fake
- * that quietly returns fixtures is worse than not compiling. It is real now that
- * `adapters/llm/gateway.ts` exists, and this is the single place that knows the
- * model is Sonnet behind AI Gateway: `generateQuizBatch` only ever sees an
- * `LlmPort`, which is why its tests pass `stubLlm()` and touch no network.
+ * `llm` is real, and this is the single place that knows the model is Sonnet
+ * behind AI Gateway: `simulatePair` and the timeline narrator only ever see an
+ * `LlmPort`, which is why their tests pass `stubLlm()` and touch no network.
+ * Nothing on the quiz path reaches it any more -- a question is twelve rows
+ * dealt from the committed bank, so the form costs no model call at all.
  *
  * The result is a structural superset of every use case's deps interface
- * (`GenerationDeps`, `QuizProgressDeps`, ...), so a screen passes
+ * (`QuizProgressDeps`, `AssignQuizFormDeps`, ...), so a screen passes
  * `serverDeps()` whole and TypeScript picks the members the use case names.
  *
  * Like the database members it is a getter, so a page that needs neither a model
@@ -191,12 +199,6 @@ export function serverDeps(): ServerDeps {
     get generatedBlocks() {
       return createGeneratedBlockRepository(getDb());
     },
-    get claims() {
-      return createGenerationClaimsRepository(getDb());
-    },
-    get pool() {
-      return createQuizPoolRepository(getDb());
-    },
     get participants() {
       return createParticipantRepository(getDb());
     },
@@ -225,10 +227,23 @@ export function serverDeps(): ServerDeps {
     get timelines(): TimelinePort {
       return createDbTimelines(getDb(), getLlm());
     },
+    get scoreParticipant(): PrepareResultsDeps["scoreParticipant"] {
+      return rankingDeps().scoreParticipant;
+    },
     get photos() {
       return process.env.AWS_ENDPOINT_URL_S3
         ? createNeonObjectStoragePhotoStore()
         : createFakePhotoStore();
+    },
+    // The AI-offspring studio (CONTEXT.md §3 step 6). Chosen by the presence of
+    // `OPENAI_API_KEY`, the same way `photos` keys on the storage endpoint: the
+    // real image model when it is set, a committed placeholder when it is not,
+    // so `/match` renders with or without a credential. Building either opens
+    // no socket, so this stays a getter like the members above.
+    get offspring() {
+      return process.env.OPENAI_API_KEY
+        ? createOpenAiOffspringStudio()
+        : createFakeOffspringStudio();
     },
   };
 }

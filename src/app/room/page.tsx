@@ -1,16 +1,21 @@
 import { ChevronLeft } from "lucide-react";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LensPicker } from "@/components/room/lens-picker";
 import { RoomCanvas } from "@/components/room/room-canvas";
+import { resolveViewerId } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import { enterRoom } from "@/lib/use-cases/enter-room";
 import { cn } from "@/lib/utils";
 
 /**
  * Screen 1b -- the room.
+ *
+ * Identity comes from `resolveViewerId`: the impersonation cookie when the demo
+ * console set one, otherwise the participant behind `dipia_session`. That
+ * second half is what lets someone who registered and finished the quiz walk
+ * into the room they belong to instead of being bounced to `/`, which is the
+ * internal chooser and lists every name in the venue.
  *
  * A Server Component: it resolves who you are, places everyone else, and hands
  * the finished layout down. Only the canvas and the lens card are client
@@ -21,15 +26,13 @@ import { cn } from "@/lib/utils";
  * one with controls underneath.
  */
 export default async function RoomPage() {
-  const store = await cookies();
-  const { me, others } = await enterRoom(
-    store.get(IMPERSONATION_COOKIE)?.value,
-    serverDeps()
-  );
+  const deps = serverDeps();
+  const meId = await resolveViewerId(deps);
+  const { me, others } = await enterRoom(meId ?? undefined, deps);
 
-  // A room with no `me` is a broken session, not an empty state: the cookie is
-  // missing or names someone off the roster. Send them back to pick again
-  // rather than render a screen that cannot do anything.
+  // A room with no `me` is a broken session, not an empty state: neither cookie
+  // resolves to anyone on the roster. Send them back to pick again rather than
+  // render a screen that cannot do anything.
   if (!me) redirect("/");
 
   return (

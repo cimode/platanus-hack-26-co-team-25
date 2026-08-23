@@ -1,7 +1,6 @@
 import type { BrowserContext } from "@playwright/test";
 import { createDb } from "../../src/lib/adapters/db/client";
 import { createParticipantRepository } from "../../src/lib/adapters/db/participant-repository";
-import { createQuizPoolRepository } from "../../src/lib/adapters/db/quiz-pool-repository";
 import { createRoomRepository } from "../../src/lib/adapters/db/room-repository";
 import type {
   Consent,
@@ -9,10 +8,9 @@ import type {
   SessionToken,
 } from "../../src/lib/domain/participant";
 import { avatarFor } from "../../src/lib/domain/participant/avatar";
-import { INSTRUMENT } from "../../src/lib/domain/quiz";
 
 /**
- * Seeds straight into the `e2e-<run>` room (issue #8, reshaped by D20).
+ * Seeds straight into the `e2e-<run>` room (issue #8, reshaped by D20/D21).
  *
  * Driving registration through the real screen for every test that needs a
  * participant would multiply the run time and make a failure downstream read
@@ -84,7 +82,6 @@ function repositories() {
   return {
     participants: createParticipantRepository(db),
     rooms: createRoomRepository(db),
-    pool: createQuizPoolRepository(db),
   };
 }
 
@@ -132,26 +129,6 @@ export async function seedParticipant(
   }
 
   return { id: participant.id, name, sessionToken };
-}
-
-/**
- * One pre-written set of first questions for the `e2e-<run>` room (D20).
- *
- * Registration adopts the oldest unclaimed set as the new participant's batch
- * 1, so a test that seeds one before registering lands on block 1 with the
- * questions already there -- and no model is ever called in e2e. The blocks
- * are the committed instrument's batch 1, the same five the quiz helper seeds.
- */
-export async function seedPoolSet(): Promise<void> {
-  const { rooms, pool } = repositories();
-  const slug = e2eRoomSlug();
-  const room = await rooms.bySlug(slug);
-  if (!room) throw new Error(`${MISSING_ROOM} (no room with slug ${slug})`);
-
-  await pool.add(
-    room.id,
-    INSTRUMENT.blocks.filter((block) => block.batch === 1)
-  );
 }
 
 /** The participant behind a session cookie -- identity, photo and consents. */
