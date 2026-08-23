@@ -179,6 +179,33 @@ describe("generateQuizBatch", () => {
     }
   });
 
+  it("repairs one over-long option instead of failing the whole batch", async () => {
+    const { llm, state } = authorStub((call) => {
+      const batch = goodBatch("p-long", 1);
+      if (call === 1) {
+        // Eleven words: breaks a length rule, not the structure. Enforced at
+        // the batch boundary this used to reject the call and fall back on
+        // all five positions.
+        batch.blocks[1].options[2].text =
+          "uno dos tres cuatro cinco seis siete ocho nueve diez once";
+      }
+      return batch;
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-long", batch: 1 },
+      { llm }
+    );
+
+    // Author, then one repair for position 2 alone; nothing fell back.
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([2]);
+    expect(result.fellBackAt).toEqual([]);
+    for (const block of result.blocks) {
+      expect(() => validateBlock(block)).not.toThrow();
+    }
+  });
+
   it("serves the committed instrument, without throwing, when the model is down", async () => {
     const result = await generateQuizBatch(
       { participantId: "p-3", batch: 3 },
