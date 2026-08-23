@@ -137,7 +137,10 @@ que hace que el cierre suene a remate y no a repetición.
 
 ### [SLIDE 7 · el loop] — 13s
 
-> Contestas doce preguntas raras, dices qué estás buscando,
+> Título: **"De una sala llena de extraños a una conexión a tu medida."**
+> Planta la palabra *conexión*, que la última diapositiva cobra.
+
+> Contestas doce preguntas graciosas, dices qué estás buscando,
 > descubres con quién encajas, y simulan la vida que tendrían juntos
 > —medio en broma—.
 > Y entonces… **cruzas la sala.**

@@ -156,9 +156,13 @@ export const SLIDES: Slide[] = [
   {
     kind: "loop",
     id: "loop",
-    title: "De una sala llena de extraños a una conversación.",
+    // "conexión" rather than "conversación" or "match": it plants the word the
+    // closing slide pays off ("nos apasionan las conexiones reales"). "A tu
+    // medida" carries what "potencial" was reaching for without the hedge --
+    // a title on a projector cannot afford a word that weakens its own claim.
+    title: "De una sala llena de extraños a una conexión a tu medida.",
     steps: [
-      { label: "Contestas 12 preguntas raras" },
+      { label: "Contestas 12 preguntas graciosas" },
       // "Lente" is our word, not theirs -- it means nothing cold. What the
       // person actually does is state an intention, so the note carries the
       // three lenses in plain language instead of the term.

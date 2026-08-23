@@ -215,20 +215,23 @@ function LoopStep({
   note?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-5 text-left">
+    // A fixed three-row grid, not `justify-between`: with justify-between the
+    // bottom block is pushed to the floor, so a card carrying a note ends up
+    // with its label a whole line higher than one without and the row reads
+    // ragged. Here row 2 is the label in every card, so every label starts at
+    // the same y no matter what is under it.
+    <div className="grid min-w-0 flex-1 grid-rows-[auto_1fr_auto] gap-2 rounded-2xl border border-border bg-card p-5 text-left">
       <span className="font-mono text-ink-faint text-[clamp(0.6rem,0.85vw,0.8rem)] tracking-widest">
         0{index}
       </span>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-balance font-display font-bold text-[clamp(1.1rem,1.9vw,1.75rem)] leading-tight">
-          {label}
-        </span>
-        {note ? (
-          <span className="font-mono text-[clamp(0.6rem,0.85vw,0.8rem)] text-primary uppercase tracking-widest">
-            {note}
-          </span>
-        ) : null}
-      </div>
+      <span className="text-balance font-display font-bold text-[clamp(1.1rem,1.9vw,1.75rem)] leading-tight">
+        {label}
+      </span>
+      {/* The row is reserved even when empty, so all four cards end at the
+          same baseline and the note never changes the card's proportions. */}
+      <span className="font-mono text-[clamp(0.6rem,0.85vw,0.8rem)] text-primary uppercase tracking-widest">
+        {note ?? "\u00A0"}
+      </span>
     </div>
   );
 }
