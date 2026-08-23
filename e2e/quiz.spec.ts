@@ -10,7 +10,7 @@ import {
  * The quiz on a phone: twelve forced-choice blocks, one tap each (issue #9,
  * style "B · Diálogo").
  *
- *     /quiz opening -> block 1 ... block 12 -> quiz_completed_at -> /results
+ *     /quiz opening -> block 1 ... block 12 -> quiz_completed_at -> /room
  *
  * Under docs/domain.md D21 every participant answers their own twelve blocks
  * of the committed bank, dealt by `formFor(participantId)` and stored as their
@@ -244,7 +244,7 @@ test.describe("quiz", () => {
     }
   });
 
-  test('AC-4 · twelve taps walk the participant\'s form with no "Tanda" beat and no wait screen anywhere, set quiz_completed_at, land on /results "Listo" and leave exactly 12 generated_blocks rows', async ({
+  test('AC-4 · twelve taps walk the participant\'s form with no "Tanda" beat and no wait screen anywhere, set quiz_completed_at, hand off to /room and leave exactly 12 generated_blocks rows', async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -267,8 +267,25 @@ test.describe("quiz", () => {
       }
     }
 
-    await expect(page).toHaveURL(/\/results/);
-    await expect(page.getByRole("heading", { name: /listo/i })).toBeVisible();
+    /*
+     * The last block hands off to /room, not to the old dead-end /results.
+     *
+     * Asserted as a SHAPE -- `/room`, or `/` -- rather than as an exact URL,
+     * because this fixture's participant lives in its own `e2e-<run>-q<n>`
+     * room by design, never `HOOKAI_ROOM_SLUG`. `/room` reads the venue
+     * roster, cannot place someone who is not on it, and bounces to `/`. Both
+     * endpoints are the hand-off working; `/quiz` and `/results` are the two
+     * this must never be, and the pattern excludes both.
+     *
+     * There is no Location-header assertion here, and there cannot be:
+     * `/quiz` has a `loading.tsx`, so Next commits `200 OK` and paints the
+     * redirect inside the stream rather than answering 3xx. That is the same
+     * streaming boundary `e2e/simulate.spec.ts` AC-SIM-2 documents for its
+     * 404. An earlier draft of this test asserted the header and failed in CI
+     * for exactly that reason.
+     */
+    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(counter(page, BLOCKS)).toHaveCount(0);
 
     expect(await participant.responses()).toHaveLength(BLOCKS);
     expect(await participant.storedBlocks()).toHaveLength(BLOCKS);
@@ -276,7 +293,7 @@ test.describe("quiz", () => {
 
     // Completed means completed: /quiz never serves a block again.
     await page.goto("/quiz");
-    await expect(page).toHaveURL(/\/results/);
+    await expect(page).toHaveURL(/\/(room)?$/);
     await expect(counter(page, BLOCKS)).toHaveCount(0);
   });
 
@@ -436,7 +453,10 @@ test.describe("safety invariants", () => {
       await tap(page, participant, position);
     }
 
-    await expect(page).toHaveURL(/\/results/);
+    // Off the quiz and onto the hand-off, wherever the roster puts this
+    // fixture's participant (see AC-4). Only the landmark for "all twelve are
+    // answered"; the leak scan below is what this criterion is about.
+    await expect(page).toHaveURL(/\/(room)?$/);
     // 1 opening + 1 served opening + 12 blocks + 3 served blocks.
     expect(captured.length).toBeGreaterThanOrEqual(17);
     for (const { where, html } of captured) {

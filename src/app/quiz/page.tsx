@@ -28,7 +28,7 @@ import { isSinglePick } from "./single-pick";
  * Three screens come out of one view:
  *
  *   no session                         → /intake
- *   quiz_completed_at                  → /results
+ *   quiz_completed_at                  → /room
  *   position 1, no ?start=, no ?block= → the opening moment
  *   anything else                      → the block
  *
@@ -60,7 +60,10 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
 
   // An unknown token is a stranger, not an error: send them to register.
   if (!view) redirect("/intake");
-  if (view.completed) redirect("/results");
+  // Where the completing write sends you too (`actions.ts`): `/room` is the
+  // one screen a finished participant can act on, and `resolveViewerId` now
+  // recognises them there from `dipia_session` alone.
+  if (view.completed) redirect("/room");
 
   // The opening moment sets the rules before block 1. It is skipped when
   // `?block=` asked for a specific block (the back affordance never shows a

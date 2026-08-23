@@ -2,9 +2,9 @@ import { ChevronLeft } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
 import { RankBoard } from "@/components/rank/rank-board";
+import { resolveViewerId } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import type { RankedRoom } from "@/lib/domain/reveal/rank";
 import { isLens, type Lens } from "@/lib/domain/room/layout";
@@ -19,10 +19,15 @@ import { cn } from "@/lib/utils";
  * has to be inert, and the strongest way to guarantee that is to have no code
  * that could look (AC-RANK-1).
  *
- * Identity is resolved the way `/room` resolves it -- the impersonation cookie
+ * Identity is resolved the way `/room` resolves it -- `resolveViewerId` (the
+ * impersonation cookie, else the participant behind `dipia_session`) fed
  * through `enterRoom` and the real `ParticipantsPort`. The ranking itself is
  * now real too: `RankingPort.forSubject` is `prepareResults` with its
  * repositories already bound, so nothing on this screen is fabricated.
+ *
+ * The resolver runs AFTER the lens check below, not before: without a lens this
+ * screen must reach no data source at all (AC-RANK-5), and resolving a session
+ * token is a repository read.
  *
  * The whole screen is one flex column that fills the viewport: a tight header,
  * a hairline, the rank row centred in everything that is left, and one line of
@@ -39,7 +44,8 @@ export default async function RankPage() {
   if (!isLens(raw)) return <NoLens />;
 
   const deps = serverDeps();
-  const { me } = await enterRoom(store.get(IMPERSONATION_COOKIE)?.value, deps);
+  const meId = await resolveViewerId(deps);
+  const { me } = await enterRoom(meId ?? undefined, deps);
 
   // Same rule as `/room`: no `me` is a broken session, not an empty state.
   if (!me) redirect("/");

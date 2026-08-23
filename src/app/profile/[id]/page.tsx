@@ -2,13 +2,13 @@ import { ChevronLeft } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
 import { AvatarStage } from "@/components/profile/avatar-stage";
 import { mockBio } from "@/components/profile/bio";
 import { ProfileCard } from "@/components/profile/profile-card";
 import { StandingPill } from "@/components/profile/standing-pill";
 import type { ProfileView } from "@/components/profile/view";
+import { resolveViewerId } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import { isLens, type Lens } from "@/lib/domain/room/layout";
 import { enterRoom } from "@/lib/use-cases/enter-room";
@@ -17,10 +17,13 @@ import { cn } from "@/lib/utils";
 /**
  * Screen 1d -- one other person, as this viewer is allowed to see them.
  *
- * A Server Component. `personId` comes from the segment and the viewer from the
- * impersonation cookie, never the other way around: the URL names WHO you are
- * looking at and the cookie names WHO IS LOOKING, and the second is not
- * something a request may assert.
+ * A Server Component. `personId` comes from the segment and the viewer from
+ * `resolveViewerId` -- the impersonation cookie, else the participant behind
+ * `dipia_session` -- never the other way around: the URL names WHO you are
+ * looking at and the cookies name WHO IS LOOKING, and the second is not
+ * something a request may assert. Adding the session fallback widens who can
+ * be identified, never what an identified viewer may see: everything below
+ * still runs through `profiles.byId` with that id as the VIEWER.
  *
  * Every suppression cause reaches the same `notFound()`. Unknown id, yourself,
  * someone absent from your ranking under this lens -- one 404, byte-identical,
@@ -45,7 +48,8 @@ export default async function ProfilePage({
   if (!isLens(lens)) redirect("/room");
 
   const deps = serverDeps();
-  const { me } = await enterRoom(store.get(IMPERSONATION_COOKIE)?.value, deps);
+  const meId = await resolveViewerId(deps);
+  const { me } = await enterRoom(meId ?? undefined, deps);
   if (!me) redirect("/");
 
   /*

@@ -1,12 +1,22 @@
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+
 /**
- * `/results` — the hand-off target of block 12 (issue #9).
+ * `/results` — no longer the hand-off target of the last block, and no longer
+ * a dead end either.
  *
- * A placeholder on purpose, and a small one: #10 replaces this whole route
- * with `/results/[lens]` (the loading moment, the lens switcher and the ranked
- * list). It exists here because the completing write has to land somewhere
- * that is not a 404 mid-demo, and because "the quiz is over" is a real state
- * the rows can express — `participants.quiz_completed_at` is non-null, and
- * `/quiz` sends anyone in that state here rather than serving block 12 again.
+ * The completing write and `/quiz`'s own completed branch both send people to
+ * `/room` now: with `resolveViewerId` bridging `dipia_session` and
+ * `dipia_impersonating`, someone who registered and finished arrives there
+ * identified and can pick a lens. This page used to be where they landed
+ * instead, with no link anywhere — the demo simply stopped.
+ *
+ * It is KEPT rather than deleted, for one reason that is not sentiment:
+ * `src/lib/site-gate/gate.ts` lists `/results` in `OPEN_PAGES`, and
+ * `e2e/site-gate.spec.ts` AC-5 asserts it answers without bouncing to the gate.
+ * While `SITE_GATE_PASSWORD` is set, `/room` is behind the password and this
+ * page is not — so this stays the one completion-adjacent screen a participant
+ * can always reach, and the way out of it has to exist.
  *
  * It carries no number: `e2e/quiz.spec.ts` asserts that no counter is visible
  * once the quiz is done, so "12/12 respuestas" here would read as a block.
@@ -18,12 +28,22 @@ export default function ResultsPage() {
         dipia · quiz
       </p>
 
-      <h1 className="font-display text-4xl font-extrabold text-ink">Listo</h1>
+      <h1 className="font-display font-extrabold text-4xl text-ink">Listo</h1>
 
       <p className="text-base text-ink-muted">
-        Terminaste las doce. Guarda el teléfono: lo que sigue aparece en la
-        pantalla grande.
+        Terminaste las doce. Entra a la sala y elige cómo quieres conectar.
       </p>
+
+      <Link
+        className={cn(
+          "mt-2 w-fit rounded-[14px] bg-primary px-5 py-2.5",
+          "font-display font-bold text-[15px] text-primary-foreground shadow-toy",
+          "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+        )}
+        href="/room"
+      >
+        Entrar a la sala
+      </Link>
     </main>
   );
 }

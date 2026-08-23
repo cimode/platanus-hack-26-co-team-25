@@ -2,11 +2,12 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { IMPERSONATION_COOKIE } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
 import { assignQuizForm } from "@/lib/use-cases/assign-quiz-form";
 import { findParticipant } from "@/lib/use-cases/list-participants";
-import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
+import type { ImpersonateState } from "./impersonation";
 import { LENS_COOKIE } from "./lens";
 
 /**
