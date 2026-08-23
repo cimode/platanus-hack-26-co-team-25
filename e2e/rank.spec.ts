@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { rosterIdByName, rosterSeeded } from "./fixtures/roster";
 
 /**
  * Screen 1c -- `/rank`.
@@ -12,7 +13,13 @@ import { expect, type Page, test } from "@playwright/test";
  * this file is to isolate 1c.
  */
 
-const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
+/** Named, not hardcoded by id -- see the note in e2e/profile.spec.ts. */
+const VIEWER = {
+  name: "Laura Méndez",
+  get id() {
+    return rosterIdByName("Laura Méndez");
+  },
+};
 
 async function open(page: Page, lens?: string, url = "/rank") {
   await page.context().clearCookies();
@@ -31,6 +38,13 @@ function cards(page: Page) {
 }
 
 test.describe("1c · the ranking", () => {
+  // The ranking is scored from the room's rows now, not fabricated, so it
+  // needs the cast global setup seeds.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   test("AC-RANK-1 · the ranking belongs to the viewer, who is not in it", async ({
     page,
   }) => {
@@ -48,7 +62,13 @@ test.describe("1c · the ranking", () => {
     await open(page, "romantic");
     const plain = await page.locator("main").innerText();
 
-    await open(page, "romantic", "/rank?subject=p-diego-morales");
+    // A REAL id, so the assertion is that a subject the app could honour is
+    // still ignored -- a bogus one would pass even on a route that read it.
+    await open(
+      page,
+      "romantic",
+      `/rank?subject=${rosterIdByName("Diego Morales")}`
+    );
     const injected = await page.locator("main").innerText();
 
     expect(injected).toBe(plain);
@@ -92,10 +112,26 @@ test.describe("1c · the ranking", () => {
   test("AC-RANK-2 · a person with no photo gets a named placeholder", async ({
     page,
   }) => {
-    // This branch was dead for two verify passes: `Placement.sprite` is
-    // `readonly string`, so `photoUrl` was never null and nothing in the demo
-    // or the suite had ever rendered the placeholder. The fixture now gives it
-    // exactly one subject per room.
+    /*
+     * UNREACHABLE through this screen, and that is a finding rather than a
+     * flaky test.
+     *
+     * The mock ranking handed exactly one person a null `photoUrl` so the
+     * placeholder had a subject. The real read model cannot: `byRoomForRanking`
+     * filters on `photo_url IS NOT NULL` as part of the §0 floor, so a person
+     * without a photo is ABSENT from the ranking rather than in it without a
+     * face. `RankEntry.photoUrl` is still typed `string | null`, so the
+     * component's branch is real code with no way to be reached from here.
+     *
+     * Left as a skip naming the contradiction rather than deleted: the choice
+     * is to narrow the type or to let photoless people be ranked, and that is
+     * a product decision. The placeholder itself should be covered by a
+     * component test in the meantime.
+     */
+    test.skip(
+      true,
+      "§0 requires a photo, so a ranked person without one cannot exist."
+    );
     await open(page, "romantic");
     const placeholder = page.getByRole("img", { name: /sin foto todavía/i });
     await expect(placeholder).toHaveCount(1);

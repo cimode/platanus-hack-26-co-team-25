@@ -12,7 +12,7 @@
  * Seeded throughout (`mulberry32`), never `Math.random`, so a failing AC
  * reproduces from its seed alone.
  */
-import { assignmentsFor } from "../quiz/assignments.ts";
+import { formFor } from "../quiz/bank.ts";
 import type { Block, Pillar } from "../quiz/instrument.ts";
 import { OPTION_KEYS, PILLARS, validateBlock } from "../quiz/instrument.ts";
 import type { BlockResponse, OptionKey } from "../quiz/response.ts";
@@ -24,15 +24,17 @@ import type { BlockItems } from "./items.ts";
 export { mulberry32 };
 
 /**
- * A structurally valid 15-block form for one participant, with a per-person
- * key↔pillar layout — what D16 actually serves.
+ * A structurally valid 12-block form for one participant, with a per-person
+ * key↔pillar layout — what the bank actually serves.
  *
- * Everything the measurement depends on is fixed across people: 15 positions,
- * the 4/4/4/3 focus rotation from `assignmentsFor`, four pillars once each,
- * exactly one reversed option and it sits on the focus pillar. What varies is
- * which option KEY carries which pillar — precisely the thing that makes
- * scoring someone against another person's form wrong, and the reason
- * `estimateLatents` takes `items` rather than defaulting to a constant.
+ * The positions and their focus pillars come from the real deal, `formFor()`, so
+ * this fixture cannot drift away from the form the app hands out. Everything the
+ * measurement depends on is fixed across people: 12 positions, three focus
+ * blocks per pillar, four pillars once each in every block, exactly one reversed
+ * option and it sits on the focus pillar. What varies is which option KEY
+ * carries which pillar — precisely the thing that makes scoring someone against
+ * another person's form wrong, and the reason `estimateLatents` takes `items`
+ * rather than defaulting to a constant.
  *
  * Scenario and option text are placeholders: the likelihood never reads them.
  * Each block goes through the real `validateBlock`, so a form the app would
@@ -40,20 +42,20 @@ export { mulberry32 };
  */
 export function structuralBlocksFor(participantId: string): Block[] {
   const random = mulberry32(seedFrom(`scoring-sim:${participantId}`));
-  return assignmentsFor(participantId).map((assignment) => {
+  return formFor(participantId).map((dealt) => {
     const layout = shuffled(PILLARS, random);
     const block: Block = {
-      position: assignment.position,
-      batch: assignment.batch,
-      focusPillar: assignment.focusPillar,
-      domain: assignment.domain,
-      scenario: `simulated block ${assignment.position}`,
+      position: dealt.position,
+      batch: dealt.batch,
+      focusPillar: dealt.focusPillar,
+      domain: dealt.domain,
+      scenario: `simulated block ${dealt.position}`,
       options: OPTION_KEYS.map((key, i) => ({
         key,
         text: `option ${key}`,
         pillar: layout[i],
         keyed:
-          layout[i] === assignment.focusPillar
+          layout[i] === dealt.focusPillar
             ? ("reversed" as const)
             : ("positive" as const),
       })),

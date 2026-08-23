@@ -517,7 +517,88 @@ with `DATABASE_URL` unset green.
 - R15's jsdom gap now covers `profile-card`, `avatar-stage` and `tag-chips` at
   0% unit coverage; they are exercised only through Playwright.
 
+### Remaining after Batch 7
+
+U9, plus Phase 10 per unit and a re-verify of U7 against the settled screen.
+
+## Batch 8 — Work unit U9 (`/simulate/[id]`, screen 1f) — COMPLETE
+
+Branch `feat/ui-flow-u9-simulate`, stacked on U7. **The last unit.** 11/11 tasks.
+
+### The fixture is the payload
+
+`mockSimulatedLife` puts **all sixteen `EventKind` members** in every simulation,
+one each, rather than sampling. AC-SIM-5 counts 16 cards with one chip apiece, so
+a sampled subset would leave most of `tagFor`'s branches rendered by nothing —
+which is how a chip mapping ships with a hole in it.
+
+Same reasoning one level up: **both `Ending` outcomes and both epilogue states
+are reachable inside one roster**, keyed rather than probabilistic. A random
+split would ship one branch of the ending card rendered by nothing, and that is
+literally the defect the 1c and 1d verifies each found.
+
+48 narrated strings, three per kind, picked by a seed that includes the lens — so
+the same pair reads as three different lives. Neutral Spanish, no gendered
+adjective, and `kid` stays allusive: its chip is "Peque" and `event-tag.ts` is
+explicit that the tag is a tag, so narrating an offspring in prose would be the
+same disclosure through a different door (AC-PORT-8).
+
+### The flake hunt found a real bug
+
+`AC-SIM-7 · reduced motion` failed in **4 of 5** parallel runs and passed alone
+every time; `--workers=1` was green. Everything about that says "timing flake".
+The message said `Expected 0, Received 1`.
+
+**One animation was surviving the reduced-motion guard, and it was ours.**
+`TimelinePath` carried `transition-[left] duration-500`; a running CSS transition
+is an entry in `getAnimations()`, and `globals.css`'s block matches
+`[style*="animation"]` plus seven class names — none of which that wrapper has.
+
+The fix was not to widen the guard. `progress` comes from a scroll position that
+already updates continuously, so a 500ms ease on top of it was easing a value
+that never jumped — it made the pair LAG the drag. One deleted line fixed the
+guard and the feel.
+
+**Generalise this: when a test fails only under parallel load, read the message
+before calling it a flake.** Two of the three were genuine flakes; one was the
+product.
+
+### Two genuine flakes, both the same shape
+
+A single sample measuring the machine instead of the property:
+
+| Test | Was | Now |
+|---|---|---|
+| "the page is alive" | one `getAnimations()` sample after `goto`; 0 before first paint | `expect.poll` |
+| "the two 404 bodies match" | `innerText` read immediately; `""` for one of them, turning a disclosure test into a race | polled until non-empty |
+
+The "is stopped" halves are deliberately **not** polled: polling for zero waits
+for a page to go quiet and calls that a pass, inverting the guarantee.
+
+Six consecutive clean parallel runs, 110/110 each.
+
+### One probe had to be a grep, and the reason matters
+
+`--band-high` and `--tag-ritual` are declared **byte-identical** (`#fbe3de`). So a
+chip painted from the band token computes to exactly the tag token's value and
+every runtime colour comparison says it is fine — proven, by watching the colour
+test stay green under that mutation. AC-SIM-5 asks which token the chip resolves
+FROM; that question only exists in the source. Colour covers six of seven
+families, the grep covers the seventh, and the test says so.
+
+Its first version matched `/band-/` anywhere and flagged the docblock explaining
+the rule. A guard that fires on its own documentation is a guard people delete.
+
+### Verification
+
+`pnpm run verify` **222 passed / 16 skipped**. `pnpm exec playwright test` over
+rank + profile + simulate + demo-path: **110 passed / 8 skipped**, six clean
+consecutive runs. `pnpm run build` with `DATABASE_URL` unset green. Phase 10
+clean; 9.9 confirmed by grep — `offspringVisible` is imported nowhere outside its
+own module.
+
 ### Remaining
 
-**U9** (`/simulate/[id]`, screen 1f) — the last unit and the largest. Plus Phase
-10 per unit, and a re-verify of U7 against the settled screen.
+Nothing in the plan. **All nine work units are done**; U6 is merged, U7 is PR #51,
+U9 needs its PR and its verify. What is left is the CI credential (issue #55) and
+whatever the U9 verify returns.

@@ -1,6 +1,8 @@
-import { randomBytes } from "node:crypto";
 import { createDb } from "../src/lib/adapters/db/client";
 import { createRoomRepository } from "../src/lib/adapters/db/room-repository";
+import { INSTRUMENT } from "../src/lib/domain/quiz/instrument";
+import { seedRoster } from "./fixtures/roster";
+import { seedLatents, seedSimulations } from "./fixtures/simulations";
 
 /**
  * The e2e room (docs/domain.md D9).
@@ -61,16 +63,76 @@ export default async function globalSetup(): Promise<void> {
     return;
   }
 
-  const run = `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
-  const slug = `e2e-${run}`;
+  // Both decided in playwright.config.ts, which runs first and hands the same
+  // slug to the web server as HOOKAI_ROOM_SLUG.
+  const run = process.env.E2E_RUN_ID as string;
+  const slug = process.env.E2E_ROOM_SLUG as string;
 
   const rooms = createRoomRepository(createDb(url));
   await rooms.create({
     slug,
     name: `E2E run ${run}`,
-    instrumentVersion: "v1",
+    // The room records the structural version it administers, and quizProgress
+    // and scoreParticipant both refuse a room whose version is not the current
+    // one -- so a literal here would fail every run the day the shape moves.
+    instrumentVersion: INSTRUMENT.version,
   });
 
-  process.env.E2E_RUN_ID = run;
-  process.env.E2E_ROOM_SLUG = slug;
+  /*
+   * The cast the room screens are tested against.
+   *
+   * It lived in `adapters/participants/roster.ts` until `ParticipantsPort`
+   * started reading the `participants` table. Without this the chooser under
+   * test lists nobody, and 1a, 1b, the ranking and the profile all fail for
+   * the same reason -- one none of them is about.
+   */
+  const ids = await seedRoster(slug);
+
+  /*
+   * Latents, then cached lives.
+   *
+   * `/simulate/[id]` waits on a live narration, and CI has no AI Gateway
+   * credentials -- so an uncached pair leaves the screen on "Escribiendo esta
+   * vida" until the test times out. `simulatePair` returns from
+   * `pairSimulations.byPair` before it reaches the narrator, and that hit also
+   * requires `latents.computedAtFor` to match the row's stamps, which is why
+   * both are seeded from one clock.
+   *
+   * The pairs are the ones the specs walk, and their outcomes are decided here
+   * because AC-SIM-6 needs one ending apart WITH an epilogue and one WITHOUT.
+   * A live model cannot promise either.
+   */
+  const person = (name: string) => ({ id: ids.get(name) as string, name });
+  const laura = person("Laura Méndez");
+  const diego = person("Diego Morales");
+
+  await seedLatents([...ids.values()]);
+  await seedSimulations([
+    // The main pair, under all three lenses: AC-PORT-8 walks each one.
+    { a: laura, b: diego, lens: "romantic", horizonYears: 12 },
+    { a: laura, b: diego, lens: "business", horizonYears: 7 },
+    { a: laura, b: diego, lens: "friendship" },
+    // A DIFFERENT horizon: AC-SIM-3 proves no source hardcodes one by walking
+    // two pairs and asserting the two denominators disagree.
+    { a: laura, b: person("Ana Ramírez"), lens: "romantic", horizonYears: 9 },
+    // The two halves of the `apart` branch (AC-SIM-6).
+    {
+      a: laura,
+      b: person("Fernanda López"),
+      lens: "romantic",
+      horizonYears: 11,
+      ending: {
+        outcome: "apart",
+        year: 8,
+        epilogue: "Años después vuelven a cruzarse, y se saludan sin apuro.",
+      },
+    },
+    {
+      a: laura,
+      b: person("Sofía Guzmán"),
+      lens: "romantic",
+      horizonYears: 10,
+      ending: { outcome: "apart", year: 6, epilogue: null },
+    },
+  ]);
 }

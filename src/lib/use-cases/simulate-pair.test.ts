@@ -26,6 +26,11 @@ import type {
   FriendshipTimeline,
   SimulatedLife,
 } from "../domain/reveal/timeline";
+import type {
+  NarrateResult,
+  NominateResult,
+  TimelineNarrator,
+} from "../domain/timeline/shared";
 import { scanBanned, scanSurvivalClaims } from "../domain/timeline/shared";
 import type {
   LatentPosteriors,
@@ -281,7 +286,12 @@ const ROW_RANKABLE = rankable(RANKABLE, "Rafa", {
   businessGate: BUSINESS,
 });
 const ROW_ABANDONED = rankable(ABANDONED, "Abel", {
-  participant: { declaredAt: null, quizCompletedAt: null },
+  participant: {
+    gender: null,
+    birthdate: null,
+    declaredAt: null,
+    quizCompletedAt: null,
+  },
   declared: NO_BANDS,
   romanticGate: MUTUAL_ROMANTIC,
   businessGate: BUSINESS,
@@ -434,6 +444,34 @@ function fixedSentenceLlm(): LlmPort {
   // the beat schema in full: a missing `emote` would silently push every beat
   // down the mock-prose path and quietly stop testing the live one.
   return stubLlm(() => ({ text: FIXED_SENTENCE, emote: FIXED_EMOTE }));
+}
+
+/**
+ * A `TimelineNarrator` that refuses to narrate and records that it was asked.
+ *
+ * `countingLlm` counts one layer lower and only sees the LIVE narrator; this
+ * counts the port itself, so "the timeline was never generated" is asserted
+ * against the seam `generateTimeline` actually calls. It throws on use because
+ * every test that holds one expects zero calls -- a call is the failure, and
+ * failing loudly beats returning plausible sentences.
+ */
+function countingNarrator(): TimelineNarrator & {
+  narrateCalls: number;
+  nominateCalls: number;
+} {
+  const narrator = {
+    narrateCalls: 0,
+    nominateCalls: 0,
+    narrate(): Promise<NarrateResult> {
+      narrator.narrateCalls++;
+      return Promise.reject(new Error("the narrator must not be reached here"));
+    },
+    nominate(): Promise<NominateResult> {
+      narrator.nominateCalls++;
+      return Promise.reject(new Error("the narrator must not be reached here"));
+    },
+  };
+  return narrator;
 }
 
 function pairSimulationsFake(): PairSimulationRepository & {
@@ -675,7 +713,7 @@ describe("simulatePair", () => {
     const llm = countingLlm(fixedSentenceLlm());
     const baseDeps = () => depsFor(AC8_ROOM, {}, [SUBJECT], llm);
 
-    expect(floorReason(ROW_ABANDONED, "romantic")).toBe("declared-incomplete");
+    expect(floorReason(ROW_ABANDONED, "romantic")).toBe("no-identity");
 
     const results = await Promise.all([
       simulatePair(
@@ -947,8 +985,9 @@ describe("simulatePair", () => {
       participant: {
         ...rows[anaIndex].participant,
         consent: ALL_LENSES,
-        declaredAt: null,
-        declared: NO_BANDS,
+        // Null bands no longer fail the floor (D20); a missing identity does.
+        gender: null,
+        birthdate: null,
       },
     };
     expect(
@@ -977,6 +1016,70 @@ describe("simulatePair", () => {
     );
     expect(blocked).toBeNull();
     expect(llm.generateCalls.length).toBe(callsAfterWarm);
+  });
+
+  it("a missing posterior is refused BEFORE the narrator is asked for a single beat", async () => {
+    /*
+     * The 33-second 404.
+     *
+     * `simulatePair` requires both sides to hold a posterior -- `computedAt`
+     * is the cache's freshness seal, and there is nothing to seal a row with
+     * when one side was never scored. That check used to sit AFTER
+     * `generateTimeline`, so the viewer waited out a full live narration
+     * (~33s, docs/domain.md D19) and was then handed `null`, which
+     * `/simulate/[id]` renders as `notFound()`. Nothing generation produces
+     * could ever have changed the outcome.
+     *
+     * Counting NARRATOR calls rather than the result: `null` came back before
+     * the fix too. What the fix changed is how much is spent reaching it.
+     */
+    const narrator = countingNarrator();
+    const deps = {
+      // Ana is scored, Bruno is not -- the exact shape of a room where one
+      // person finished the quiz and nobody ever turned it into posteriors.
+      ...depsFor(
+        AC1_ROOM,
+        { [ANA]: LATENTS[ANA] },
+        [ANA, BRUNO],
+        countingLlm(fixedSentenceLlm())
+      ),
+      narrator,
+    };
+
+    const life = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+
+    expect(life).toBeNull();
+    expect(narrator.narrateCalls).toBe(0);
+    expect(narrator.nominateCalls).toBe(0);
+  });
+
+  it("still serves a fresh cache hit, with the hoisted posterior reads as the seal", async () => {
+    // The freshness comparison moved from two reads inside `freshnessMatches`
+    // to the two reads taken above the cache branch. Same rows, same seal:
+    // a warm pair must still come back without narrating anything again.
+    const llm = countingLlm(fixedSentenceLlm());
+    const cache = pairSimulationsFake();
+    const deps = depsFor(AC1_ROOM, LATENTS, [ANA, BRUNO], llm, cache);
+
+    const first = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+    expect(first).not.toBeNull();
+    const callsAfterWarm = llm.generateCalls.length;
+    expect(callsAfterWarm).toBeGreaterThan(0);
+
+    const narrator = countingNarrator();
+    const again = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      { ...deps, narrator }
+    );
+
+    expect(again).toEqual(first);
+    expect(narrator.narrateCalls).toBe(0);
   });
 });
 

@@ -2,10 +2,9 @@ import { ChevronLeft } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
-import { mockRankedRoom, type RankCandidate } from "@/components/rank/mock";
 import { RankBoard } from "@/components/rank/rank-board";
+import { resolveViewerId } from "@/lib/adapters/http/viewer";
 import { serverDeps } from "@/lib/composition";
 import type { RankedRoom } from "@/lib/domain/reveal/rank";
 import { isLens, type Lens } from "@/lib/domain/room/layout";
@@ -20,10 +19,15 @@ import { cn } from "@/lib/utils";
  * has to be inert, and the strongest way to guarantee that is to have no code
  * that could look (AC-RANK-1).
  *
- * Identity is resolved the way `/room` resolves it -- the impersonation cookie
- * through `enterRoom` and the real `ParticipantsPort`. Only the ranking itself
- * is fabricated, by `mockRankedRoom`, which issue #10's `prepareResults`
- * deletes.
+ * Identity is resolved the way `/room` resolves it -- `resolveViewerId` (the
+ * impersonation cookie, else the participant behind `dipia_session`) fed
+ * through `enterRoom` and the real `ParticipantsPort`. The ranking itself is
+ * now real too: `RankingPort.forSubject` is `prepareResults` with its
+ * repositories already bound, so nothing on this screen is fabricated.
+ *
+ * The resolver runs AFTER the lens check below, not before: without a lens this
+ * screen must reach no data source at all (AC-RANK-5), and resolving a session
+ * token is a repository read.
  *
  * The whole screen is one flex column that fills the viewport: a tight header,
  * a hairline, the rank row centred in everything that is left, and one line of
@@ -39,23 +43,22 @@ export default async function RankPage() {
   // question that was never asked.
   if (!isLens(raw)) return <NoLens />;
 
-  const { me, others } = await enterRoom(
-    store.get(IMPERSONATION_COOKIE)?.value,
-    serverDeps()
-  );
+  const deps = serverDeps();
+  const meId = await resolveViewerId(deps);
+  const { me } = await enterRoom(meId ?? undefined, deps);
 
   // Same rule as `/room`: no `me` is a broken session, not an empty state.
   if (!me) redirect("/");
 
-  const candidates: readonly RankCandidate[] = others.map((spot) => ({
-    id: spot.participant.id,
-    name: spot.participant.name,
-    // The sprite is already stable per person, so a face never changes between
-    // the room and the ranking. Real photos replace this at intake.
-    photoUrl: spot.sprite,
-  }));
-
-  const room = mockRankedRoom(raw, me, candidates);
+  /*
+   * The real ranking, scored from the room's own responses.
+   *
+   * `forSubject` takes the VIEWER and nothing else that could name a subject,
+   * so `/rank?subject=x` is not merely ignored here -- it is unrepresentable
+   * at the port (AC-RANK-1). The entries carry their own `photoUrl`, so the
+   * board no longer needs the room's sprites threaded through it.
+   */
+  const room = await deps.ranking.forSubject(me.id, raw);
 
   return (
     <main

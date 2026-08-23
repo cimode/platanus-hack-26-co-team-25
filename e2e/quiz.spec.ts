@@ -7,19 +7,33 @@ import {
 } from "./helpers/quiz-participant";
 
 /**
- * The quiz on a phone: fifteen forced-choice blocks in three
- * batches (issue #9).
+ * The quiz on a phone: twelve forced-choice blocks, one tap each (issue #9,
+ * style "B · Diálogo").
  *
- *     /quiz opening -> blocks 1-5 -> "Tanda 2 de 3" -> blocks 6-10
- *       -> "Tanda 3 de 3" -> blocks 11-15 -> quiz_completed_at -> /results
+ *     /quiz opening -> block 1 ... block 12 -> quiz_completed_at -> /room
  *
- * Under docs/domain.md D16 every participant answers their own generated
- * form, read from `generated_blocks` through `ensureQuizBatch` -- never the
- * `INSTRUMENT` constant. The fixture (e2e/helpers/quiz-participant.ts) seeds
- * the participant's 15 rows directly through
- * `GeneratedBlockRepository.saveBatch` with the fallback constant's blocks,
- * so no model is ever called here, and every scenario and option text the
- * assertions look for is *that participant's* stored block.
+ * Under docs/domain.md D21 every participant answers their own twelve blocks
+ * of the committed bank, dealt by `formFor(participantId)` and stored as their
+ * `generated_blocks` rows the moment they register. The fixture
+ * (e2e/helpers/quiz-participant.ts) writes exactly what registration would --
+ * the same twelve blocks, `source: "bank"` -- so every scenario and option
+ * text the assertions look for is *that participant's* stored block, and no
+ * model is called anywhere in this suite or in the app behind it.
+ *
+ * ONE CRITERION IS GONE ON PURPOSE. AC-8 used to seed a partial form and
+ * assert that a participant who outran the writer met a "writing your
+ * questions" screen rather than an error. There is no writer any more, and no
+ * way to hold a participant whose next block is not stored: the form is dealt
+ * from a committed file in one INSERT before the redirect, and a read that
+ * still found a gap re-assigns it. The criterion described a state that can no
+ * longer exist, so it was deleted rather than rewritten -- what remains of it
+ * is `WRITING`, asserted absent, so the state cannot come back unnoticed.
+ *
+ * Single pick is the product default (`src/app/quiz/single-pick.ts`): a tap
+ * on an option IS the answer, there is no "Siguiente", and the sprite reacts.
+ * These criteria describe that mode; a server started with
+ * `HOOKAI_QUIZ_MOST_LEAST=1` is a different elicitation and fails AC-1 on
+ * purpose.
  *
  * Behaviour-level only: roles and visible text, never DOM structure. These run
  * on the `mobile` project (390x844); the viewport assertions read the size
@@ -38,40 +52,40 @@ import {
 const PILLAR_OR_KEYING =
   /regulation|politeness|reliability|agency|reversed|positive|focusPillar/i;
 
-/** The two marks a card can carry (docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md §4). */
+/** The mark a tapped row carries (docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md §4). */
 const MOST = /más yo/i;
-const LEAST = /menos yo/i;
 
-/** Any batch beat: "Tanda 2 de 3" / "Tanda 3 de 3". */
+/** The batch beats that used to pace the quiz. They must never come back. */
 const BEAT = /tanda\s*\d\s*de\s*3/i;
 
-const KEYS: OptionKey[] = ["a", "b", "c", "d"];
+/** The wait screen D21 deleted along with live generation. Nor may this. */
+const WRITING = /escribiendo tus preguntas/i;
+
+/** `BLOCK_COUNT` — the whole form, spelled out so a drift is a failing test. */
+const BLOCKS = 12;
+
+/** `FLOW_TOTAL_STEPS` — 1 registration + 12 blocks. */
+const TOTAL_STEPS = 13;
 
 /**
- * The mono counter, e.g. "6/15". Bounded by non-digits so "1/15" cannot be
- * satisfied by "11/15".
+ * The mono counter, e.g. "6/12". Bounded by non-digits so "1/12" cannot be
+ * satisfied by "11/12".
  */
 function counter(page: Page, position: number): Locator {
   return page.getByText(
-    new RegExp(`(^|[^0-9])${position}\\s*/\\s*15([^0-9]|$)`)
+    new RegExp(`(^|[^0-9])${position}\\s*/\\s*${BLOCKS}([^0-9]|$)`)
   );
 }
 
-/**
- * One option card. Its accessible name is the option text (D14: the card *is*
- * its text). Either role is accepted -- "button" is what a tappable card
- * degrades to, "radio" is the semantic a no-JavaScript fallback would use.
- */
-function card(page: Page, text: string): Locator {
-  return page
-    .getByRole("button", { name: text })
-    .or(page.getByRole("radio", { name: text }));
+/** One option row. Its accessible name is the option text (D14: the row *is* its text). */
+function option(page: Page, text: string): Locator {
+  return page.getByRole("button", { name: text });
 }
 
 const nextButton = (page: Page) =>
-  page.getByRole("button", { name: /^siguiente$/i });
+  page.getByRole("button", { name: /siguiente/i });
 const finishButton = (page: Page) =>
-  page.getByRole("button", { name: /^terminar$/i });
+  page.getByRole("button", { name: /terminar/i });
 const backControl = (page: Page) =>
   page
     .getByRole("link", { name: /^atrás$/i })
@@ -80,103 +94,81 @@ const startControl = (page: Page) =>
   page
     .getByRole("link", { name: /^empezar$/i })
     .or(page.getByRole("button", { name: /^empezar$/i }));
-const continueControl = (page: Page) =>
-  page
-    .getByRole("link", { name: /^seguir$/i })
-    .or(page.getByRole("button", { name: /^seguir$/i }));
+/** The participant's own sprite, on every quiz screen. */
+const avatar = (page: Page) => page.getByRole("img", { name: /tu avatar/i });
 
-/** The card for one key of the block at `position`, by its stored text. */
-function cardFor(
+/** The row for one key of the block at `position`, by its stored text. */
+function optionFor(
   page: Page,
   participant: QuizParticipant,
   position: number,
   key: OptionKey
 ): Locator {
-  return card(page, participant.optionText(position, key));
+  return option(page, participant.optionText(position, key));
 }
 
 /**
- * Put "Más yo" on `most` and "Menos yo" on `least`, whatever is marked now.
- *
- * Tapping a marked card clears that mark, so an already-answered block is
- * cleared first -- least before most, the order the elicitation defines.
+ * Answer the block on screen with one tap. The tap is the submit: the island
+ * marks the row, lets the sprite react and posts the form itself.
  */
-async function mark(
+async function tap(
   page: Page,
   participant: QuizParticipant,
   position: number,
-  most: OptionKey,
-  least: OptionKey
-): Promise<void> {
-  for (const pattern of [LEAST, MOST]) {
-    for (const key of KEYS) {
-      const target = cardFor(page, participant, position, key);
-      const text = (await target.textContent()) ?? "";
-      if (pattern.test(text)) await target.click();
-    }
-  }
-  await cardFor(page, participant, position, most).click();
-  await cardFor(page, participant, position, least).click();
-}
-
-/** Mark most + least on the block on screen and submit it. */
-async function answerBlockOnScreen(
-  page: Page,
-  participant: QuizParticipant,
-  position: number,
-  most: OptionKey = "a",
-  least: OptionKey = "b"
+  key: OptionKey = "a"
 ): Promise<void> {
   await expect(counter(page, position)).toBeVisible();
-  await mark(page, participant, position, most, least);
-  const submit = position === 15 ? finishButton(page) : nextButton(page);
-  await expect(submit).toBeEnabled();
-  await submit.click();
+  await optionFor(page, participant, position, key).click();
 }
 
-/** Every card of the block at `position` is on screen, labelled by its text. */
-async function expectCardsOf(
+/** Every row of the block at `position` is on screen, labelled by its text. */
+async function expectOptionsOf(
   page: Page,
   participant: QuizParticipant,
   position: number
 ): Promise<void> {
   for (const text of participant.optionTexts(position)) {
-    await expect(card(page, text)).toBeVisible();
+    await expect(option(page, text)).toBeVisible();
   }
 }
 
+/** Through the opening moment onto block 1. */
+async function start(page: Page): Promise<void> {
+  await page.goto("/quiz");
+  await expect(startControl(page)).toBeVisible();
+  await startControl(page).click();
+  await expect(counter(page, 1)).toBeVisible();
+}
+
 test.describe("quiz", () => {
-  test('AC-1 · "Empezar" opens the participant\'s seeded block 1 with its scenario, its four option texts as card labels, "1/15", a disabled "Siguiente", no "Atrás" and all four cards inside 390×844', async ({
+  test('AC-1 · "Empezar" opens the participant\'s stored block 1 with its scenario, its four option texts as tappable rows, "1/12", no "Siguiente", no "Atrás", every row inside the viewport and no page scroll', async ({
     page,
-    context,
   }) => {
-    const participant = await createQuizParticipant({ context });
+    const participant = await createQuizParticipant({
+      context: page.context(),
+    });
 
-    await page.goto("/quiz");
-    await expect(startControl(page)).toBeVisible();
-    await startControl(page).click();
+    await start(page);
 
-    // The scenario is the one seeded for THIS participant.
+    // The scenario is the one dealt to THIS participant and stored for them.
     const block = participant.blockAt(1);
-    expect(block.scenario).toBe(
-      "Tu amigo movió la perilla del horno y el pollo lleva una hora crudo. " +
-        "Los invitados ya están tocando el timbre."
-    );
+    expect(block.scenario.length).toBeGreaterThan(10);
     await expect(page.getByText(block.scenario)).toBeVisible();
-    await expectCardsOf(page, participant, 1);
+    await expectOptionsOf(page, participant, 1);
 
     await expect(counter(page, 1)).toBeVisible();
-    await expect(nextButton(page)).toBeVisible();
-    await expect(nextButton(page)).toBeDisabled();
+    // One tap is the answer: there is nothing to press afterwards.
+    await expect(nextButton(page)).toHaveCount(0);
+    await expect(finishButton(page)).toHaveCount(0);
     await expect(backControl(page)).toHaveCount(0);
 
-    // §7.1: a below-the-fold bottom row is measurement error. The mobile
-    // project's viewport is 390x844 (playwright.config.ts).
+    // §7.1: a below-the-fold row is measurement error. The mobile project's
+    // viewport is 390x844 (playwright.config.ts).
     const viewport = page.viewportSize();
     expect(viewport).not.toBeNull();
     for (const text of participant.optionTexts(1)) {
-      const box = await card(page, text).boundingBox();
-      expect(box, `no box for card "${text}"`).not.toBeNull();
+      const box = await option(page, text).boundingBox();
+      expect(box, `no box for row "${text}"`).not.toBeNull();
       const { x, y, width, height } = box ?? {
         x: 0,
         y: 0,
@@ -194,46 +186,25 @@ test.describe("quiz", () => {
     expect(scrolls).toBe(false);
   });
 
-  test('AC-2 · a tap marks "Más yo", a re-tap clears it, a second card takes "Menos yo", and "Siguiente" writes one row at position 1 with most c, least d and shown_order = shownOrderFor(participantId, 1), then shows the participant\'s block 2 as "2/15"', async ({
+  test('AC-2 · one tap marks the row "Más yo" and writes one row at position 1 with that key, no least and shown_order = shownOrderFor(participantId, 1), then shows the participant\'s block 2 as "2/12"', async ({
     page,
-    context,
   }) => {
-    const participant = await createQuizParticipant({ context });
+    const participant = await createQuizParticipant({
+      context: page.context(),
+    });
 
-    await page.goto("/quiz");
-    await expect(startControl(page)).toBeVisible();
-    await startControl(page).click();
-    await expect(counter(page, 1)).toBeVisible();
+    await start(page);
 
+    // Whatever option "c" of *this* participant's block 1 says.
     const mostText = participant.optionText(1, "c");
-    const leastText = participant.optionText(1, "d");
-    expect(mostText).toBe("Tomo el mando: pedimos pizza y listo");
-    expect(leastText).toBe("Culpo a la perilla, nunca a mi amigo");
 
-    // First tap: "Más yo", and advance stays shut.
-    await card(page, mostText).click();
-    await expect(card(page, mostText)).toContainText(MOST);
-    await expect(nextButton(page)).toBeDisabled();
-
-    // Second tap on the same card: the mark is gone, and no card took "Menos yo".
-    await card(page, mostText).click();
-    for (const text of participant.optionTexts(1)) {
-      await expect(card(page, text)).not.toContainText(MOST);
-      await expect(card(page, text)).not.toContainText(LEAST);
-    }
-
-    // Third tap: "Más yo" again.
-    await card(page, mostText).click();
-    await expect(card(page, mostText)).toContainText(MOST);
-
-    // A different card takes "Menos yo"; both marks placed enables advance.
-    await card(page, leastText).click();
-    await expect(card(page, leastText)).toContainText(LEAST);
-    await expect(card(page, mostText)).toContainText(MOST);
-    await expect(card(page, leastText)).not.toContainText(MOST);
-    await expect(nextButton(page)).toBeEnabled();
-
-    await nextButton(page).click();
+    await option(page, mostText).click();
+    // The press reads before the form goes: the row is marked, then the
+    // next block arrives.
+    await expect(option(page, mostText)).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     await expect(counter(page, 2)).toBeVisible();
     await expect(page.getByText(participant.blockAt(2).scenario)).toBeVisible();
 
@@ -241,7 +212,7 @@ test.describe("quiz", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].position).toBe(1);
     expect(rows[0].mostKey).toBe("c");
-    expect(rows[0].leastKey).toBe("d");
+    expect(rows[0].leastKey).toBeNull();
     expect(rows[0].shownOrder).toBe(
       shownOrderFor(participant.participantId, 1)
     );
@@ -260,8 +231,6 @@ test.describe("quiz", () => {
 
       await page.goto("/quiz");
       await expect(page).toHaveURL(/\/intake/);
-      await expect(nextButton(page)).toHaveCount(0);
-      await expect(finishButton(page)).toHaveCount(0);
       await expect(page.getByText(participant.blockAt(1).scenario)).toHaveCount(
         0
       );
@@ -275,61 +244,69 @@ test.describe("quiz", () => {
     }
   });
 
-  test('AC-4 · block 5 opens "Tanda 2 de 3" with "Seguir" and no option text, "Seguir" shows the participant\'s block 6 as "6/15", no beat appears between 6 and 10, block 10 opens "Tanda 3 de 3" onto block 11, and the participant keeps ten rows and exactly 15 generated_blocks rows', async ({
+  test('AC-4 · twelve taps walk the participant\'s form with no "Tanda" beat and no wait screen anywhere, set quiz_completed_at, hand off to /room and leave exactly 12 generated_blocks rows', async ({
     page,
-    context,
   }) => {
     test.setTimeout(120_000);
-    const participant = await createQuizParticipant({ context, answered: 4 });
+    const participant = await createQuizParticipant({
+      context: page.context(),
+    });
+    expect(await participant.completedAt()).toBeNull();
 
-    // Position 5 opens no batch, so the resume lands straight on the block.
-    await page.goto("/quiz");
-    await expect(counter(page, 5)).toBeVisible();
-    await answerBlockOnScreen(page, participant, 5);
+    await start(page);
 
-    // The beat: a moment, not a block.
-    await expect(page.getByText("Tanda 2 de 3")).toBeVisible();
-    await expect(continueControl(page)).toBeVisible();
-    await expect(page.getByText(participant.blockAt(5).scenario)).toHaveCount(
-      0
-    );
-    await expect(page.getByText(participant.blockAt(6).scenario)).toHaveCount(
-      0
-    );
-    for (const text of participant.optionTexts(6)) {
-      await expect(page.getByText(text)).toHaveCount(0);
-    }
-
-    await continueControl(page).click();
-    await expect(counter(page, 6)).toBeVisible();
-    await expectCardsOf(page, participant, 6);
-
-    // Inside a batch, "Siguiente" shows the next block directly.
-    for (const position of [6, 7, 8, 9]) {
-      await answerBlockOnScreen(page, participant, position);
-      await expect(counter(page, position + 1)).toBeVisible();
+    for (let position = 1; position <= BLOCKS; position++) {
+      await expectOptionsOf(page, participant, position);
       await expect(page.getByText(BEAT)).toHaveCount(0);
+      await expect(page.getByText(WRITING)).toHaveCount(0);
+      await tap(page, participant, position);
+      if (position < BLOCKS) {
+        await expect(counter(page, position + 1)).toBeVisible();
+        await expect(page.getByText(BEAT)).toHaveCount(0);
+        await expect(page.getByText(WRITING)).toHaveCount(0);
+      }
     }
 
-    await answerBlockOnScreen(page, participant, 10);
-    await expect(page.getByText("Tanda 3 de 3")).toBeVisible();
-    await expect(continueControl(page)).toBeVisible();
-    await continueControl(page).click();
-    await expect(counter(page, 11)).toBeVisible();
-    await expectCardsOf(page, participant, 11);
+    /*
+     * The last block hands off to /room, not to the old dead-end /results.
+     *
+     * Asserted as a SHAPE -- `/room`, or `/` -- rather than as an exact URL,
+     * because this fixture's participant lives in its own `e2e-<run>-q<n>`
+     * room by design, never `HOOKAI_ROOM_SLUG`. `/room` reads the venue
+     * roster, cannot place someone who is not on it, and bounces to `/`. Both
+     * endpoints are the hand-off working; `/quiz` and `/results` are the two
+     * this must never be, and the pattern excludes both.
+     *
+     * There is no Location-header assertion here, and there cannot be:
+     * `/quiz` has a `loading.tsx`, so Next commits `200 OK` and paints the
+     * redirect inside the stream rather than answering 3xx. That is the same
+     * streaming boundary `e2e/simulate.spec.ts` AC-SIM-2 documents for its
+     * 404. An earlier draft of this test asserted the header and failed in CI
+     * for exactly that reason.
+     */
+    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(counter(page, BLOCKS)).toHaveCount(0);
 
-    expect(await participant.responses()).toHaveLength(10);
-    expect(await participant.storedBlocks()).toHaveLength(15);
+    expect(await participant.responses()).toHaveLength(BLOCKS);
+    expect(await participant.storedBlocks()).toHaveLength(BLOCKS);
+    expect(await participant.completedAt()).not.toBeNull();
+
+    // Completed means completed: /quiz never serves a block again.
+    await page.goto("/quiz");
+    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(counter(page, BLOCKS)).toHaveCount(0);
   });
 
   test('AC-5 · "Atrás" and ?block=3 re-answer an earlier block of the participant\'s form in place and return straight to block 8; ?block=12 is clamped to block 8', async ({
     page,
-    context,
   }) => {
     test.setTimeout(120_000);
-    const participant = await createQuizParticipant({ context, answered: 7 });
+    const participant = await createQuizParticipant({
+      context: page.context(),
+      answered: 7,
+    });
 
-    // Resume: the frontier is 8, which opens no batch.
+    // Resume: the frontier is 8, with nothing in front of it.
     await page.goto("/quiz");
     await expect(counter(page, 8)).toBeVisible();
     await expect(page.getByText(BEAT)).toHaveCount(0);
@@ -338,11 +315,13 @@ test.describe("quiz", () => {
     await expect(backControl(page)).toBeVisible();
     await backControl(page).click();
     await expect(counter(page, 7)).toBeVisible();
-    await expect(cardFor(page, participant, 7, "a")).toContainText(MOST);
-    await expect(cardFor(page, participant, 7, "b")).toContainText(LEAST);
+    await expect(optionFor(page, participant, 7, "a")).toContainText(MOST);
+    await expect(optionFor(page, participant, 7, "a")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
-    await mark(page, participant, 7, "c", "a");
-    await nextButton(page).click();
+    await tap(page, participant, 7, "c");
 
     // Straight back to the frontier: not 8 by arithmetic, but by the rows.
     await expect(counter(page, 8)).toBeVisible();
@@ -350,19 +329,17 @@ test.describe("quiz", () => {
     expect(rows.filter((row) => row.position === 7)).toHaveLength(1);
     const atSeven = rows.find((row) => row.position === 7);
     expect(atSeven?.mostKey).toBe("c");
-    expect(atSeven?.leastKey).toBe("a");
+    expect(atSeven?.leastKey).toBeNull();
 
     // ?block=N renders an already-answered block of this participant's form.
     await page.goto("/quiz?block=3");
     await expect(counter(page, 3)).toBeVisible();
     await expect(page.getByText(participant.blockAt(3).scenario)).toBeVisible();
-    await expect(cardFor(page, participant, 3, "a")).toContainText(MOST);
-    await expect(cardFor(page, participant, 3, "b")).toContainText(LEAST);
+    await expect(optionFor(page, participant, 3, "a")).toContainText(MOST);
 
-    await mark(page, participant, 3, "d", "a");
-    await nextButton(page).click();
+    await tap(page, participant, 3, "d");
 
-    // No walk through 4..7, and no beat on the way.
+    // No walk through 4..7 on the way back.
     await expect(counter(page, 8)).toBeVisible();
     await expect(counter(page, 4)).toHaveCount(0);
     await expect(page.getByText(BEAT)).toHaveCount(0);
@@ -371,7 +348,6 @@ test.describe("quiz", () => {
     expect(rows).toHaveLength(7);
     const atThree = rows.find((row) => row.position === 3);
     expect(atThree?.mostKey).toBe("d");
-    expect(atThree?.leastKey).toBe("a");
 
     // Nobody jumps ahead: ?block is clamped to the frontier.
     await page.goto("/quiz?block=12");
@@ -382,40 +358,58 @@ test.describe("quiz", () => {
     );
   });
 
-  test('AC-6 · the participant\'s block 15 is shown directly with "15/15" and "Terminar", which sets quiz_completed_at, lands on /results "Listo" and sends /quiz there afterwards', async ({
+  test("AC-6 · the flow's progress bar sits beside the counter as a progressbar over 13 steps, at 1 + position, and moves with each tap", async ({
     page,
-    context,
   }) => {
-    test.setTimeout(120_000);
-    const participant = await createQuizParticipant({ context, answered: 14 });
-    expect(await participant.completedAt()).toBeNull();
+    const participant = await createQuizParticipant({
+      context: page.context(),
+    });
+
+    await start(page);
+
+    const bar = page.getByRole("progressbar");
+    await expect(bar).toBeVisible();
+    await expect(bar).toHaveAttribute("aria-valuemax", String(TOTAL_STEPS));
+    await expect(bar).toHaveAttribute("aria-valuenow", "2");
+
+    // Counter and bar describe the same moment: both on screen together.
+    await expect(counter(page, 1)).toBeVisible();
+
+    await tap(page, participant, 1);
+    await expect(counter(page, 2)).toBeVisible();
+    await expect(bar).toHaveAttribute("aria-valuenow", "3");
+    await expect(bar).toHaveAttribute("aria-valuemax", String(TOTAL_STEPS));
+  });
+
+  test("AC-9 · the participant's avatar is drawn on the opening moment and on the block, from the stored plate under /sprites/", async ({
+    page,
+  }) => {
+    await createQuizParticipant({ context: page.context() });
 
     await page.goto("/quiz");
-    await expect(counter(page, 15)).toBeVisible();
-    await expect(
-      page.getByText(participant.blockAt(15).scenario)
-    ).toBeVisible();
-    // Position 15 opens no batch, so there is no beat to dismiss.
-    await expect(page.getByText(BEAT)).toHaveCount(0);
-    await expect(continueControl(page)).toHaveCount(0);
-    await expect(finishButton(page)).toBeVisible();
-    await expect(nextButton(page)).toHaveCount(0);
+    await expect(startControl(page)).toBeVisible();
+    await expect(avatar(page)).toBeVisible();
 
-    await answerBlockOnScreen(page, participant, 15);
-
-    await expect(page).toHaveURL(/\/results/);
-    await expect(page.getByRole("heading", { name: /listo/i })).toBeVisible();
-
-    expect(await participant.responses()).toHaveLength(15);
-    expect(await participant.completedAt()).not.toBeNull();
-
-    // Completed means completed: /quiz never serves a block again.
-    await page.goto("/quiz");
-    await expect(page).toHaveURL(/\/results/);
-    await expect(page.getByRole("heading", { name: /listo/i })).toBeVisible();
-    await expect(counter(page, 15)).toHaveCount(0);
+    await startControl(page).click();
+    await expect(counter(page, 1)).toBeVisible();
+    await expect(avatar(page)).toBeVisible();
+    expect(await drawsFromSprites(avatar(page))).toBe(true);
   });
 });
+
+/**
+ * Whether the element draws a file under `/sprites/` -- as an `<img src>` or
+ * as the background image the emotes library paints the plate with.
+ */
+function drawsFromSprites(element: Locator): Promise<boolean> {
+  return element.evaluate((node) => {
+    const src = node.querySelector("img")?.getAttribute("src") ?? "";
+    const backgrounds = [node, ...node.querySelectorAll("*")]
+      .map((child) => getComputedStyle(child).backgroundImage)
+      .join(" ");
+    return `${src} ${backgrounds}`.includes("/sprites/");
+  });
+}
 
 test.describe("safety invariants", () => {
   // kind: safety. Exactly one option per block is reversed-keyed, each belongs
@@ -423,7 +417,7 @@ test.describe("safety invariants", () => {
   // -- DOM text, alt text, the RSC payload serialized into the HTML -- may say
   // which (PILLARS.md §8 rule 1, AUDIT.md F1,
   // CLAUDE_DESIGN_QUIZ_BLOCK.md §3). Walked over every screen of the quiz:
-  // the opening moment, all fifteen blocks and both batch beats.
+  // the opening moment and all twelve blocks.
   test("AC-7 · no quiz screen names a pillar, a keying direction or the block's focus pillar, in its text or in its served HTML", async ({
     page,
     context,
@@ -448,26 +442,23 @@ test.describe("safety invariants", () => {
     await captureServed("opening moment (served)", "/quiz");
     await startControl(page).click();
 
-    for (let position = 1; position <= 15; position++) {
+    for (let position = 1; position <= BLOCKS; position++) {
       await expect(counter(page, position)).toBeVisible();
-      await expectCardsOf(page, participant, position);
+      await expectOptionsOf(page, participant, position);
       await capture(`block ${position}`);
-      if (position === 1 || position === 6 || position === 11) {
+      if (position === 1 || position === 5 || position === 9) {
         await captureServed(`block ${position} (served)`, "/quiz?start=1");
       }
 
-      await answerBlockOnScreen(page, participant, position);
-
-      if (position === 5 || position === 10) {
-        await expect(page.getByText(BEAT)).toBeVisible();
-        await capture(`beat after ${position}`);
-        await captureServed(`beat after ${position} (served)`, "/quiz");
-        await continueControl(page).click();
-      }
+      await tap(page, participant, position);
     }
 
-    await expect(page).toHaveURL(/\/results/);
-    expect(captured.length).toBeGreaterThanOrEqual(18);
+    // Off the quiz and onto the hand-off, wherever the roster puts this
+    // fixture's participant (see AC-4). Only the landmark for "all twelve are
+    // answered"; the leak scan below is what this criterion is about.
+    await expect(page).toHaveURL(/\/(room)?$/);
+    // 1 opening + 1 served opening + 12 blocks + 3 served blocks.
+    expect(captured.length).toBeGreaterThanOrEqual(17);
     for (const { where, html } of captured) {
       expect(html, `${where} names a pillar or a keying`).not.toMatch(
         PILLAR_OR_KEYING

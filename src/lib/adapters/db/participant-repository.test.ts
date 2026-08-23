@@ -232,7 +232,7 @@ describe("createParticipantRepository", () => {
 
     const bySlug = await repos.rooms.bySlug(room.slug);
     expect(bySlug?.id).toBe(room.id);
-    expect(bySlug?.instrumentVersion).toBe("v1");
+    expect(bySlug?.instrumentVersion).toBe(INSTRUMENT.version);
     // D9: a slug identifies one room; the second create is rejected, not a
     // silent second room automation could wander into.
     await expect(
@@ -331,12 +331,16 @@ describe("createParticipantRepository", () => {
     expect(byId.get(c.participant.id)?.photoUrl).toBeNull();
 
     // The floor is applied inside the repository, with no filtering here:
-    // B is declared-incomplete, C has no photo, D consented to nothing.
+    // C has no photo, D consented to nothing; B has no declared bands and
+    // ranks anyway (D20). Rows come back in created_at order, A before B.
     const friendship = await repos.participants.byRoomForRanking(
       room.id,
       "friendship"
     );
-    expect(friendship.map((r) => r.participant.id)).toEqual([a.participant.id]);
+    expect(friendship.map((r) => r.participant.id)).toEqual([
+      a.participant.id,
+      b.participant.id,
+    ]);
     // A opted out of romantic, so the same three exclusions plus A leave the
     // lens empty. D18 took the gate-row clause out of the floor: a participant
     // above it needs no `romantic_gates` row to be ranked any more.

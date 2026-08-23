@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { BabyOnBoard } from "@/components/emotes";
-import { SimulatedLifeScreen } from "@/components/simulate/simulated-life-screen";
+import { LifeBoard } from "@/components/simulate/life-board";
 import { emoteForLifeEvent } from "@/lib/domain/emotes/actions";
 import type { PairedTimeline } from "@/lib/domain/reveal/timeline";
 
@@ -104,9 +104,9 @@ export default function SimulatedLifeDesignPage() {
           · vida simulada
         </p>
         <p className="text-ink-soft text-sm">
-          Desliza el carrusel: los dos avatares reaccionan al evento centrado
-          con la emoción que eligió el narrador. La caja del sprite no cambia de
-          tamaño, así que nadie se mueve de su puesto.
+          Arrastra el tablero: la pareja que camina el camino actúa la casilla
+          en la que está parada, con la emoción que eligió el narrador. La caja
+          del sprite no cambia de tamaño, así que nadie se baja de su casilla.
         </p>
         <ul className="flex flex-col gap-1 font-mono text-[11px] text-ink-faint">
           {LIFE.events.map((event) => (
@@ -119,7 +119,9 @@ export default function SimulatedLifeDesignPage() {
           ))}
         </ul>
       </header>
-      <SimulatedLifeScreen lens="romantic" life={LIFE} />
+      <div className="flex h-[560px] flex-col">
+        <LifeBoard lens="romantic" life={LIFE} />
+      </div>
 
       {/*
         Phase 5, live: the `kid` beat is the one life event that earns a whole

@@ -6,35 +6,47 @@ import { createParticipantRepository } from "../../src/lib/adapters/db/participa
 import { createResponseRepository } from "../../src/lib/adapters/db/response-repository";
 import { createRoomRepository } from "../../src/lib/adapters/db/room-repository";
 import type { SessionToken } from "../../src/lib/domain/participant";
+import type { Avatar } from "../../src/lib/domain/participant/avatar";
 import type {
   Block,
   BlockResponse,
   OptionKey,
 } from "../../src/lib/domain/quiz";
 import { INSTRUMENT } from "../../src/lib/domain/quiz";
+import { formFor } from "../../src/lib/domain/quiz/bank";
 import { shownOrderFor } from "../../src/lib/domain/quiz/shown-order";
 import type { StoredBlock } from "../../src/lib/ports/generated-block-repository";
 
 /**
- * The quiz fixture (issue #9, docs/domain.md D9, D16).
+ * The quiz fixture (issue #9, docs/domain.md D9, D21).
  *
  * Each participant gets its OWN `e2e-<run>-q<n>` room -- never the real
  * `platanus-hack-26-bogota`, and never the shared room `e2e/global-setup.ts`
  * creates -- so "no other row exists for this room" is an assertion a test can
  * actually make while the suite runs in parallel.
  *
- * The important part is what it seeds: all fifteen `generated_blocks` rows,
- * written through `GeneratedBlockRepository.saveBatch` from the committed
- * constant as `source: "fallback"`, three batches of five. Under D16 the quiz
- * reads a participant's blocks through `ensureQuizBatch`, which authors only
- * when a batch is missing -- so a fully seeded participant means every
- * `ensureQuizBatch` and `prefetchQuizBatch` on the e2e path is one SELECT and
- * **no model is ever called in e2e**.
+ * What it seeds is exactly what the app would have written. The twelve blocks
+ * come from `formFor(participantId)` -- the same pure function `assignQuizForm`
+ * calls at registration, dealing this person's twelve of the four hundred
+ * committed bank blocks -- and are stored through
+ * `GeneratedBlockRepository.saveBatch` with `source: "bank"`. So the fixture
+ * cannot drift from the product: if the deal changes, both change together,
+ * and every scenario and option text the assertions look for is *that
+ * participant's* stored block. Nothing here reaches a model, and nothing in
+ * the app would either.
+ *
+ * There is no way to seed a partial form any more, and no reason to want one:
+ * a participant whose next block is not written was a state the live-generation
+ * pipeline could produce and the bank cannot. A read that did find a gap
+ * re-assigns the form itself.
+ *
+ * The participant wears `avatar3`: the quiz draws the stored plate on every
+ * screen, and a row without one would render the bubble alone.
  *
  * Everything is created and read back through the repositories, so #4's real
  * `byId`, #13's real `save` (which resolves the answer's texts from the
- * participant's own generated block) and the branch's real
- * `GeneratedBlockRepository` are on the path of every e2e criterion.
+ * participant's own stored block) and the real `GeneratedBlockRepository` are
+ * on the path of every e2e criterion.
  *
  * Playwright does not read `.env`; `next dev` does. Loaded the same guarded way
  * `e2e/global-setup.ts` does -- variables already in the environment win.
@@ -57,6 +69,9 @@ const MISSING_URL =
   "quiz participant. Point .env at a migrated Neon branch " +
   "(`neon checkout dev-domain`).";
 
+/** The plate every seeded participant wears. */
+export const FIXTURE_AVATAR: Avatar = "avatar3";
+
 let created = 0;
 
 function db() {
@@ -70,9 +85,9 @@ export interface QuizParticipant {
   roomId: string;
   roomSlug: string;
   sessionToken: string;
-  /** This participant's own fifteen blocks, read back from the database. */
+  /** This participant's twelve blocks, read back from the database. */
   blocks: Block[];
-  /** The stored block at `position` (1..15). */
+  /** The stored block at `position` (1..12). */
   blockAt(position: number): Block;
   /** The text of one option of the stored block at `position`. */
   optionText(position: number, key: OptionKey): string;
@@ -92,13 +107,13 @@ export interface QuizParticipantOptions {
   /** When given, the participant's session cookie is set on it. */
   context?: BrowserContext;
   name?: string;
-  /** Seed responses for positions 1..answered (most a, least b). */
+  /** Seed responses for positions 1..answered (most a, no least). */
   answered?: number;
 }
 
 /**
- * A room, a participant, its session cookie, its fifteen generated blocks and
- * optionally its first `answered` responses.
+ * A room, a participant, its session cookie, its twelve blocks and optionally
+ * its first `answered` responses.
  */
 export async function createQuizParticipant(
   options: QuizParticipantOptions = {}
@@ -116,8 +131,8 @@ export async function createQuizParticipant(
   const room = await rooms.create({
     slug,
     name: `E2E quiz ${slug}`,
-    // The STRUCTURAL version (docs/domain.md D2): every generated form shares
-    // it, and both quiz use cases refuse to serve a room that does not.
+    // The STRUCTURAL version (docs/domain.md D2): every stored form shares it,
+    // and both quiz use cases refuse to serve a room that does not.
     instrumentVersion: INSTRUMENT.version,
   });
 
@@ -125,7 +140,7 @@ export async function createQuizParticipant(
     roomId: room.id,
     gender: "F",
     birthdate: "1996-05-04",
-    avatar: "avatar3",
+    avatar: FIXTURE_AVATAR,
     consent: { romantic: true, business: true, friendship: true },
     // Issue #49: registered rows carry the moment they authorised the
     // treatment of their data, so a seeded one does too.
@@ -135,21 +150,21 @@ export async function createQuizParticipant(
     track: "AI",
   });
 
-  // Three saveBatch calls of five: the participant's own form, served from the
-  // committed constant so nothing here reaches a model.
-  for (const batch of [1, 2, 3]) {
-    const stored: StoredBlock[] = INSTRUMENT.blocks
-      .filter((block) => block.batch === batch)
-      .map((block) => ({ block, source: "fallback" as const }));
-    await generatedBlocks.saveBatch(participant.id, stored);
-  }
+  // The participant's own form, exactly as `assignQuizForm` would write it at
+  // registration: one saveBatch, twelve rows, `source: "bank"`.
+  const form: StoredBlock[] = formFor(participant.id).map((block) => ({
+    block,
+    source: "bank" as const,
+  }));
+  await generatedBlocks.saveBatch(participant.id, form);
 
   for (let position = 1; position <= (options.answered ?? 0); position++) {
     await responses.save({
       participantId: participant.id,
       position,
       mostKey: "a",
-      leastKey: "b",
+      // What the product writes under single pick, the default elicitation.
+      leastKey: null,
       shownOrder: shownOrderFor(participant.id, position),
       answeredAt: new Date(),
     });
@@ -173,7 +188,7 @@ export async function createQuizParticipant(
     const block = blocks.find((candidate) => candidate.position === position);
     if (!block) {
       throw new Error(
-        `participant ${participant.id} has no generated block at position ${position}`
+        `participant ${participant.id} has no stored block at position ${position}`
       );
     }
     return block;

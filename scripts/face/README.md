@@ -1,27 +1,28 @@
-# face-on-avatar (proof of concept, 2026-08-23)
+# face-on-avatar
 
 Sticks a participant's photo onto the blank face plate of an emote spritesheet,
 frame by frame, with one 2x3 affine matrix per frame. Needs `python3` with
 `numpy` + `Pillow` (already on the dev machine).
 
 ```bash
-# one emote: composited strip + GIF + mask strip + matrices JSON
+# the whole catalogue: every avatar, its idle plate and its thirteen emotes
+pnpm faces:pack
+
+# one clip, with the review artefacts (composited strip, GIF, mask + ellipse
+# debug sheets) so a human or a judge agent can look at what it decided
 python3 scripts/face/fit.py --avatar avatar1 --emote defeat \
-  --photo public/match/parent-a.jpg --out scripts/face/out
-
-# every emote of every avatar (52 clips, ~4 min)
-for a in avatar1 avatar2 avatar3 avatar4; do
-  for e in defeat cry celebrate fight love wave angry walk \
-           walk-left walk-right sad-walk-left sad-walk-right walk-back; do
-    python3 scripts/face/fit.py --avatar $a --emote $e \
-      --photo public/match/parent-a.jpg --out scripts/face/out
-  done
-done
-
-# runtime demo: composites in the browser from sheet + mask + JSON, no Python
-python3 -m http.server 8765          # from the repo root
-open http://127.0.0.1:8765/scripts/face/demo.html
+  --photo <a real face>.jpg --out scripts/face/out
 ```
+
+`pnpm faces:pack` is the one that matters: it writes
+`public/sprites/faces/<avatar>/<clip>.{png,json}` and regenerates
+`src/lib/domain/faces/faces.manifest.ts`. Commit all three together. It needs
+`python3` with `numpy` and `Pillow`; nobody needs them to RUN the app, only to
+regenerate the assets -- the same deal `pnpm emotes:pack` has with ffmpeg.
+
+The assets carry no photo and never did: the matrices are written in the unit
+square of the squared photo, so the same numbers come out whoever is in the
+picture. `--photo` exists only to render a preview you can look at.
 
 ## How it works
 
@@ -76,16 +77,18 @@ between frames. Both the tilt and the two semi-axes fade toward the round
 answer as the blob rounds off, which makes a swap invisible instead of a 30%
 scale pop.
 
-## Output per clip
+## What ships
 
 | file | what |
 | --- | --- |
-| `<avatar>-<emote>-<photo>.webp` | the composited sheet, lossless, same layout as the original |
-| `<avatar>-<emote>-<photo>.gif` | scaled preview at the clip's fps |
-| `<avatar>-<emote>.mask.png` | the plate masks as one alpha strip |
-| `<avatar>-<emote>.transforms.json` | per frame: cx, cy, sx, sy, theta, mode, and the 2x3 matrix (`matrix` in photo pixels, `unit` for the unit square, so any photo resolution drops in) |
-| `*.debug.png` / `*.before-after.png` | every frame with mask + ellipse; original vs composited |
+| `public/sprites/faces/<avatar>/<clip>.png` | the plate mask, one alpha strip laid out exactly like the sheet |
+| `public/sprites/faces/<avatar>/<clip>.json` | one 2x3 affine per frame, `null` where the face is not visible |
+| `src/lib/domain/faces/faces.manifest.ts` | generated index: paths, frame counts, and how many frames carry a face |
 
-A runtime needs only the mask strip, the JSON and a photo: the browser
-compositor in `demo.html` does 54 frames in ~6-50 ms, and the result feeds the
-existing CSS `steps()` player unchanged.
+~215 KB for all 56 clips, ~55 KB per avatar, the same bytes for every
+participant. The review artefacts (`--out`) are not shipped and are gitignored.
+
+A runtime needs only the mask strip, the JSON and a photo. The browser side is
+`src/components/faces/` -- `useFacedSprite(avatar, photoUrl)` hands
+`AvatarSprite` a `source` and every clip comes back with the face in it.
+Playable at **/design/faces**.

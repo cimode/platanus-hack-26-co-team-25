@@ -77,13 +77,22 @@ const EMOTE_RULES = [
   "Pick the one that fits what happens in THIS event, not the mood of the whole story. When nothing fits well, prefer the plainest honest option over a dramatic one.",
 ].join("\n");
 
+/**
+ * A declared term the participant never answered (D20: the declared round is
+ * not asked) is said so, rather than interpolated as "undefined" and read by
+ * the model as a fact about the person.
+ */
+function band(value: number | undefined): string {
+  return value === undefined ? "unmeasured" : String(value);
+}
+
 function personFacts(label: string, p: Person): string {
   const ls = p.declared.lifeShape;
   return [
     `${label}: ${p.name}`,
     `  tags: ${p.declared.tags.join(", ") || "(none)"}`,
-    `  chronotype band: ${p.declared.chronotype} (0 early … 3 late)`,
-    `  life shape — money posture ${ls.moneyPosture}, rootedness ${ls.rootedness}, family gravity ${ls.familyGravity}, capacity hours band ${ls.capacityHoursBand}`,
+    `  chronotype band: ${band(p.declared.chronotype)} (0 early … 3 late)`,
+    `  life shape — money posture ${band(ls.moneyPosture)}, rootedness ${band(ls.rootedness)}, family gravity ${band(ls.familyGravity)}, capacity hours band ${band(ls.capacityHoursBand)}`,
   ].join("\n");
 }
 

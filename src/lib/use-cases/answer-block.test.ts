@@ -6,7 +6,7 @@ import {
   type SessionToken,
 } from "../domain/participant";
 import type { BlockResponse, OptionKey } from "../domain/quiz/index.ts";
-import { INSTRUMENT } from "../domain/quiz/index.ts";
+import { BLOCK_COUNT, formFor, INSTRUMENT } from "../domain/quiz/index.ts";
 import { shownOrderFor } from "../domain/quiz/shown-order.ts";
 import type {
   GeneratedBlockRepository,
@@ -22,16 +22,17 @@ import { InstrumentVersionMismatchError } from "./quiz-progress.ts";
  * `answerBlock` use case (issue #9): resolves the participant by session
  * token, loads its room through `rooms.byId(participant.roomId)` and throws
  * `InstrumentVersionMismatchError` on a version mismatch before anything else
- * (docs/domain.md §5 / §10.1(b)); checks position 1..15; loads *this
+ * (docs/domain.md §5 / §10.1(b)); checks position 1..12; loads *this
  * participant's* block at `position` from
  * `generatedBlocks.byBatch(participantId, batchOf(position))` and rejects,
  * naming the participant id and the position, when no stored block has that
- * position (docs/domain.md D16 -- a write never authors: `ensureQuizBatch`
- * and `saveBatch` are never called here); validates `mostKey` and `leastKey`
+ * position (a write never assigns a form -- `saveBatch` is never called here,
+ * because `quizProgress` already wrote the row it served); validates
+ * `mostKey` and `leastKey`
  * against that block's option keys, most ≠ least and the presence of
  * `leastKey` unless single-pick; recomputes `shownOrderFor`; and writes
  * through `responses.save`, passing `{ completedAt: now }` only on the
- * block-15 write that completes the quiz (docs/domain.md §7 --
+ * last-position write that completes the quiz (docs/domain.md §7 --
  * `participants.markQuizCompleted` is never called). Reports
  * `{ completed: true }` or `{ nextPosition, advanced }`, with `nextPosition`
  * recomputed from the rows after the write.
@@ -41,7 +42,7 @@ import { InstrumentVersionMismatchError } from "./quiz-progress.ts";
  * recording every byId call), ResponseRepository (recording every save with
  * its opts and, when `completedAt` is given, setting the fake participant's
  * `quizCompletedAt` as the adapter's batch does) and a GeneratedBlockRepository
- * seeded with the participant's 15 blocks (recording every call) -- no
+ * seeded with the participant's twelve blocks (recording every call) -- no
  * adapter import, so the biome.json hexagon rule holds -- a fixed `now` and
  * no database.
  */
@@ -65,11 +66,11 @@ interface Calls {
   markQuizCompleted: number;
 }
 
-/** This participant's own 15 blocks, told apart from the constant by scenario. */
+/** This participant's own twelve blocks, told apart from the bank by scenario. */
 function seededBlocks(): StoredBlock[] {
-  return INSTRUMENT.blocks.map((block) => ({
+  return formFor(PARTICIPANT_ID).map((block) => ({
     block: { ...block, scenario: `escena ${block.position}` },
-    source: "generated" as const,
+    source: "bank" as const,
   }));
 }
 
@@ -265,7 +266,7 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe("answerBlock", () => {
-  it("AC-9 · rejects most = least, a key the participant's block lacks, positions 0 and 16, a missing least, a position with no stored block and an unknown token without saving; stores least null under single-pick; upserts one row per position with shownOrderFor; reports the recomputed frontier with advanced; and completes block 15 through a single save carrying { completedAt: now } with saveBatch and markQuizCompleted never called", async () => {
+  it("AC-9 · rejects most = least, a key the participant's block lacks, positions 0 and 13, a missing least, a position with no stored block and an unknown token without saving; stores least null under single-pick; upserts one row per position with shownOrderFor; reports the recomputed frontier with advanced; and completes the last block through a single save carrying { completedAt: now } with saveBatch and markQuizCompleted never called", async () => {
     const world = makeWorld();
 
     // most === least.
@@ -320,7 +321,7 @@ describe("answerBlock", () => {
       answerBlock(
         {
           sessionToken: TOKEN,
-          position: 16,
+          position: 13,
           mostKey: "a",
           leastKey: "b",
           now: NOW,
@@ -329,7 +330,7 @@ describe("answerBlock", () => {
       )
     );
     expect(tooHigh.message).toMatch(/position/i);
-    expect(tooHigh.message).toMatch(/\b16\b/);
+    expect(tooHigh.message).toMatch(/\b13\b/);
 
     // "Menos yo" is not optional unless the server says so.
     const missingLeast = await rejection(
@@ -439,14 +440,14 @@ describe("answerBlock", () => {
     expect(atFrontier.nextPosition).toBe(9);
     expect(atFrontier.advanced).toBe(true);
 
-    // The completing write: fourteen rows already there, block 15 answered.
-    world.seedResponses([9, 10, 11, 12, 13, 14]);
+    // The completing write: every other row already there, the last answered.
+    world.seedResponses([9, 10, 11]);
     expect(world.participant.quizCompletedAt).toBeNull();
     const savesBeforeLast = world.calls.responseSaves.length;
     const last = await answerBlock(
       {
         sessionToken: TOKEN,
-        position: 15,
+        position: BLOCK_COUNT,
         mostKey: "a",
         leastKey: "b",
         now: NOW,
@@ -457,7 +458,7 @@ describe("answerBlock", () => {
     const completingSaves = world.calls.responseSaves.slice(savesBeforeLast);
     expect(completingSaves).toHaveLength(1);
     expect(completingSaves[0].response.participantId).toBe(PARTICIPANT_ID);
-    expect(completingSaves[0].response.position).toBe(15);
+    expect(completingSaves[0].response.position).toBe(BLOCK_COUNT);
     expect(completingSaves[0].opts).toEqual({ completedAt: NOW });
     expect(world.participant.quizCompletedAt).toEqual(NOW);
 

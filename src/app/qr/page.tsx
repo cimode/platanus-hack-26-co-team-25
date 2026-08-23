@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { intakePath } from "@/app/intake/guards";
+import { intakePath } from "@/app/intake/path";
 import { QrCode } from "@/components/qr/qr-code";
 import { serverDeps } from "@/lib/composition";
 
@@ -32,6 +32,10 @@ export default async function QrPage(props: PageProps<"/qr">) {
 
   if (!room) return <MissingRoom slug={slug} />;
 
+  // One resolve and one render. Showing the code used to warm the room's pool
+  // of authored forms in `after()`, on a 300s budget; the questions come from
+  // the committed bank now (docs/domain.md D21) and there is nothing left to
+  // write ahead of the first scan.
   const link = `${await requestOrigin()}${intakePath(room.slug)}`;
 
   return (

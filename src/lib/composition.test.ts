@@ -75,6 +75,33 @@ describe("serverDeps().photos", () => {
     expect(() => deps.db).toThrowError(/DATABASE_URL/);
     expect(() => deps.participants).toThrowError(/DATABASE_URL/);
   });
+});
+
+describe("serverDeps() quiz members", () => {
+  it("exposes generatedBlocks as a database-backed getter, and no longer offers the claims and pool the generation chain used to take", () => {
+    delete process.env.DATABASE_URL;
+    resetDb();
+
+    const deps = serverDeps();
+    // The roster reads the `participants` table now -- the hardcoded module it
+    // replaced was the only member that cost nothing, and it is gone. So it
+    // throws here like every other repository, which is the property this test
+    // is really about: nothing connects until it is read.
+    expect(() => deps.roster).toThrowError(/DATABASE_URL/);
+    expect(() => deps.generatedBlocks).toThrowError(/DATABASE_URL/);
+
+    // The generation pipeline is gone: a form is twelve rows dealt from the
+    // committed bank, so there is no batch to lock and no pool to warm. The
+    // members are asserted absent by name, because a leftover getter here
+    // would be a page still able to schedule work nothing implements.
+    expect(deps).not.toHaveProperty("claims");
+    expect(deps).not.toHaveProperty("pool");
+    const source = readFileSync(COMPOSITION_SOURCE, "utf8");
+    expect(source).not.toMatch(/GenerationClaims|QuizPoolRepository/);
+
+    // `llm` stays: the timeline narrator and simulate-pair still need a model.
+    expect(typeof deps.llm.generate).toBe("function");
+  });
 
   it("AC-6 · with AWS_ENDPOINT_URL_S3 unset and BLOB_READ_WRITE_TOKEN set to any value it is the fake photo store -- the Vercel Blob adapter no longer exists and the token is ignored", async () => {
     delete process.env.AWS_ENDPOINT_URL_S3;

@@ -44,6 +44,31 @@ FACE_GUIDE = {"centerX": 0.5, "centerY": 0.44, "radiusX": 0.3, "radiusY": 0.38}
 # ----------------------------------------------------------------------------
 # sheet -> frames
 # ----------------------------------------------------------------------------
+PLATE_EMOTE = "plate"
+
+
+def clip_spec(root: str, avatar: str, emote: str) -> dict:
+    """Where the frames of one clip live, and how to cut them.
+
+    The idle plate is a single still rather than a strip, but it carries the
+    same blank face and wants the same treatment, so it enters here as a clip
+    of one frame. Everything downstream -- the tracker, the fit, the filter --
+    is written in frames and does not need to know.
+    """
+    if emote == PLATE_EMOTE:
+        path = os.path.join(root, "public/sprites", f"{avatar}.png")
+        with Image.open(path) as im:
+            width, height = im.size
+        return {"src": path, "frameWidth": width, "frameHeight": height, "fps": 1}
+    sheet = load_manifest(root)[avatar][emote]
+    return {
+        "src": os.path.join(root, "public", sheet["src"].lstrip("/")),
+        "frameWidth": sheet["frameWidth"],
+        "frameHeight": sheet["frameHeight"],
+        "fps": sheet["fps"],
+    }
+
+
 def load_manifest(root: str) -> dict:
     with open(os.path.join(root, "public/sprites/emotes/manifest.json")) as f:
         return json.load(f)
@@ -480,15 +505,21 @@ class PhotoOval:
     ry: float
 
 
-def prepare_photo(path: str, target_px: int, zoom: float = 1.0) -> PhotoOval:
+def prepare_photo(path: str | None, target_px: int, zoom: float = 1.0) -> PhotoOval:
     """Square the photo, cut the FACE_GUIDE oval, shrink to ~2x the on-sheet size
     so the affine warp samples a sane number of source pixels."""
-    im = Image.open(path).convert("RGB")
-    side = min(im.size)
-    im = im.crop(((im.width - side) // 2, (im.height - side) // 2,
-                  (im.width + side) // 2, (im.height + side) // 2))
     work = max(target_px * 2, 48)
-    im = im.resize((work, work), Image.LANCZOS)
+    if path is None:
+        # Emitting assets needs the oval's geometry, never its pixels: the
+        # matrices are written in the unit square of the squared photo, so
+        # they come out the same whatever picture (or none) went in.
+        im = Image.new("RGB", (work, work), (128, 128, 128))
+    else:
+        im = Image.open(path).convert("RGB")
+        side = min(im.size)
+        im = im.crop(((im.width - side) // 2, (im.height - side) // 2,
+                      (im.width + side) // 2, (im.height + side) // 2))
+        im = im.resize((work, work), Image.LANCZOS)
     cx, cy = FACE_GUIDE["centerX"] * work, FACE_GUIDE["centerY"] * work
     rx, ry = FACE_GUIDE["radiusX"] * work / zoom, FACE_GUIDE["radiusY"] * work / zoom
     alpha = Image.new("L", (work, work), 0)
@@ -553,13 +584,58 @@ def debug_frame(frame: np.ndarray, mask: np.ndarray, fit: Fit, scale: int = 4) -
     return big
 
 
+def emit_assets(directory: str, avatar: str, emote: str, man: dict,
+                masks: list[np.ndarray], mats: list[list[float]],
+                photo: PhotoOval) -> tuple[int, int]:
+    """The two files a runtime needs: where the plate is, and where the face goes.
+
+    The mask is one alpha strip laid out exactly like the spritesheet, so a
+    canvas can read it with the same frame arithmetic. The JSON is the affine
+    per frame, in the unit square of the squared photo so any resolution of
+    the person's photo drops in, and `null` on a frame where the face is not
+    visible at all -- a runtime that sees null skips the warp instead of
+    painting a face nobody can see.
+    """
+    out = os.path.join(directory, avatar)
+    os.makedirs(out, exist_ok=True)
+    # The mask is written as an ALPHA channel, not as grey levels: a browser
+    # can then apply it with one `destination-in` draw instead of walking half
+    # a million pixels in JavaScript, and never has to read the canvas back.
+    alpha = np.concatenate([m.astype(np.uint8) * 255 for m in masks], axis=1)
+    grey_alpha = np.dstack([np.full_like(alpha, 255), alpha])
+    Image.fromarray(grey_alpha, "LA").save(os.path.join(out, f"{emote}.png"), optimize=True)
+    # `mats` maps PHOTO PIXELS to frame pixels, for the working size this run
+    # happened to use. Scaling the two columns by that size rewrites it in the
+    # unit square of the squared photo, which is what makes one file serve a
+    # 512px intake capture and a 4000px upload alike -- and what the runtime's
+    # `canvasTransform` expects.
+    side = photo.image.width
+    painted = 0
+    frames: list[list[float] | None] = []
+    for mask, (a, b, c, d, e, f) in zip(masks, mats):
+        if mask.any():
+            painted += 1
+            frames.append([round(v, 4) for v in
+                           (a * side, b * side, c, d * side, e * side, f)])
+        else:
+            frames.append(None)
+    body = {
+        "w": man["frameWidth"], "h": man["frameHeight"], "n": len(masks), "fps": man["fps"],
+        "guide": FACE_GUIDE, "f": frames,
+    }
+    with open(os.path.join(out, f"{emote}.json"), "w") as f:
+        json.dump(body, f, separators=(",", ":"))
+    return painted, len(masks)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=os.getcwd())
     ap.add_argument("--avatar", default="avatar1")
     ap.add_argument("--emote", default="defeat")
-    ap.add_argument("--photo", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--photo", help="required to render the review artefacts; the assets do not need one")
+    ap.add_argument("--out", help="directory for the review artefacts (strip, gif, debug sheets)")
+    ap.add_argument("--assets", help="directory for the shipped assets: <dir>/<avatar>/<emote>.{png,json}")
     ap.add_argument("--tol", type=int, default=14, help="max channel distance from the plate tone")
     ap.add_argument("--head-zone", type=float, default=0.55, help="fraction of the frame height the plate may live in")
     ap.add_argument("--min-area", type=int, default=3)
@@ -570,8 +646,12 @@ def main() -> None:
     ap.add_argument("--colors", type=int, default=12, help="quantise the pasted face to N colours (0 = off)")
     args = ap.parse_args()
 
-    man = load_manifest(args.root)[args.avatar][args.emote]
-    frames = frames_of(os.path.join(args.root, "public", man["src"].lstrip("/")), man["frameWidth"])
+    if args.out and not args.photo:
+        raise SystemExit("--out renders a composited preview, so it needs --photo")
+    if not (args.out or args.assets):
+        raise SystemExit("nothing to write: pass --assets, --out, or both")
+    man = clip_spec(args.root, args.avatar, args.emote)
+    frames = frames_of(man["src"], man["frameWidth"])
     masks = track(frames, args.tol, args.head_zone, args.min_area)
     raw = [fit_ellipse(m) for m in masks]
     fits = smooth(choose(frames, masks, raw), args.smooth)
@@ -582,6 +662,13 @@ def main() -> None:
     photo = prepare_photo(args.photo, max(int(2 * max(ref.sx, ref.sy)), 8), args.zoom)
     mats = [matrix(f, photo) for f in fits]
     done = [composite(fr, mk, m, photo, args.colors) for fr, mk, m in zip(frames, masks, mats)]
+
+    if args.assets:
+        painted, total = emit_assets(args.assets, args.avatar, args.emote, man, masks, mats, photo)
+        print(f"{args.avatar}/{args.emote}: {painted}/{total} frames carry a face -> "
+              f"{args.assets}/{args.avatar}/{args.emote}.{{png,json}}")
+        if not args.out:
+            return
 
     os.makedirs(args.out, exist_ok=True)
     tag = f"{args.avatar}-{args.emote}-{os.path.splitext(os.path.basename(args.photo))[0]}"

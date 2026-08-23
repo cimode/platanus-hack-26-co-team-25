@@ -17,17 +17,12 @@ import { intakeStepOf } from "@/lib/domain/participant";
  *
  * Everything a participant sees here is their own row, read through
  * `bySessionToken`. Nobody else's name or photo is fetched, so none can leak.
+ *
+ * A plain render, and nothing behind it. This page used to warm a per-room
+ * pool of authored forms in `after()` and carry a 300s `maxDuration` to pay
+ * for it; the questions come from the committed bank now (docs/domain.md D21),
+ * so there is nothing to warm, nothing to schedule and nothing to budget for.
  */
-
-/**
- * Server Actions take the *page's* `maxDuration`, not their own (the Next
- * route-segment config doc is explicit). `registerAction` schedules batch-1
- * authoring in `after()`, which runs after the response but inside this budget
- * -- without it the background work would be cut off mid-batch. Same 120s as
- * `src/app/page.tsx` and `src/app/quiz/page.tsx`: deliberately under every
- * plan's ceiling (`docs/ci.md`), against a batch measured at ~40-70s.
- */
-export const maxDuration = 120;
 
 export default async function IntakePage(props: PageProps<"/intake">) {
   const searchParams = await props.searchParams;
@@ -56,10 +51,8 @@ export default async function IntakePage(props: PageProps<"/intake">) {
 
   const token = await readSessionToken();
   const me = token ? await deps.participants.bySessionToken(token) : null;
-  const step = intakeStepOf(me);
 
-  if (step === "declared") redirect("/intake/declared");
-  if (step === "quiz") redirect("/quiz");
+  if (intakeStepOf(me) === "quiz") redirect("/quiz");
 
   return (
     <IntakeShell step={FLOW_REGISTER_STEP}>

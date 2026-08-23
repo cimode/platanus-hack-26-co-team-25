@@ -5,30 +5,37 @@
  * the first unanswered position is the frontier, `answeredCount` is the count of
  * rows, and `completed` is `participants.quiz_completed_at !== null`.
  *
- * Under D16 the block itself is *this participant's* own, obtained through
- * `ensureQuizBatch({ participantId, batch }, { llm, generatedBlocks })` — the
- * stored `generated_blocks` rows, or authored and stored inline when the entry
- * prefetch has not landed yet. The constant is never read for content.
+ * The block itself is one of the twelve `formFor(participantId)` deals from the
+ * committed bank — a pure function of who the participant is. The rows in
+ * `generated_blocks` are the record of what they were shown, written once at
+ * registration (`assignQuizForm`), and this read serves the stored row.
+ *
+ * There is nothing to wait for. When the row at `nextPosition` is missing — a
+ * participant registered before the form was assigned, or one carrying the
+ * legacy `source = 'fallback'` rows nobody should read any more — this use case
+ * assigns the form itself and serves the block it just wrote. That costs one
+ * INSERT and no model call, so the self-healing path renders a question rather
+ * than a spinner.
  *
  * The room's structural version is checked first (docs/domain.md D2 / §5 /
  * §10.1(b)): `rooms.byId(participant.roomId)`, and a mismatch throws
- * `InstrumentVersionMismatchError` before a single response or generated block
- * is read and before the model is touched.
+ * `InstrumentVersionMismatchError` before a single response or stored block
+ * is read.
  *
  * Only `PublicBlock` leaves this module: `pillar`, `keyed`, `focusPillar`,
  * `domain` and `source` stay on the server (PILLARS.md §8 rule 1, AUDIT.md F1).
  */
 
 import type { ParticipantId, SessionToken } from "../domain/participant";
+import type { Avatar } from "../domain/participant/avatar";
 import type { Block, BlockResponse, OptionKey } from "../domain/quiz/index.ts";
 import { BLOCK_COUNT, batchOf, INSTRUMENT } from "../domain/quiz/index.ts";
 import { shownOrderFor } from "../domain/quiz/shown-order.ts";
 import type { GeneratedBlockRepository } from "../ports/generated-block-repository";
-import type { LlmPort } from "../ports/llm";
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { ResponseRepository } from "../ports/response-repository";
 import type { RoomRepository } from "../ports/room-repository";
-import { ensureQuizBatch } from "./ensure-quiz-batch.ts";
+import { assignQuizForm } from "./assign-quiz-form.ts";
 
 /** What a card renders, and nothing more. */
 export interface PublicOption {
@@ -36,7 +43,7 @@ export interface PublicOption {
   text: string;
 }
 
-/** The block as the client island may see it (docs/domain.md D16, §5). */
+/** The block as the client island may see it (docs/domain.md §5). */
 export interface PublicBlock {
   position: number;
   scenario: string;
@@ -47,7 +54,6 @@ export interface QuizProgressDeps {
   participants: ParticipantRepository;
   responses: ResponseRepository;
   rooms: RoomRepository;
-  llm: LlmPort;
   generatedBlocks: GeneratedBlockRepository;
 }
 
@@ -59,12 +65,23 @@ export interface QuizProgressInput {
 
 export interface QuizProgressView {
   participantId: ParticipantId;
+  /** The room this person registered into; the screen carries it onward. */
+  roomId: string;
+  /** The plate this person wears, so the block can draw them. */
+  avatar: Avatar | null;
+  /**
+   * The viewer's OWN photo, so the avatar telling the scene has their face on
+   * it. Their own is the first exception D11 names to "a photo URL never
+   * leaves the server": this view is resolved from a session token, so the
+   * only photo it can carry is the photo of whoever is holding it.
+   */
+  photoUrl: string | null;
   /** The position on screen: the frontier, or `at` when it is behind it. */
   nextPosition: number;
   batch: number;
   answeredCount: number;
   completed: boolean;
-  /** Null only when the quiz is complete — no block is fetched then. */
+  /** Null only when the quiz is complete. */
   block: PublicBlock | null;
   /** `shownOrderFor(participantId, nextPosition)`; null when complete. */
   shownOrder: string | null;
@@ -114,12 +131,12 @@ export async function requireCurrentRoom(
 }
 
 /**
- * The frontier: the first position 1..15 with no row, or 15 when every position
+ * The frontier: the first position 1..12 with no row, or 12 when every position
  * has one (docs/domain.md §0 — progress is read from the rows).
  *
- * Fifteen rows and no completion timestamp is the re-submit state from the
- * issue's Context: block 15 is served again, pre-marked, and answering it runs
- * the completing write.
+ * Twelve rows and no completion timestamp is the re-submit state from the
+ * issue's Context: the last block is served again, pre-marked, and answering it
+ * runs the completing write.
  */
 export function firstUnanswered(answered: ReadonlySet<number>): number {
   for (let position = 1; position <= BLOCK_COUNT; position++) {
@@ -156,12 +173,19 @@ export async function quizProgress(
   const frontier = firstUnanswered(answered);
   const completed = participant.quizCompletedAt !== null;
 
+  const base = {
+    participantId: participant.id,
+    roomId: participant.roomId,
+    avatar: participant.avatar,
+    photoUrl: participant.photoUrl,
+    answeredCount: rows.length,
+  };
+
   if (completed) {
     return {
-      participantId: participant.id,
+      ...base,
       nextPosition: frontier,
       batch: batchOf(frontier),
-      answeredCount: rows.length,
       completed: true,
       block: null,
       shownOrder: null,
@@ -180,25 +204,41 @@ export async function quizProgress(
       : frontier;
 
   const batch = batchOf(position);
-  const blocks = await ensureQuizBatch(
-    { participantId: participant.id, batch },
-    { llm: deps.llm, generatedBlocks: deps.generatedBlocks }
-  );
-  const block = blocks.find((candidate) => candidate.position === position);
+  const existing = rows.find((row) => row.position === position) ?? null;
+  const stored = await deps.generatedBlocks.byBatch(participant.id, batch);
+  const row = stored.find((candidate) => candidate.block.position === position);
+  // A `fallback` row is the old committed instrument, not a bank block, and
+  // assigning the form replaces it — unless they already answered it, in which
+  // case it is the question their answer refers to and is shown as such.
+  const usable =
+    row !== undefined && (row.source !== "fallback" || existing !== null);
+
+  // Self-healing, and cheap: the form is `formFor(participant.id)` either way,
+  // so the only thing missing is the row, and one INSERT supplies it.
+  const block = usable
+    ? row.block
+    : (await assignQuizForm({ participantId: participant.id }, deps)).find(
+        (candidate) => candidate.position === position
+      );
+
   if (!block) {
+    // `formFor` deals positions 1..BLOCK_COUNT and `position` is clamped to the
+    // frontier, which is one of them. Reaching this means the bank and the
+    // instrument disagree about how long a form is — a boot-time invariant
+    // that has come apart, not a state a participant can be in.
     throw new Error(
-      `participant ${participant.id} has no block at position ${position} in batch ${batch}`
+      `no block at position ${position} in the form assigned to participant ` +
+        `${participant.id}`
     );
   }
 
   return {
-    participantId: participant.id,
+    ...base,
     nextPosition: position,
     batch,
-    answeredCount: rows.length,
     completed: false,
     block: toPublicBlock(block),
     shownOrder: shownOrderFor(participant.id, position),
-    existing: rows.find((row) => row.position === position) ?? null,
+    existing,
   };
 }

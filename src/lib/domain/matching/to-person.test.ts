@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type {
+  Lens,
   Participant,
   RankableParticipant,
   RomanticGate,
 } from "../participant";
+import { meetsFloor } from "../participant";
+import { rankRoom, scorePair } from "./engine";
 import { toPerson } from "./to-person";
 
 /**
@@ -15,16 +18,16 @@ import { toPerson } from "./to-person";
  * cohort is passed in (30-minute windows computed by the use case); gate rows
  * map to `gates.*` and an absent row ⇒ undefined; absent latent rows ⇒ an
  * ABSENT KEY so the engine imputes the prior (AUDIT.md S15); `hasPhoto` is
- * `photo_url is not null`. It throws on any null declared field -- the second
- * guard behind the repository's floor, never the first (docs/domain.md §5).
+ * `photo_url is not null`.
+ *
+ * A null declared band ⇒ an ABSENT field (D20): the declared round is no
+ * longer asked, so the mapper no longer throws on it, and the engine scores
+ * the unmeasured term at its neutral midpoint with the weights untouched.
  *
  * The parameter is the landed NESTED `RankableParticipant`
  * (src/lib/domain/participant/floor.ts): `{ participant, romanticGate?,
  * businessGate?, acquaintances }`. The flat stand-in the first draft of these
  * tests declared is gone.
- *
- * The throw on the abandoned row is asserted by the `kind: safety` criterion
- * AC-4 in src/lib/use-cases/prepare-results.test.ts.
  */
 
 const P_ID = "11111111-1111-7111-8111-111111111111";
@@ -136,5 +139,105 @@ describe("toPerson", () => {
       friendship: true,
     });
     expect(person.hasPhoto).toBe(true);
+  });
+});
+
+/**
+ * D20: the declared round is out of the flow, so every band is null for
+ * everyone registered since. Two such participants -- registered, quiz
+ * complete, scored -- have to rank each other under every lens, and on a
+ * finite score rather than on a throw, a NaN or a fabricated zero.
+ */
+const LENSES: Lens[] = ["romantic", "business", "friendship"];
+
+function undeclared(id: string, name: string): RankableParticipant {
+  return {
+    participant: {
+      ...PARTICIPANT,
+      id,
+      name,
+      consent: { romantic: true, business: true, friendship: true },
+      declared: {
+        moneyPosture: null,
+        rootedness: null,
+        familyGravity: null,
+        capacityHoursBand: null,
+        distanceBand: null,
+        chronotype: null,
+        tags: [],
+        acquaintances: [],
+      },
+      declaredAt: null,
+      quizCompletedAt: new Date("2026-08-22T19:30:00.000Z"),
+    },
+    // No stored gate rows either (D18): both are derived from the identity.
+    acquaintances: [],
+  };
+}
+
+const MEASURED = {
+  regulation: { mean: 0.62, se: 0.1 },
+  politeness: { mean: 0.55, se: 0.1 },
+  reliability: { mean: 0.7, se: 0.1 },
+  agency: { mean: 0.4, se: 0.1 },
+};
+
+describe("toPerson without declared data (D20)", () => {
+  it("maps every null band to an absent field instead of throwing", () => {
+    const person = toPerson(undeclared(P_ID, "Ana"), MEASURED, 0);
+
+    expect(person.declared.distanceBand).toBeUndefined();
+    expect(person.declared.chronotype).toBeUndefined();
+    expect(person.declared.lifeShape).toEqual({
+      moneyPosture: undefined,
+      rootedness: undefined,
+      familyGravity: undefined,
+      capacityHoursBand: undefined,
+    });
+    expect(person.declared.tags).toEqual([]);
+    // The identity-derived gates are still there, so no lens suppresses them.
+    expect(person.gates.romantic).toBeDefined();
+    expect(person.gates.business).toBeDefined();
+  });
+
+  it("two registered, quiz-complete participants with all declared fields null rank each other with a finite score under every lens", () => {
+    const ana = undeclared(P_ID, "Ana");
+    const bea = undeclared(KNOWS_A, "Bea");
+    // Both clear the floor on registration alone: photo, identity, consent.
+    for (const lens of LENSES) {
+      expect(meetsFloor(ana, lens), lens).toBe(true);
+      expect(meetsFloor(bea, lens), lens).toBe(true);
+    }
+
+    const people = [
+      toPerson(ana, MEASURED, 0),
+      toPerson(bea, { ...MEASURED, regulation: { mean: 0.58, se: 0.1 } }, 0),
+    ];
+
+    for (const lens of LENSES) {
+      const pair = scorePair(people[0], people[1], lens);
+      expect(pair.eligible, lens).toBe(true);
+      expect(Number.isFinite(pair.rank), lens).toBe(true);
+      expect(Number.isFinite(pair.sim), lens).toBe(true);
+      expect(pair.rank, lens).toBeGreaterThanOrEqual(0);
+      expect(pair.rank, lens).toBeLessThanOrEqual(1);
+      // Every declared term sits at its neutral midpoint: unmeasured, not
+      // zero, so the ranking is carried by the latents and the structure.
+      for (const driver of pair.drivers) {
+        expect(Number.isFinite(driver.score), `${lens} ${driver.term}`).toBe(
+          true
+        );
+      }
+      expect(
+        pair.friction === null || Number.isFinite(pair.friction.score)
+      ).toBe(true);
+
+      const ranked = rankRoom(people, P_ID, lens);
+      expect(
+        ranked.map((entry) => entry.id),
+        lens
+      ).toEqual([KNOWS_A]);
+      expect(Number.isFinite(ranked[0].rank), lens).toBe(true);
+    }
   });
 });

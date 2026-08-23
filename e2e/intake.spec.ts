@@ -1,16 +1,17 @@
 import path from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { participantBySession, roomMembers } from "./fixtures/intake-declared";
+import { participantBySession, roomMembers } from "./fixtures/intake";
 import { createQuizParticipant } from "./helpers/quiz-participant";
 
 /**
- * Intake on a phone (issue #42, docs/domain.md D18).
+ * Intake on a phone (issue #42, docs/domain.md D18, D20 and D21).
  *
- *     /intake?room=<slug>  one screen  ->  /intake/declared
+ *     /intake?room=<slug>  one screen  ->  /quiz
  *
- * Photo, name, gender and birthdate are asked together and submitted once.
- * There is no consent screen, no gate screen, no step counter and no wordmark:
- * nothing on any screen may hint at what is being measured.
+ * Photo, name, gender and birthdate are asked together and submitted once,
+ * and the hand-off is straight to the questions: there is no declared round,
+ * no consent screen, no gate screen, no step counter and no wordmark. Nothing
+ * on any screen may hint at what is being measured.
  *
  * The room is `e2e-<run>`, created by e2e/global-setup.ts and never the real
  * `platanus-hack-26-bogota` (docs/domain.md D9). Photos go through the fake
@@ -60,6 +61,19 @@ const submitButton = (page: Page) =>
 const dataBox = (page: Page) =>
   page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
+/**
+ * What `/quiz` shows the moment registration lands on it (D21): the opening
+ * moment, and nothing else. There is no second possibility any more -- the
+ * questions are dealt from the committed bank and written by `registerAction`
+ * itself, so the redirect can only ever land on a form that already exists.
+ * A "writing your questions" state here would be a regression, and AC-1 says
+ * so with an explicit count of zero.
+ */
+const quizOpening = (page: Page) => page.getByText(/doce escenas/i);
+
+/** The wait screen that D21 deleted. It must never come back. */
+const WRITING = /escribiendo tus preguntas/i;
+
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "dipia_session");
 
@@ -108,7 +122,7 @@ function assertClean(html: string, where: string): void {
 }
 
 test.describe("intake", () => {
-  test("AC-1 · one screen registers a participant with photo, name, gender and birthdate", async ({
+  test("AC-1 · one screen registers a participant with photo, name, gender and birthdate and lands on the questions", async ({
     page,
     context,
   }) => {
@@ -127,7 +141,12 @@ test.describe("intake", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    // Straight to the questions: no declared round in between (D20), and
+    // nothing to wait for -- the twelve blocks were written by the same
+    // action that created the row (D21).
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
+    await expect(quizOpening(page)).toBeVisible();
+    await expect(page.getByText(WRITING)).toHaveCount(0);
     served.push(await page.content());
 
     // The row itself, read through the repository behind the session cookie.
@@ -145,6 +164,8 @@ test.describe("intake", () => {
       business: true,
       friendship: true,
     });
+    // D20: nothing declared was asked, and nothing declared was written.
+    expect(me?.declaredAt).toBeNull();
 
     for (const html of served) assertClean(html, "an intake screen");
   });
@@ -223,7 +244,8 @@ test.describe("safety invariants", () => {
     await expect(bar).toHaveAttribute("aria-valuenow", /\d/);
     await expect(bar).toHaveAttribute("aria-valuemax", /\d/);
 
-    // The first quiz screen, for a participant with their fifteen blocks.
+    // The first quiz screen, for a participant with their twelve blocks --
+    // the screen registration lands on (D20/D21).
     const quiz = await createQuizParticipant({ context });
     const quizPage = await context.newPage();
     // `?start=1` dismisses the beat that opens a batch, so what is inspected is
@@ -255,7 +277,8 @@ test.describe("safety invariants", () => {
     await birthdateField(page).fill(bornAgo(31));
     await dataBox(page).check();
     await submitButton(page).click();
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
+    await expect(quizOpening(page)).toBeVisible();
 
     const sessions = await sessionCookies(context);
     expect(sessions).toHaveLength(1);
@@ -263,7 +286,8 @@ test.describe("safety invariants", () => {
     expect(cookie.httpOnly).toBe(true);
     expect(cookie.sameSite).toBe("Lax");
 
-    const html = await (await context.request.get("/intake/declared")).text();
+    // The first quiz screen, as bytes: the token is not in the document.
+    const html = await (await context.request.get("/quiz")).text();
     expect(html).not.toContain(cookie.value);
 
     const documentCookie = await page.evaluate(() => document.cookie);
@@ -320,7 +344,7 @@ test.describe("photo guide", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
     const cookies = await sessionCookies(context);
     expect(cookies).toHaveLength(1);
     const me = await participantBySession(cookies[0].value);
@@ -403,7 +427,7 @@ test.describe("data treatment", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
 
     const cookies = await sessionCookies(context);
     expect(cookies).toHaveLength(1);

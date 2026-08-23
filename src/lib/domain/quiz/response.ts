@@ -5,11 +5,13 @@
  * is an update, not a second row. `shownOrder` records the per-participant
  * shuffle so position bias stays analysable.
  */
+import { BLOCK_COUNT } from "./instrument.ts";
+
 export type OptionKey = "a" | "b" | "c" | "d";
 
 export interface BlockResponse {
   participantId: string;
-  /** 1..15. */
+  /** 1..12 -- a position in this participant's form. */
   position: number;
   mostKey: OptionKey;
   /** null under the single-pick fallback; never equal to `mostKey`. */
@@ -22,16 +24,20 @@ export interface BlockResponse {
 /** The keys a block offers, and the alphabet `shownOrder` permutes. */
 const KEYS: readonly OptionKey[] = ["a", "b", "c", "d"];
 
-/** Positions run 1..15 -- the fixed balanced form (PILLARS.md §7.2). */
+/**
+ * Positions run 1..`BLOCK_COUNT` -- the twelve blocks `formFor()` deals. Read
+ * from the constant rather than repeated, so the two can never disagree about
+ * what a form is.
+ */
 const MIN_POSITION = 1;
-const MAX_POSITION = 15;
+const MAX_POSITION = BLOCK_COUNT;
 
 function isOptionKey(value: string): value is OptionKey {
   return (KEYS as readonly string[]).includes(value);
 }
 
 /**
- * most !== least, keys in a..d, position 1..15, `shownOrder` a permutation of
+ * most !== least, keys in a..d, position 1..12, `shownOrder` a permutation of
  * "abcd". Throws naming the field that failed.
  *
  * Applied by the adapter before the write as well as by the use case, so a

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { ImpersonateForm } from "@/components/impersonate/impersonate-form";
 import { serverDeps } from "@/lib/composition";
 import { listParticipants } from "@/lib/use-cases/list-participants";
@@ -21,6 +22,22 @@ import { listParticipants } from "@/lib/use-cases/list-participants";
 export const maxDuration = 120;
 
 export default async function Home() {
+  /*
+   * Stop prerendering before the roster is read.
+   *
+   * The roster now comes from the `participants` table, and a Drizzle query is
+   * not a Request-time API -- so without this the page is prerendered AT BUILD
+   * and the chooser freezes at whoever had registered when the deploy ran.
+   * People are filling the form during the event; a login screen that cannot
+   * see them is the demo failing quietly.
+   *
+   * `connection()` rather than `export const dynamic`: the segment config is
+   * removed under Cache Components (route-segment-config docs, v16 history),
+   * and this is the documented way to say "different output per request" for a
+   * page that touches no cookie
+   * (`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/connection.md`).
+   */
+  await connection();
   const roster = await listParticipants(serverDeps());
 
   return (

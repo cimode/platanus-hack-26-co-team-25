@@ -5,10 +5,11 @@ import { createLatentRepository } from "./adapters/db/latent-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
+import { createDbRoster } from "./adapters/db/roster";
 import { createGatewayLlm } from "./adapters/llm/gateway";
 import { createFakeOffspringStudio } from "./adapters/offspring/fake";
 import { createOpenAiOffspringStudio } from "./adapters/offspring/openai";
-import { rosterParticipants } from "./adapters/participants/roster";
+
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import { createDbTimelines } from "./adapters/timeline";
@@ -45,8 +46,9 @@ import { scoreParticipant } from "./use-cases/score-participant";
  *
  * Two participant-shaped dependencies coexist on purpose:
  *
- *   - `roster` -- the hard-coded demo roster behind the impersonation screen
- *     (`adapters/participants/roster.ts`). It needs no database.
+ *   - `roster` -- the people who actually registered, read from the room named
+ *     by `HOOKAI_ROOM_SLUG` (`adapters/db/roster.ts`). It replaced the
+ *     hard-coded module the day intake started writing rows.
  *   - `participants` -- the real `ParticipantRepository` over Postgres (#4),
  *     which the intake, quiz and ranking use cases depend on.
  *
@@ -58,6 +60,7 @@ export interface Deps {
   db: Db;
   llm: LlmPort;
   roster: ParticipantsPort;
+  /** The rows recording which twelve bank blocks each participant was shown. */
   generatedBlocks: GeneratedBlockRepository;
   participants: ParticipantRepository;
   rooms: RoomRepository;
@@ -72,6 +75,16 @@ export interface Deps {
   timelines: TimelinePort;
   /** The AI-offspring studio for the `/match` reveal (CONTEXT.md §3 step 6). */
   offspring: OffspringStudio;
+  /**
+   * `scoreParticipant`, repositories already bound (issue #30).
+   *
+   * Exposed on its own because scoring is no longer only a read-time repair:
+   * the quiz schedules it the moment block 15 lands, so the person who just
+   * finished has four posteriors before anyone ranks them. It is the SAME
+   * binding `rankingDeps()` builds -- one clock, one scorer -- not a second
+   * one that could drift.
+   */
+  scoreParticipant: PrepareResultsDeps["scoreParticipant"];
 }
 
 export type ServerDeps = Pick<
@@ -89,6 +102,7 @@ export type ServerDeps = Pick<
   | "profiles"
   | "timelines"
   | "offspring"
+  | "scoreParticipant"
 >;
 
 let cachedLlm: LlmPort | undefined;
@@ -141,12 +155,15 @@ function rankingDeps(): PrepareResultsDeps {
 /**
  * Dependencies available on the server today.
  *
- * `llm` used to be deliberately absent -- the only implementations of `LlmPort`
- * were the test doubles in `adapters/llm/fake.ts`, and handing production a fake
- * that quietly returns fixtures is worse than not compiling. It is real now that
- * `adapters/llm/gateway.ts` exists, and this is the single place that knows the
- * model is Sonnet behind AI Gateway: `generateQuizBatch` only ever sees an
- * `LlmPort`, which is why its tests pass `stubLlm()` and touch no network.
+ * `llm` is real, and this is the single place that knows the model is Sonnet
+ * behind AI Gateway: `simulatePair` and the timeline narrator only ever see an
+ * `LlmPort`, which is why their tests pass `stubLlm()` and touch no network.
+ * Nothing on the quiz path reaches it any more -- a question is twelve rows
+ * dealt from the committed bank, so the form costs no model call at all.
+ *
+ * The result is a structural superset of every use case's deps interface
+ * (`QuizProgressDeps`, `AssignQuizFormDeps`, ...), so a screen passes
+ * `serverDeps()` whole and TypeScript picks the members the use case names.
  *
  * Like the database members it is a getter, so a page that needs neither a model
  * nor a connection opens neither.
@@ -165,7 +182,17 @@ export function serverDeps(): ServerDeps {
     get db() {
       return getDb();
     },
-    roster: rosterParticipants,
+    /*
+     * A getter, unlike the hard-coded module it replaced: the roster now opens
+     * a connection, so building `serverDeps()` must not.
+     *
+     * No slug configured yields an empty roster rather than every room's
+     * people mixed together. An empty chooser is a visible, correctable
+     * mistake; a chooser showing another venue's attendees is a silent one.
+     */
+    get roster() {
+      return createDbRoster(getDb(), process.env.HOOKAI_ROOM_SLUG ?? "");
+    },
     get llm() {
       return getLlm();
     },
@@ -199,6 +226,9 @@ export function serverDeps(): ServerDeps {
     },
     get timelines(): TimelinePort {
       return createDbTimelines(getDb(), getLlm());
+    },
+    get scoreParticipant(): PrepareResultsDeps["scoreParticipant"] {
+      return rankingDeps().scoreParticipant;
     },
     get photos() {
       return process.env.AWS_ENDPOINT_URL_S3

@@ -6,13 +6,17 @@ import {
   type SessionToken,
 } from "../domain/participant";
 import type { BlockResponse } from "../domain/quiz/index.ts";
-import { batchOf, INSTRUMENT } from "../domain/quiz/index.ts";
+import {
+  BLOCK_COUNT,
+  batchOf,
+  formFor,
+  INSTRUMENT,
+} from "../domain/quiz/index.ts";
 import { shownOrderFor } from "../domain/quiz/shown-order.ts";
 import type {
   GeneratedBlockRepository,
   StoredBlock,
 } from "../ports/generated-block-repository";
-import type { LlmPort } from "../ports/llm";
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { ResponseRepository } from "../ports/response-repository";
 import type { Room, RoomRepository } from "../ports/room-repository";
@@ -31,26 +35,24 @@ import {
  * `INSTRUMENT.version` (docs/domain.md §5 / §10.1(b) -- the structural
  * version) before reading a single response or generated block; then reads
  * progress from the rows alone -- first unanswered position, its batch,
- * answered count, `completed` from `quizCompletedAt` -- obtains *this
- * participant's* block for that position through
- * `ensureQuizBatch({ participantId, batch }, { llm, generatedBlocks })`
- * (docs/domain.md D16: stored `generated_blocks` rows, or authored and stored
- * inline, with the committed constant as the per-position fallback; never
- * the `INSTRUMENT` constant read directly) and returns the public block view
- * (no `pillar`, `keyed`, `focusPillar`, `domain` or `source`) with a
- * deterministic `shownOrder` (docs/domain.md §0, D10).
+ * answered count, `completed` from `quizCompletedAt` -- reads *this
+ * participant's* stored block for that position (never the `INSTRUMENT`
+ * constant, and never a model: the deps carry no `LlmPort` at all) and returns
+ * the public block view (no `pillar`, `keyed`, `focusPillar`, `domain` or
+ * `source`) with a deterministic `shownOrder` (docs/domain.md §0, D10). When
+ * the row is missing it assigns the form -- `formFor(participantId)`, twelve
+ * bank blocks, one INSERT -- and serves the block it just wrote: there is no
+ * waiting state, because there is nothing to wait for.
  *
- * All three tests use inline in-memory fakes of ParticipantRepository,
- * RoomRepository (bySlug, byId, create over one map keyed by room id,
- * recording every byId call), ResponseRepository (recording every read and
- * save), a GeneratedBlockRepository (byBatch, byParticipant, saveBatch over
- * one map keyed by participant id and position, recording every call) and an
- * LlmPort whose `generate` rejects and counts its calls -- no adapter import,
- * so the biome.json hexagon rule holds -- and no database.
+ * All fakes are inline and in-memory -- no adapter import, so the biome.json
+ * hexagon rule holds -- and no database.
  */
 
 const PARTICIPANT_ID = "11111111-1111-4111-8111-111111111111";
 const ROOM_ID = "22222222-2222-4222-8222-222222222222";
+
+/** The viewer's own photo: the avatar telling the scene wears their face. */
+const PHOTO_URL = "https://storage.example/photos/ana/9f3c.jpg";
 const TOKEN = "session-known" as SessionToken;
 const UNKNOWN_TOKEN = "session-unknown" as SessionToken;
 const NOW = new Date("2026-08-22T21:00:00.000Z");
@@ -70,13 +72,17 @@ interface Calls {
 }
 
 /**
- * The 15 blocks this participant was "generated", distinguishable from the
- * constant: same structure, `escena <position>` as the scenario.
+ * The twelve rows this participant's form was recorded as, with the scenario
+ * replaced by `escena <position>`.
+ *
+ * Rewriting the text is what makes the two paths tell themselves apart: a
+ * block the test seeded reads "escena 4", a block `quizProgress` had to assign
+ * for itself carries the bank's own scenario.
  */
 function seededBlocks(): StoredBlock[] {
-  return INSTRUMENT.blocks.map((block) => ({
+  return formFor(PARTICIPANT_ID).map((block) => ({
     block: { ...block, scenario: `escena ${block.position}` },
-    source: "generated" as const,
+    source: "bank" as const,
   }));
 }
 
@@ -96,8 +102,6 @@ interface WorldOptions {
   quizCompletedAt?: Date | null;
   instrumentVersion?: string;
   blocks?: StoredBlock[];
-  /** Shared across worlds so "in the whole run" is countable. */
-  generateCalls?: { n: number };
 }
 
 function makeWorld(options: WorldOptions = {}) {
@@ -110,7 +114,6 @@ function makeWorld(options: WorldOptions = {}) {
     saveBatch: [],
     markQuizCompleted: 0,
   };
-  const generateCalls = options.generateCalls ?? { n: 0 };
 
   const participant: Participant = {
     id: PARTICIPANT_ID,
@@ -118,8 +121,8 @@ function makeWorld(options: WorldOptions = {}) {
     name: "Ana Ramírez",
     gender: "F",
     birthdate: "1996-05-04",
-    avatar: null,
-    photoUrl: null,
+    avatar: "avatar3",
+    photoUrl: PHOTO_URL,
     team: null,
     track: null,
     consent: { ...DEFAULT_CONSENT },
@@ -247,15 +250,16 @@ function makeWorld(options: WorldOptions = {}) {
         positions: blocks.map((stored) => stored.block.position),
       });
       for (const stored of blocks) {
-        blockRows.set(`${participantId}:${stored.block.position}`, stored);
+        const key = `${participantId}:${stored.block.position}`;
+        const current = blockRows.get(key);
+        // The adapter's ON CONFLICT, in miniature: an existing row is replaced
+        // only when it is a legacy `fallback` nobody has answered yet.
+        const replaceable =
+          current === undefined ||
+          (current.source === "fallback" &&
+            !responseRows.has(stored.block.position));
+        if (replaceable) blockRows.set(key, stored);
       }
-    },
-  };
-
-  const llm: LlmPort = {
-    generate() {
-      generateCalls.n++;
-      return Promise.reject(new Error("the model is down"));
     },
   };
 
@@ -263,7 +267,6 @@ function makeWorld(options: WorldOptions = {}) {
     participants,
     responses,
     rooms: roomRepository,
-    llm,
     generatedBlocks,
   };
 
@@ -276,7 +279,6 @@ function makeWorld(options: WorldOptions = {}) {
       generatedBlocks,
     },
     calls,
-    generateCalls,
     participant,
     responseRows,
     blockRows,
@@ -307,17 +309,22 @@ function expectPublicOnly(block: PublicBlock | null | undefined): PublicBlock {
 }
 
 describe("quizProgress", () => {
-  it("AC-8 · resumes at the first unanswered position with its batch and count, serving the participant's stored block through generatedBlocks.byBatch without calling generate, serves block 15 pre-marked when all rows exist unmarked, clamps at, keeps shownOrder stable without leaking pillar, keyed, focusPillar, domain or source, and reads the room by id exactly once per resolved participant", async () => {
-    const generateCalls = { n: 0 };
-    const all = Array.from({ length: 15 }, (_, index) => index + 1);
+  it("AC-8 · resumes at the first unanswered position with its batch and count, serving the participant's stored block through generatedBlocks.byBatch, serves block 15 pre-marked when all rows exist unmarked, clamps at, keeps shownOrder stable without leaking pillar, keyed, focusPillar, domain or source, carries roomId and avatar, and reads the room by id exactly once per resolved participant", async () => {
+    const all = Array.from({ length: BLOCK_COUNT }, (_, index) => index + 1);
 
     // Responses at {1, 2, 3, 5}: the frontier is the first *gap*, not the count.
-    const gapped = makeWorld({ answered: [1, 2, 3, 5], generateCalls });
+    const gapped = makeWorld({ answered: [1, 2, 3, 5] });
     const atGap = await quizProgress({ sessionToken: TOKEN }, gapped.deps);
     expect(atGap?.nextPosition).toBe(4);
     expect(atGap?.batch).toBe(1);
     expect(atGap?.answeredCount).toBe(4);
     expect(atGap?.completed).toBe(false);
+    expect(atGap?.roomId).toBe(ROOM_ID);
+    expect(atGap?.avatar).toBe("avatar3");
+    // D11 names the viewer's own photo as the first thing a payload MAY carry,
+    // and this view is resolved from a session token -- so the only photo it
+    // can ever hold is the photo of whoever is holding it.
+    expect(atGap?.photoUrl).toBe(PHOTO_URL);
     expect(expectPublicOnly(atGap?.block).scenario).toBe("escena 4");
     expect(gapped.calls.roomsById).toEqual([ROOM_ID]);
     expect(gapped.calls.byBatch).toContainEqual({
@@ -325,16 +332,15 @@ describe("quizProgress", () => {
       batch: 1,
     });
 
-    // Positions 1-10 answered: block 11, which is batch 3.
+    // Positions 1-8 answered: block 9, which is batch 3.
     const tenDone = makeWorld({
-      answered: Array.from({ length: 10 }, (_, index) => index + 1),
-      generateCalls,
+      answered: Array.from({ length: 8 }, (_, index) => index + 1),
     });
-    const atEleven = await quizProgress({ sessionToken: TOKEN }, tenDone.deps);
-    expect(atEleven?.nextPosition).toBe(11);
-    expect(atEleven?.batch).toBe(3);
-    expect(atEleven?.answeredCount).toBe(10);
-    expect(expectPublicOnly(atEleven?.block).scenario).toBe("escena 11");
+    const atNine = await quizProgress({ sessionToken: TOKEN }, tenDone.deps);
+    expect(atNine?.nextPosition).toBe(9);
+    expect(atNine?.batch).toBe(3);
+    expect(atNine?.answeredCount).toBe(8);
+    expect(expectPublicOnly(atNine?.block).scenario).toBe("escena 9");
     expect(tenDone.calls.roomsById).toEqual([ROOM_ID]);
     expect(tenDone.calls.byBatch).toContainEqual({
       participantId: PARTICIPANT_ID,
@@ -342,34 +348,30 @@ describe("quizProgress", () => {
     });
 
     // Completed: the timestamp is what "done" means, and no block is fetched.
-    const done = makeWorld({
-      answered: all,
-      quizCompletedAt: NOW,
-      generateCalls,
-    });
+    const done = makeWorld({ answered: all, quizCompletedAt: NOW });
     const finished = await quizProgress({ sessionToken: TOKEN }, done.deps);
     expect(finished?.completed).toBe(true);
     expect(finished?.block ?? null).toBeNull();
+    expect(finished?.roomId).toBe(ROOM_ID);
+    expect(finished?.avatar).toBe("avatar3");
     expect(done.calls.byBatch).toHaveLength(0);
     expect(done.calls.roomsById).toEqual([ROOM_ID]);
 
-    // Fifteen rows and a null timestamp: block 15 again, pre-marked.
-    const unmarked = makeWorld({
-      answered: all,
-      quizCompletedAt: null,
-      generateCalls,
-    });
+    // Twelve rows and a null timestamp: the last block again, pre-marked.
+    const unmarked = makeWorld({ answered: all, quizCompletedAt: null });
     const lastBlock = await quizProgress(
       { sessionToken: TOKEN },
       unmarked.deps
     );
     expect(lastBlock?.completed).toBe(false);
-    expect(lastBlock?.nextPosition).toBe(15);
-    expect(expectPublicOnly(lastBlock?.block).scenario).toBe("escena 15");
-    expect(lastBlock?.existing).toEqual(responseAt(15));
+    expect(lastBlock?.nextPosition).toBe(BLOCK_COUNT);
+    expect(expectPublicOnly(lastBlock?.block).scenario).toBe(
+      `escena ${BLOCK_COUNT}`
+    );
+    expect(lastBlock?.existing).toEqual(responseAt(BLOCK_COUNT));
 
     // Untouched.
-    const fresh = makeWorld({ answered: [], generateCalls });
+    const fresh = makeWorld({ answered: [] });
     const opening = await quizProgress({ sessionToken: TOKEN }, fresh.deps);
     expect(opening?.nextPosition).toBe(1);
     expect(opening?.batch).toBe(1);
@@ -377,7 +379,7 @@ describe("quizProgress", () => {
     expect(expectPublicOnly(opening?.block).scenario).toBe("escena 1");
 
     // An unknown session is null, and never reaches the room or the blocks.
-    const stranger = makeWorld({ answered: [], generateCalls });
+    const stranger = makeWorld({ answered: [] });
     const nobody = await quizProgress(
       { sessionToken: UNKNOWN_TOKEN },
       stranger.deps
@@ -393,13 +395,10 @@ describe("quizProgress", () => {
     expect(first?.shownOrder).toBe(shownOrderFor(PARTICIPANT_ID, 4));
     expect([...(first?.shownOrder ?? "")].sort().join("")).toBe("abcd");
 
-    // ...and it is not one order repeated for all fifteen positions.
+    // ...and it is not one order repeated for all twelve positions.
     const orders: string[] = [];
     for (const position of all) {
-      const world = makeWorld({
-        answered: all.slice(0, position - 1),
-        generateCalls,
-      });
+      const world = makeWorld({ answered: all.slice(0, position - 1) });
       const view = await quizProgress({ sessionToken: TOKEN }, world.deps);
       expect(view?.nextPosition).toBe(position);
       expect(view?.shownOrder).toBe(shownOrderFor(PARTICIPANT_ID, position));
@@ -413,32 +412,25 @@ describe("quizProgress", () => {
     expect(new Set(orders).size).toBeGreaterThan(1);
 
     // `at` ahead of the frontier is clamped to it; nobody jumps forward.
-    const clamped = makeWorld({
-      answered: [1, 2, 3, 4, 5, 6, 7],
-      generateCalls,
-    });
+    const clamped = makeWorld({ answered: [1, 2, 3, 4, 5] });
     const behind = await quizProgress(
-      { sessionToken: TOKEN, at: 12 },
+      { sessionToken: TOKEN, at: 11 },
       clamped.deps
     );
-    expect(behind?.nextPosition).toBe(8);
-    expect(expectPublicOnly(behind?.block).scenario).toBe("escena 8");
+    expect(behind?.nextPosition).toBe(6);
+    expect(expectPublicOnly(behind?.block).scenario).toBe("escena 6");
     expect(clamped.calls.byBatch).toContainEqual({
       participantId: PARTICIPANT_ID,
       batch: 2,
     });
 
-    // Stored blocks are served; the model is never woken up.
-    expect(generateCalls.n).toBe(0);
+    // A read never writes a block.
+    expect(clamped.calls.saveBatch).toHaveLength(0);
+    expect(gapped.calls.saveBatch).toHaveLength(0);
   });
 
   it("AC-10 · throws InstrumentVersionMismatchError naming v0 and v1 before any response or generated_blocks read, returns null for an unknown token without reading the room, recovers once the version matches, and throws naming the roomId when byId returns null", async () => {
-    const generateCalls = { n: 0 };
-    const world = makeWorld({
-      answered: [1, 2, 3],
-      instrumentVersion: "v0",
-      generateCalls,
-    });
+    const world = makeWorld({ answered: [1, 2, 3], instrumentVersion: "v0" });
 
     const mismatch = await quizProgress(
       { sessionToken: TOKEN },
@@ -455,7 +447,6 @@ describe("quizProgress", () => {
     expect(world.calls.responseSaves).toHaveLength(0);
     expect(world.calls.byBatch).toHaveLength(0);
     expect(world.calls.byParticipant).toHaveLength(0);
-    expect(generateCalls.n).toBe(0);
 
     // The session is resolved first, so an unknown token never reads a room.
     const roomReadsBefore = world.calls.roomsById.length;
@@ -489,30 +480,31 @@ describe("quizProgress", () => {
     expect(world.calls.byBatch).toHaveLength(blockCallsAfterRecovery);
   });
 
-  it("AC-12 · with an empty GeneratedBlockRepository and a rejecting LlmPort, quizProgress authors batch 1 inline as five fallback rows equal to the constant's blocks, answerBlock advances through positions 1..5, and the next quizProgress authors batch 2 the same way -- generate called exactly twice", async () => {
-    const generateCalls = { n: 0 };
-    const world = makeWorld({ answered: [], blocks: [], generateCalls });
+  it("AC-12 · with an empty GeneratedBlockRepository the block is served anyway -- the form is assigned in one saveBatch of twelve and the bank's own scenario is returned -- and answerBlock then advances through 1..4 with nothing further written", async () => {
+    const world = makeWorld({ answered: [], blocks: [] });
+    const form = formFor(PARTICIPANT_ID);
 
     const opening = await quizProgress({ sessionToken: TOKEN }, world.deps);
     expect(opening?.nextPosition).toBe(1);
     expect(opening?.batch).toBe(1);
-    const firstBlock = expectPublicOnly(opening?.block);
-    expect(firstBlock.scenario).toBe(INSTRUMENT.blocks[0].scenario);
-    expect(firstBlock.options.map((option) => option.text)).toEqual(
-      INSTRUMENT.blocks[0].options.map((option) => option.text)
-    );
+    expect(opening?.completed).toBe(false);
+    expect(opening?.existing).toBeNull();
+    expect(opening?.roomId).toBe(ROOM_ID);
+    expect(opening?.avatar).toBe("avatar3");
+    // No waiting: the block is the bank's, and it came back on this render.
+    expect(expectPublicOnly(opening?.block).scenario).toBe(form[0].scenario);
+    expect(opening?.shownOrder).toBe(shownOrderFor(PARTICIPANT_ID, 1));
 
-    // The whole batch was authored and stored -- as fallbacks, since the model
-    // rejected -- and the model was asked exactly once.
-    expect(world.blockRows.size).toBe(5);
-    for (const position of [1, 2, 3, 4, 5]) {
-      const stored = world.blockRows.get(`${PARTICIPANT_ID}:${position}`);
-      expect(stored?.source).toBe("fallback");
-      expect(stored?.block).toEqual(INSTRUMENT.blocks[position - 1]);
-    }
-    expect(generateCalls.n).toBe(1);
+    // The whole form, in one write, without a model anywhere near it.
+    expect(world.calls.saveBatch).toEqual([
+      {
+        participantId: PARTICIPANT_ID,
+        positions: Array.from({ length: BLOCK_COUNT }, (_, i) => i + 1),
+      },
+    ]);
+    expect(world.blockRows.size).toBe(BLOCK_COUNT);
 
-    for (const position of [1, 2, 3, 4, 5]) {
+    for (const position of [1, 2, 3, 4]) {
       const result = await answerBlock(
         {
           sessionToken: TOKEN,
@@ -526,28 +518,50 @@ describe("quizProgress", () => {
       expect(result.advanced).toBe(true);
       expect(result.nextPosition).toBe(position + 1);
     }
-    expect(world.responseRows.size).toBe(5);
-    for (const position of [1, 2, 3, 4, 5]) {
-      expect(world.responseRows.get(position)?.shownOrder).toBe(
-        shownOrderFor(PARTICIPANT_ID, position)
-      );
-    }
+    expect(world.responseRows.size).toBe(4);
 
+    // Position 5 is in batch 2, which the same write already covered: the rows
+    // are there, so the second render assigns nothing.
     const second = await quizProgress({ sessionToken: TOKEN }, world.deps);
-    expect(second?.nextPosition).toBe(6);
+    expect(second?.nextPosition).toBe(5);
     expect(second?.batch).toBe(2);
-    const sixthBlock = expectPublicOnly(second?.block);
-    expect(sixthBlock.scenario).toBe(INSTRUMENT.blocks[5].scenario);
-    expect(sixthBlock.options.map((option) => option.text)).toEqual(
-      INSTRUMENT.blocks[5].options.map((option) => option.text)
-    );
+    expect(second?.answeredCount).toBe(4);
+    expect(expectPublicOnly(second?.block).scenario).toBe(form[4].scenario);
+    expect(world.calls.saveBatch).toHaveLength(1);
 
-    expect(world.blockRows.size).toBe(10);
-    for (let position = 1; position <= 10; position++) {
-      const stored = world.blockRows.get(`${PARTICIPANT_ID}:${position}`);
-      expect(stored?.source).toBe("fallback");
-      expect(stored?.block).toEqual(INSTRUMENT.blocks[position - 1]);
-    }
-    expect(generateCalls.n).toBe(2);
+    // Looking back at an answered block still works.
+    const back = await quizProgress({ sessionToken: TOKEN, at: 3 }, world.deps);
+    expect(back?.nextPosition).toBe(3);
+    expect(expectPublicOnly(back?.block).scenario).toBe(form[2].scenario);
+    expect(back?.existing?.position).toBe(3);
+    expect(world.calls.saveBatch).toHaveLength(1);
+  });
+
+  it("assigns the form again over a legacy fallback row nobody answered, and leaves the one they did answer alone", async () => {
+    const fallbackOnly = INSTRUMENT.blocks.slice(0, 4).map((block) => ({
+      block,
+      source: "fallback" as const,
+    }));
+    const world = makeWorld({ answered: [1], blocks: fallbackOnly });
+    const form = formFor(PARTICIPANT_ID);
+
+    // Position 2: a fallback row is the old committed instrument, not this
+    // person's block, so the form is assigned and the bank's block is served.
+    const healed = await quizProgress({ sessionToken: TOKEN }, world.deps);
+    expect(healed?.nextPosition).toBe(2);
+    expect(expectPublicOnly(healed?.block).scenario).toBe(form[1].scenario);
+    expect(world.calls.saveBatch).toHaveLength(1);
+
+    // Position 1 was answered against the fallback row: it is the question the
+    // answer refers to, and the write above left it alone, so looking back
+    // still shows it.
+    const answered = await quizProgress(
+      { sessionToken: TOKEN, at: 1 },
+      world.deps
+    );
+    expect(expectPublicOnly(answered?.block).scenario).toBe(
+      INSTRUMENT.blocks[0].scenario
+    );
+    expect(world.calls.saveBatch).toHaveLength(1);
   });
 });

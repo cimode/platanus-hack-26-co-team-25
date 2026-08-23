@@ -131,7 +131,6 @@ describe("decideGate", () => {
       ["/qr/", "HEAD"],
       ["/intake", "GET"],
       ["/intake", "POST"],
-      ["/intake/declared", "POST"],
       ["/quiz", "GET"],
       ["/quiz", "POST"],
       ["/results", "GET"],
@@ -141,6 +140,12 @@ describe("decideGate", () => {
       ["/_next/static/chunks/main-app.js", "GET"],
       ["/_next/static/chunks/app/intake/page.js", "GET"],
       ["/favicon.ico", "GET"],
+      // The participant's own avatar and its reaction sheets. Withheld until
+      // 2026-08-23, which made every open screen a wall of broken images.
+      ["/sprites/avatar3.png", "GET"],
+      ["/sprites/emotes/manifest.json", "GET"],
+      ["/sprites/emotes/avatar3/celebrate.webp", "GET"],
+      ["/venue.jpg", "GET"],
     ];
     for (const [pathname, method] of open) {
       expect(
@@ -162,6 +167,7 @@ describe("decideGate", () => {
       ["/design", "GET", HTML],
       ["/_next/static/css/app.css", "POST", null],
       ["/_next/static/media/../chunks/x.js", "GET", null],
+      ["/sprites/../.env", "GET", null],
       ["/_next/image", "GET", "image/avif"],
     ];
     for (const [pathname, method, accept] of closed) {

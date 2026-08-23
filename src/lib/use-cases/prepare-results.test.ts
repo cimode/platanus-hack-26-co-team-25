@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Person } from "../domain/matching/engine";
 import { rankRoom, TERM_LABELS } from "../domain/matching/engine";
-import { toPerson } from "../domain/matching/to-person";
 import type {
   BusinessGate,
   Consent,
@@ -67,9 +66,10 @@ import type {
 /**
  * The counting spy. It delegates to the REAL mapper, so nothing about the
  * mapping changes; it only records which rows reached it. This is what lets
- * AC-4 assert that a below-floor row is dropped BEFORE `toPerson` rather than
- * by `toPerson` throwing -- and it requires `prepareResults` to call the
- * exported `toPerson` from this module, never a local copy of the mapping.
+ * AC-4 assert that a below-floor row is dropped BEFORE `toPerson` -- which no
+ * longer throws on null bands (D20), so the floor is the only guard -- and it
+ * requires `prepareResults` to call the exported `toPerson` from this module,
+ * never a local copy of the mapping.
  */
 const spy = vi.hoisted(() => ({ mappedIds: [] as string[] }));
 
@@ -406,7 +406,12 @@ const ROW_RANKABLE = rankable(RANKABLE, "Rafa", {
   businessGate: BUSINESS,
 });
 const ROW_ABANDONED = rankable(ABANDONED, "Abel", {
-  participant: { declaredAt: null, quizCompletedAt: null },
+  participant: {
+    gender: null,
+    birthdate: null,
+    declaredAt: null,
+    quizCompletedAt: null,
+  },
   declared: NO_BANDS,
   romanticGate: MUTUAL_ROMANTIC,
   businessGate: BUSINESS,
@@ -863,22 +868,26 @@ describe("prepareResults", () => {
   });
 
   // kind: safety -- NEVER skipped. Below the §0 floor is suppressed, never
-  // ranked (docs/domain.md §0 / §5, AUDIT.md S15). The fixture assertions and
-  // the `toPerson` throw hold today; the scenario follows, so the floor is
-  // asserted first even while the use case is red.
+  // ranked (docs/domain.md §0 / §5, AUDIT.md S15). The fixture assertions hold
+  // today and the row is dropped by the floor before `toPerson` is reached;
+  // the scenario follows, so the floor is asserted first even while the use
+  // case is red.
   it("AC-4 · the abandoned, no-photo and declining participants are never ranked under any lens", async () => {
     // Each below-floor row fails on its OWN stated field under every lens, so
     // none of them could be dropped by a gate mismatch instead -- which would
     // make this criterion pass for the wrong reason.
     for (const lens of LENSES) {
-      expect(floorReason(ROW_ABANDONED, lens)).toBe("declared-incomplete");
+      expect(floorReason(ROW_ABANDONED, lens)).toBe("no-identity");
       expect(floorReason(ROW_NO_PHOTO, lens)).toBe("no-photo");
       expect(floorReason(ROW_DECLINER, lens)).toBe("no-consent");
       // ... while the subject and the one rankable peer clear it under all three.
       expect(floorReason(ROW_SUBJECT, lens)).toBeNull();
       expect(floorReason(ROW_RANKABLE, lens)).toBeNull();
     }
-    expect(ROW_ABANDONED.participant.declaredAt).toBeNull();
+    expect(ROW_ABANDONED.participant.gender).toBeNull();
+    expect(ROW_ABANDONED.participant.birthdate).toBeNull();
+    // Null bands no longer put anyone below the floor (D20): the engine scores
+    // them as unmeasured, so this row must fail on identity, not on these.
     expect(Object.values(NO_BANDS)).toEqual(Array(6).fill(null));
     expect(ROW_NO_PHOTO.participant.photoUrl).toBeNull();
     expect(ROW_DECLINER.romanticGate).toBeUndefined();
@@ -887,11 +896,6 @@ describe("prepareResults", () => {
     expect(MUTUAL_ROMANTIC.interestedIn).toContain(SUBJECT_ROMANTIC.gender);
     expect(SUBJECT_ROMANTIC.interestedIn).toContain(MUTUAL_ROMANTIC.gender);
     expect(ROW_RANKABLE.businessGate).toEqual(ROW_SUBJECT.businessGate);
-
-    // The second guard behind the floor: the abandoned row can never become a
-    // Person, so a caller that skipped the floor gets an Error, not a ranking
-    // over fabricated zeros or the NaN that bandOf() labels "high".
-    expect(() => toPerson(ROW_ABANDONED, {}, undefined)).toThrow();
 
     for (const lens of LENSES) {
       const participants = participantsFake(AC4_ROOM, meetsFloor);

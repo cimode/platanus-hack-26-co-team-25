@@ -1,11 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { z } from "zod";
 import { setSessionCookie } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
-import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
+import { assignQuizForm } from "@/lib/use-cases/assign-quiz-form";
 import {
   RegisterParticipantError,
   type RegisterParticipantReason,
@@ -25,11 +24,13 @@ import {
  * reasons (`birthdate-too-young`, `photo`), the screen speaks Spanish. Nothing
  * it can say names what is being measured.
  *
- * On success the participant's first five quiz blocks start being written in
- * `after()` (docs/domain.md D16), off the response and inside `/intake`'s
- * `maxDuration`. The declared round takes minutes and authoring takes ~40-70s,
- * so by the time `/quiz` asks for block 1 it is one SELECT instead of a wait on
- * a model. `prefetchQuizBatch` never rejects.
+ * On success the hand-off is straight to `/quiz` (docs/domain.md D20, D21):
+ * there is no declared round in between any more, so all twelve questions have
+ * to exist by the time the redirect lands -- and they do. `assignQuizForm`
+ * deals this participant their own twelve blocks out of the committed bank and
+ * writes them in ONE INSERT, awaited before the redirect. No model, no pool, no
+ * background chain, nothing to outrun: the questions were written offline and
+ * committed, so the only cost of having them is the row.
  */
 
 /** Only types are exported beside the action -- they erase at compile time. */
@@ -167,11 +168,12 @@ export async function registerAction(
     throw error;
   }
 
-  // The person exists and will reach the questions: start authoring their first
-  // five blocks now, after the response (docs/domain.md D16).
-  after(() => prefetchQuizBatch({ participantId, batch: 1 }, serverDeps()));
+  // Awaited, not deferred: the redirect lands on block 1, and the twelve
+  // blocks it walks have to be this participant's before the response leaves.
+  // One INSERT, and it upserts -- a double submit writes the same twelve rows.
+  await assignQuizForm({ participantId }, serverDeps());
 
   // Outside the try: `redirect` signals by throwing, and catching it here would
   // swallow the navigation and re-render the form over a created row.
-  redirect("/intake/declared");
+  redirect("/quiz");
 }

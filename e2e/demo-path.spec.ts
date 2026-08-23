@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { CAST_NAMES, rosterSeeded } from "./fixtures/roster";
 
 /**
  * The demo path -- the one flow that cannot break on stage.
@@ -15,6 +16,15 @@ import { expect, type Page, test } from "@playwright/test";
  */
 
 test.describe("1a · impersonate", () => {
+  // The chooser and the room read the `participants` table now, so both need
+  // the cast `e2e/global-setup.ts` seeds. Without a database there is nobody
+  // to pick and every assertion below would fail for that reason alone --
+  // which is the same convention the intake specs already follow.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   const combobox = (page: Page) =>
     page.getByRole("combobox", { name: /nombre del participante/i });
   const cta = (page: Page) => page.getByRole("button", { name: /ámonos/i });
@@ -92,6 +102,15 @@ test.describe("1a · impersonate", () => {
 });
 
 test.describe("1b · the room", () => {
+  // The chooser and the room read the `participants` table now, so both need
+  // the cast `e2e/global-setup.ts` seeds. Without a database there is nobody
+  // to pick and every assertion below would fail for that reason alone --
+  // which is the same convention the intake specs already follow.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   async function enterAs(page: Page, query: string) {
     await page.goto("/");
     const box = page.getByRole("combobox", {
@@ -114,9 +133,22 @@ test.describe("1b · the room", () => {
 
   test("you are not standing in your own room", async ({ page }) => {
     await enterAs(page, "diego");
-    // 18 on the roster, so 17 others.
-    await expect(page.locator("figure")).toHaveCount(17);
-    await expect(page.getByText("Diego Morales")).toHaveCount(1); // the header pill only
+    /*
+     * NOT an exact count, and the reason is the whole point of this test.
+     *
+     * `17` was the hardcoded roster minus yourself, stable only because that
+     * module could never grow. The room reads the `participants` table now, and
+     * the intake specs register their own people into this same `e2e-<run>`
+     * room -- so the headcount here depends on what else has already run.
+     *
+     * What the test actually asserts survives that: everyone in the cast but
+     * you is on the floor, and your own name appears exactly once, in the
+     * header pill. A sprite of yourself would make it two.
+     */
+    const figures = page.locator("figure");
+    await expect(figures.first()).toBeVisible();
+    expect(await figures.count()).toBeGreaterThanOrEqual(CAST_NAMES.length - 1);
+    await expect(page.getByText("Diego Morales")).toHaveCount(1);
   });
 
   test("every sprite is actually painted inside the room band", async ({
@@ -351,10 +383,10 @@ test.describe("1b · the room", () => {
 });
 
 test.describe("demo path", () => {
-  // The intake leg of the demo path lives in e2e/intake.spec.ts (issue #6):
-  // register -> photo -> consent on a 390px viewport, per-lens consent
-  // defaulting to off, and the three safety invariants around it. It is not
-  // duplicated here -- one acceptance criterion, one test.
+  // The intake leg of the demo path lives in e2e/intake.spec.ts (issue #6,
+  // reshaped by #42 and D20): one registration screen on a 390px viewport
+  // handing straight over to /quiz, and the safety invariants around it. It
+  // is not duplicated here -- one acceptance criterion, one test.
 
   // TODO: un-skip when lens selection exists.
   // Acceptance criteria: choosing a lens must change --primary on the subtree.

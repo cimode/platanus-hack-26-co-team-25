@@ -1,16 +1,14 @@
 import { redirect } from "next/navigation";
-import { after } from "next/server";
-import { BatchBeat } from "@/components/quiz/batch-beat";
+import { OpeningBeat } from "@/components/quiz/batch-beat";
 import { BlockScreen } from "@/components/quiz/block-screen";
 import { readSessionToken } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
-import { BLOCK_COUNT, BLOCKS_PER_BATCH } from "@/lib/domain/quiz";
-import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
+import { BLOCK_COUNT } from "@/lib/domain/quiz";
 import { quizProgress } from "@/lib/use-cases/quiz-progress";
 import { isSinglePick } from "./single-pick";
 
 /**
- * `/quiz` — fifteen forced-choice blocks in three batches (issue #9).
+ * `/quiz` -- twelve forced-choice blocks, one tap each (issue #9).
  *
  * A Server Component. It reads the `dipia_session` cookie, calls
  * `quizProgress` with `serverDeps()` and renders whatever the ROWS say: there
@@ -18,70 +16,66 @@ import { isSinglePick } from "./single-pick";
  * reload, a second phone or a browser restored from sleep all land on the first
  * unanswered position.
  *
+ * THE FORM IS THE PARTICIPANT'S OWN TWELVE BLOCKS FROM THE COMMITTED BANK.
+ * `formFor(participantId)` deals them out of `quiz/bank/*.json` -- three per
+ * pillar, ordered per participant -- deterministically, and registration
+ * writes them as this person's rows before the redirect ever lands here. So a
+ * block costs ZERO model calls and one indexed read. Nothing on this route
+ * waits on anything any more, which is why there is no `maxDuration` export
+ * left (the platform default is more than a SELECT and a render need) and no
+ * `after()` scheduling work behind the response.
+ *
  * Three screens come out of one view:
  *
- *   no session          → /intake
- *   quiz_completed_at   → /results
- *   frontier 1 / 6 / 11 → the beat that opens that batch (unless `?start=1`)
- *   anything else       → the block
+ *   no session                         → /intake
+ *   quiz_completed_at                  → /room
+ *   position 1, no ?start=, no ?block= → the opening moment
+ *   anything else                      → the block
+ *
+ * The wait screen that used to sit between them is gone with the live
+ * generation it covered: there is no state left in which a participant's next
+ * block does not exist. `quizProgress` still self-heals -- a row that is
+ * missing, or a legacy `fallback` row nobody answered, is re-assigned from the
+ * bank before the view is built -- and that costs no model call either.
  *
  * `?block=N` renders an already-answered block for the back affordance;
  * `quizProgress` clamps it to the frontier, so a pasted `?block=12` is block 8
  * and nobody ever jumps ahead of what they have answered.
- *
- * The D16 roll-forward lives here: rendering the opening moment or a beat for
- * batch N schedules `prefetchQuizBatch(N + 1)` in `after()`, so batch N + 1 is
- * authored (~40-70s) while batch N is answered (~100s). The call is
- * unconditional — `prefetchQuizBatch` never rejects and returns at once for
- * batch 4 — which is why the third beat costs nothing.
  *
  * `InstrumentVersionMismatchError` is deliberately NOT caught: a room created
  * for another structural version of the form is an operator misconfiguration,
  * and rendering a block against the wrong structure would silently corrupt the
  * measurement. It belongs on the error boundary (docs/domain.md D2, §10.1(b)).
  */
-
-/**
- * Server Actions and `after()` take the *page's* budget, not their own. Batch
- * authoring is measured at ~40-70s, so the roll-forward needs headroom well
- * past the default — the same 120s `src/app/page.tsx` uses for the entry
- * prefetch, deliberately under every plan's ceiling (`docs/ci.md`).
- */
-export const maxDuration = 120;
-
 export default async function QuizPage(props: PageProps<"/quiz">) {
   const searchParams = await props.searchParams;
 
   const token = await readSessionToken();
   if (!token) redirect("/intake");
 
-  const deps = serverDeps();
   const view = await quizProgress(
     { sessionToken: token, at: requestedBlock(searchParams.block) },
-    deps
+    serverDeps()
   );
 
   // An unknown token is a stranger, not an error: send them to register.
   if (!view) redirect("/intake");
-  if (view.completed || !view.block) redirect("/results");
+  // Where the completing write sends you too (`actions.ts`): `/room` is the
+  // one screen a finished participant can act on, and `resolveViewerId` now
+  // recognises them there from `dipia_session` alone.
+  if (view.completed) redirect("/room");
 
-  // A beat opens a batch. It is skipped when `?block=` asked for a specific
-  // block (the back affordance never shows a transition) and when `?start=1`
-  // has already dismissed it.
+  // The opening moment sets the rules before block 1. It is skipped when
+  // `?block=` asked for a specific block (the back affordance never shows a
+  // transition) and when `?start=1` has already dismissed it.
+  //
+  // A null block is folded in here for the type's sake: `quizProgress` assigns
+  // the form from the bank when a row is missing, so the only view without a
+  // block is a completed quiz -- and that redirected two lines above.
   const dismissed = firstValue(searchParams.start) !== undefined;
   const asked = firstValue(searchParams.block) !== undefined;
-  const opensBatch = view.nextPosition % BLOCKS_PER_BATCH === 1;
-
-  if (opensBatch && !dismissed && !asked) {
-    // Authored while this batch is answered, not while it is awaited.
-    after(() =>
-      prefetchQuizBatch(
-        { participantId: view.participantId, batch: view.batch + 1 },
-        serverDeps()
-      )
-    );
-
-    return <BatchBeat batch={view.batch} />;
+  if ((view.nextPosition === 1 && !dismissed && !asked) || !view.block) {
+    return <OpeningBeat avatar={view.avatar} photoUrl={view.photoUrl} />;
   }
 
   return (
@@ -89,6 +83,8 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
       // Remount per position: the marks are this block's state, and React
       // would otherwise carry them across a navigation into the next one.
       key={view.nextPosition}
+      avatar={view.avatar}
+      photoUrl={view.photoUrl}
       backTo={
         view.nextPosition > 1 ? `/quiz?block=${view.nextPosition - 1}` : null
       }
@@ -96,7 +92,7 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
       initialLeast={view.existing?.leastKey ?? null}
       initialMost={view.existing?.mostKey ?? null}
       // The slot order the answer will be recorded under (D10): the island
-      // must lay the cards out in it, or `shown_order` describes a screen
+      // must lay the rows out in it, or `shown_order` describes a screen
       // nobody saw. `quizProgress` and `answerBlock` both derive it from
       // `shownOrderFor(participantId, position)`, so a resume, a reload and
       // the stored row all agree.

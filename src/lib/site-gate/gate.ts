@@ -91,7 +91,7 @@ export function safeNextPath(raw: string | null | undefined): string {
  * method -- a Server Action is a POST to the page route:
  *
  * - `/qr` -- the code the host holds up (issue #57). Exact path.
- * - `/intake` and everything under it -- registration and the declared round.
+ * - `/intake` and everything under it -- registration.
  * - `/quiz` and everything under it -- the fifteen blocks.
  * - `/results` -- where block 15 hands off. Exact path: `/results/<lens>` is
  *   the reveal (issue #10), and the reveal is the product.
@@ -104,15 +104,36 @@ export const OPEN_PAGES = ["/qr", "/results"] as const;
 export const OPEN_PREFIXES = ["/intake", "/quiz"] as const;
 
 /**
- * What an open page may fetch without the cookie: the whole of
- * `/_next/static/` -- stylesheets, fonts and the client JavaScript -- and the
- * favicon. The registration screen is interactive (the on-device photo
- * re-encode, the camera), so withholding the chunks would hand the
- * participant a form that cannot take a photo. GET/HEAD only.
+ * Folders under `public/` an open page may fetch without the cookie.
+ *
+ * `/sprites/` is the participant's own avatar and its reaction sheets, drawn
+ * on every screen of the quiz. It was missing here until 2026-08-23 and the
+ * bug is worth remembering, because nothing failed loudly: `/intake` and
+ * `/quiz` are open, so a participant registered, answered and finished
+ * normally -- with every sprite a broken image, because the gate answered 401
+ * to each one. An open page that cannot load its own pictures is not open.
+ *
+ * `/venue.jpg` is the room's backdrop, on the same footing.
+ */
+const OPEN_ASSET_PREFIXES = ["/_next/static/", "/sprites/"] as const;
+const OPEN_ASSET_FILES = ["/favicon.ico", "/venue.jpg"] as const;
+
+/**
+ * What an open page may fetch without the cookie: the folders above --
+ * stylesheets, fonts, the client JavaScript and the artwork -- and a couple of
+ * single files. The registration screen is interactive (the on-device photo
+ * re-encode, the camera), so withholding the chunks would hand the participant
+ * a form that cannot take a photo. GET/HEAD only.
+ *
+ * This is deliberately a LIST, not "anything that looks like a file": the gate
+ * exists so the room's data cannot be read by a stranger, and a rule written
+ * as an extension test would open any `.json` Next happens to serve.
  */
 export function isOpenAsset(pathname: string): boolean {
-  if (pathname === "/favicon.ico") return true;
-  if (!pathname.startsWith("/_next/static/")) return false;
+  if (OPEN_ASSET_FILES.some((file) => pathname === file)) return true;
+  if (!OPEN_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return false;
+  }
   // A browser normalises `..` away before the request is sent, and Next would
   // not serve outside the folder anyway -- refused here too, so the rule reads
   // the way it is meant: the folder, not anything that can spell its name.

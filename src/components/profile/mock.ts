@@ -1,7 +1,7 @@
 import { mockBio } from "@/components/profile/bio";
+import type { ProfileView } from "@/components/profile/view";
 import type { RankCandidate } from "@/components/rank/mock";
 import { TAGS } from "@/lib/domain/participant/tags";
-import type { PersonProfile } from "@/lib/domain/reveal/profile";
 import type { RankedRoom } from "@/lib/domain/reveal/rank";
 
 /**
@@ -56,20 +56,6 @@ export function mockTagsFor(id: string): readonly string[] {
     { length: TAG_WINDOW },
     (_, i) => TAGS[(start + i) % TAGS.length]
   );
-}
-
-/**
- * What screen 1d paints: the shared contract plus the one thing the contract
- * does not carry.
- *
- * `bio` is NOT on `PersonProfile` and must not become so. Issue #10 produces a
- * ranking, not prose; the bio comes from an AI step over intake's declared data
- * and has its own source. Composing them here -- a view type beside the screen
- * -- is the same rule R9/R13 settled: contract if someone else implements it,
- * otherwise view.
- */
-export interface ProfileView extends PersonProfile {
-  readonly bio: string;
 }
 
 /**

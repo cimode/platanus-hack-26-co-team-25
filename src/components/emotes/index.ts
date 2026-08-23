@@ -37,7 +37,11 @@ export {
   fireEvent,
   subscribeAction,
 } from "./action-bus";
-export { AvatarSprite, type AvatarSpriteProps } from "./avatar-sprite";
+export {
+  AvatarSprite,
+  type AvatarSpriteProps,
+  type SpriteSource,
+} from "./avatar-sprite";
 export {
   BabyOnBoard,
   type BabyOnBoardProps,

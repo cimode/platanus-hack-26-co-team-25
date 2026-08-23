@@ -182,10 +182,13 @@ silently assume.
 
 1. ~~**Personality framework**~~ — **RESOLVED (updated post-audit).** Four measured
    latents — Regulation, Politeness, Reliability, Agency — plus six zero-block pillars
-   (declared facts, observed room structure, governance). Fixed 15-block
-   desirability-matched forced-choice form with **mixed keying**, scored by Bayesian MAP
-   under a Thurstonian choice model with authored (uncalibrated) parameters. See
-   `PILLARS.md` §2–§3 and `AUDIT.md`.
+   (declared facts, observed room structure, governance). Desirability-matched
+   forced-choice form with **mixed keying**, scored by Bayesian MAP under a Thurstonian
+   choice model with authored (uncalibrated) parameters. **12 blocks per person since
+   2026-08-23** (`docs/domain.md` D21), dealt by `formFor(participantId)` from a committed
+   400-block bank; the *structure* is fixed for everyone, the scenarios are not, and because
+   the estimator uses authored rather than calibrated parameters the linking argument is
+   unharmed. See `PILLARS.md` §2–§3 and `AUDIT.md`.
 2. **Form length** — every extra question costs completion rate, and completion
    rate *is* the demo. What is the minimum viable signal?
 3. **Consent and safety** — real people are being publicly ranked by romantic
@@ -200,7 +203,7 @@ silently assume.
 5. **Coherence enforcement** — what actually guarantees the timeline does not
    contradict itself? Constrained state passed forward, a validation pass, or
    a deterministic event graph the LLM only narrates?
-6. ~~**Product name**~~ — **RESOLVED.** `dipia`, always lowercase. Deployed at https://www.dipia.lat. The old name `hookai` is gone from the repo, including the session cookie (now `dipia_session`). It survives only where it names live infrastructure outside this repo: the `HOOKAI_ROOM_SLUG` / `HOOKAI_QUIZ_SINGLE_PICK` environment variables set in Vercel, and the Neon and Vercel project names.
+6. ~~**Product name**~~ — **RESOLVED.** `dipia`, always lowercase. Deployed at https://www.dipia.lat. The old name `hookai` is gone from the repo, including the session cookie (now `dipia_session`). It survives only where it names live infrastructure outside this repo: the `HOOKAI_ROOM_SLUG` environment variable set in Vercel (and the optional `HOOKAI_QUIZ_MOST_LEAST` switch), and the Neon and Vercel project names.
 
 ---
 
@@ -208,6 +211,6 @@ silently assume.
 
 - [x] `platanus-hack-project.jsonc` — name, one-liner (Spanish), description (Spanish), deploy URL
 - [x] `project-description.md` — replace with the real project description
-- [ ] `project-logo.png` — 1000x1000, max 500kb
+- [x] `project-logo.png` — 1000x1000, max 500kb
 - [ ] README — concise and to the point
 - [ ] Deploy: mirror to a personal repo (org repo cannot be connected to Vercel)

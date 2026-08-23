@@ -1,5 +1,5 @@
-import type { ProfileView } from "@/components/profile/mock";
 import { TagChips } from "@/components/profile/tag-chips";
+import type { ProfileView } from "@/components/profile/view";
 
 /**
  * The dashed card: who this person is, then why the two of you.

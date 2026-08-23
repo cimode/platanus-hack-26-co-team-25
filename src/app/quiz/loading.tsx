@@ -1,25 +1,24 @@
 /**
- * `/quiz`'s loading moment (docs/domain.md D16).
+ * `/quiz`'s Suspense fallback (docs/domain.md D16, D21).
  *
  * `loading.tsx` wraps the page in a Suspense boundary, so a navigation into
- * `/quiz` commits at once and this streams while `quizProgress` works. That
- * work is normally one SELECT -- batch 1 was authored in `after()` at
- * registration -- but for the participant who outran the prefetch, or whose
- * prefetch failed, it is `ensureQuizBatch` writing five blocks inline, measured
- * at ~40-70s. Without this file the browser sat on the last screen of the
- * declared round with no feedback for all of it, and the hand-off read as
- * frozen.
+ * `/quiz` commits at once and this streams while `quizProgress` reads. There
+ * is nothing else it can be covering any more: the questions come from the
+ * committed bank and were written as this participant's rows at registration,
+ * so what streams behind it is a handful of SELECTs on venue wifi and never a
+ * model. The old "writing your questions" state is gone with the generation it
+ * described.
  *
  * It must not await anything: a Suspense fallback that suspends on a read is
- * not a loading screen (the `/results` note in docs/domain.md §7). So it carries
- * no count, no name and no block -- the wordmark, and what is happening.
+ * not a loading screen (the `/results` note in docs/domain.md §7). So it
+ * carries no count, no name, no block and no avatar -- the wordmark, and the
+ * fact that something is on its way.
  *
  * `role="status"` with `aria-live="polite"` announces the line on arrival and
  * lets the block replace it without cutting a screen reader off mid-sentence.
  * The pulse is decoration, and `motion-safe:` keeps it off under reduced motion.
  *
  * A Server Component with no state, so it costs the phone nothing on the wire.
- * Laid out as `BatchBeat` is -- the screen it most often resolves into.
  */
 export default function QuizLoading() {
   return (
@@ -38,7 +37,7 @@ export default function QuizLoading() {
           className="font-mono text-xs tracking-[0.06em] text-ink-muted tabular-nums motion-safe:animate-pulse"
           role="status"
         >
-          Escribiendo tus preguntas…
+          Un momento…
         </p>
       </div>
     </main>

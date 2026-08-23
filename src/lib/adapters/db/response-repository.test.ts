@@ -4,7 +4,12 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it, onTestFinished, type TestContext } from "vitest";
 import type { Deps } from "@/lib/composition";
 import type { BlockResponse } from "@/lib/domain/quiz";
-import { INSTRUMENT, validateBlock } from "@/lib/domain/quiz";
+import {
+  BLOCK_COUNT,
+  formFor,
+  INSTRUMENT,
+  validateBlock,
+} from "@/lib/domain/quiz";
 import type { StoredBlock } from "@/lib/ports/generated-block-repository";
 import type { Room } from "@/lib/ports/room-repository";
 import type { Db } from "./client";
@@ -22,13 +27,14 @@ import { integrationDb } from "./test-db";
  * round trip. Integration tests, guarded by ./test-db.ts; they build their own
  * "it-<runId>" room and delete it on teardown.
  *
- * Under docs/domain.md D16 every participant answers their OWN generated form,
- * and `save()` rejects an answer to a position that participant has no
- * `generated_blocks` row for (issue #13 AC-2) -- a response to a block nobody
- * was shown is a bug, not a degraded mode. So each participant here is first
- * given a full 15-block form through `GeneratedBlockRepository.saveBatch`:
- * without it every `save()` below would fail for the wrong reason and these
- * two criteria would assert nothing about upserts or batching.
+ * Every participant answers their OWN form -- twelve blocks dealt from the
+ * committed bank by `formFor(participantId)` -- and `save()` rejects an answer
+ * to a position that participant has no `generated_blocks` row for (issue #13
+ * AC-2): a response to a block nobody was shown is a bug, not a degraded mode.
+ * So each participant here is first given their whole form through
+ * `GeneratedBlockRepository.saveBatch`: without it every `save()` below would
+ * fail for the wrong reason and these two criteria would assert nothing about
+ * upserts or batching.
  *
  * The guard is evaluated inside each test rather than in a `describe.skipIf`
  * so a failure of `integrationDb()` itself is reported against the criterion
@@ -77,27 +83,20 @@ async function itRoom(db: Db, repos: Repos): Promise<Room> {
 }
 
 /**
- * The 15 blocks of one participant's form, five at a time, exactly as the
- * generator persists them. The fallback constant's blocks are used verbatim --
- * these two criteria are about upserting and batching, not about which text a
- * row carries (that is issue #13's `response-texts.test.ts`) -- so `source` is
- * `"fallback"`, which is what the constant's blocks honestly are.
+ * This participant's twelve blocks, written exactly as `assignQuizForm` writes
+ * them: one `saveBatch`, `source: "bank"`.
  */
-async function giveGeneratedForm(
+async function giveAssignedForm(
   repos: Repos,
   participantId: string
 ): Promise<void> {
-  for (const batch of [1, 2, 3]) {
-    const blocks: StoredBlock[] = INSTRUMENT.blocks
-      .filter((block) => block.batch === batch)
-      .map((block) => {
-        // A fixture the generator could not have produced would make the test
-        // assert over something the system never stores.
-        validateBlock(block);
-        return { block, source: "fallback" as const };
-      });
-    await repos.generatedBlocks.saveBatch(participantId, blocks);
-  }
+  const blocks: StoredBlock[] = formFor(participantId).map((block) => {
+    // A fixture the rest of the system could not have produced would make the
+    // test assert over something nothing ever stores.
+    validateBlock(block);
+    return { block, source: "bank" as const };
+  });
+  await repos.generatedBlocks.saveBatch(participantId, blocks);
 }
 
 function answer(
@@ -128,7 +127,7 @@ describe("createResponseRepository", () => {
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
-    await giveGeneratedForm(repos, participant.id);
+    await giveAssignedForm(repos, participant.id);
 
     await repos.responses.save(
       answer(participant.id, {
@@ -185,7 +184,7 @@ describe("createResponseRepository", () => {
     );
   });
 
-  it("AC-12 · the 15th save with completedAt lands the response and quiz_completed_at together or not at all", async (ctx) => {
+  it("AC-12 · the last save with completedAt lands the response and quiz_completed_at together or not at all", async (ctx) => {
     const db = requireDb(ctx);
     const repos = repositories(db);
     const room = await itRoom(db, repos);
@@ -198,8 +197,8 @@ describe("createResponseRepository", () => {
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
-    await giveGeneratedForm(repos, first.participant.id);
-    for (let position = 1; position <= 14; position++) {
+    await giveAssignedForm(repos, first.participant.id);
+    for (let position = 1; position < BLOCK_COUNT; position++) {
       await repos.responses.save(answer(first.participant.id, { position }));
     }
     // save() without opts never touches participants.quiz_completed_at.
@@ -210,7 +209,7 @@ describe("createResponseRepository", () => {
 
     await repos.responses.save(
       answer(first.participant.id, {
-        position: 15,
+        position: BLOCK_COUNT,
         mostKey: "a",
         leastKey: "b",
         shownOrder: "abcd",
@@ -226,11 +225,11 @@ describe("createResponseRepository", () => {
       (await repos.responses.byParticipant(first.participant.id)).map(
         (r) => r.position
       )
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    ).toEqual(Array.from({ length: BLOCK_COUNT }, (_, i) => i + 1));
 
-    // A second participant whose 15th answer is invalid: the batch is rejected
-    // whole, so the room can never hold someone with 15 responses and no
-    // completion timestamp -- nor a timestamp with only 14 responses.
+    // A second participant whose last answer is invalid: the batch is rejected
+    // whole, so the room can never hold someone with a full set of responses
+    // and no completion timestamp -- nor a timestamp with one row missing.
     const second = await repos.participants.create({
       roomId: room.id,
       gender: "F",
@@ -239,14 +238,14 @@ describe("createResponseRepository", () => {
       consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
-    await giveGeneratedForm(repos, second.participant.id);
-    for (let position = 1; position <= 14; position++) {
+    await giveAssignedForm(repos, second.participant.id);
+    for (let position = 1; position < BLOCK_COUNT; position++) {
       await repos.responses.save(answer(second.participant.id, { position }));
     }
     await expect(
       repos.responses.save(
         answer(second.participant.id, {
-          position: 15,
+          position: BLOCK_COUNT,
           mostKey: "a",
           leastKey: "a",
           shownOrder: "abcd",
@@ -256,8 +255,8 @@ describe("createResponseRepository", () => {
     ).rejects.toThrow();
 
     const rows = await repos.responses.byParticipant(second.participant.id);
-    expect(rows).toHaveLength(14);
-    expect(rows.some((r) => r.position === 15)).toBe(false);
+    expect(rows).toHaveLength(BLOCK_COUNT - 1);
+    expect(rows.some((r) => r.position === BLOCK_COUNT)).toBe(false);
     const stillOpen = await repos.participants.bySessionToken(
       second.sessionToken
     );
