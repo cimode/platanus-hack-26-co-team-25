@@ -7,6 +7,7 @@ import type {
   ParticipantId,
 } from "../../src/lib/domain/participant";
 import { avatarFor } from "../../src/lib/domain/participant/avatar";
+import { SEEDED_PHOTO } from "./intake-declared";
 
 /**
  * The cast the room screens are tested against.
@@ -59,9 +60,6 @@ interface CastMember {
   readonly name: string;
   readonly team: string;
   readonly gender: Gender;
-  /** Who they are open to, romantically. Kept explicit so the pairs the
-   *  profile and rank specs rely on are readable rather than emergent. */
-  readonly interestedIn: readonly Gender[];
   /** Closed-vocabulary slugs from `domain/participant/tags.ts`. */
   readonly tags: readonly string[];
 }
@@ -76,40 +74,51 @@ interface CastMember {
  * `e2e/profile.spec.ts` walks, and an ineligible pair would 404 for a reason
  * the spec is not testing.
  */
+/*
+ * Everyone is open to everyone, and that is a fixture decision rather than a
+ * statement about people.
+ *
+ * `gate0Romantic` treats mutual interest as a HARD gate: if either side is not
+ * open to the other's gender the pair fails and the person is ABSENT from the
+ * ranking. With a realistic split, a viewer's board holds two or three names
+ * and `AC-RANK-2` -- which asserts at least five contiguous positions -- fails
+ * for a reason that has nothing to do with positions.
+ *
+ * The orientation gate itself is not left untested by this: it is covered in
+ * `src/lib/domain/matching/` against its own fixtures, where a failing pair is
+ * the point rather than a side effect.
+ */
+const OPEN_TO: readonly Gender[] = ["F", "M", "NB"];
+
 const CAST: readonly CastMember[] = [
   {
     name: "Ana Ramírez",
     team: "equipo 03",
     gender: "F",
-    interestedIn: ["M"],
     tags: ["cafe", "fotografia", "plantas"],
   },
   {
     name: "Camila Soto",
     team: "equipo 07",
     gender: "F",
-    interestedIn: ["M"],
     tags: ["cafe", "anime", "ramen"],
   },
   {
     name: "Diego Morales",
     team: "equipo 25",
     gender: "M",
-    interestedIn: ["F"],
     tags: ["cafe", "ajedrez", "podcasts"],
   },
   {
     name: "Elena Vargas",
     team: "equipo 14",
     gender: "F",
-    interestedIn: ["M"],
     tags: ["plantas", "astronomia", "cine-de-culto"],
   },
   {
     name: "Laura Méndez",
     team: "equipo 25",
     gender: "F",
-    interestedIn: ["M"],
     // "cafe" and "ajedrez" are shared with Diego Morales on purpose: the
     // profile spec walks that pair, and `prepareProfile` returns the
     // INTERSECTION, so a disjoint pair renders a card with no chips.
@@ -119,21 +128,18 @@ const CAST: readonly CastMember[] = [
     name: "Mateo Herrera",
     team: "equipo 11",
     gender: "M",
-    interestedIn: ["F"],
     tags: ["videojuegos", "anime", "ramen"],
   },
   {
     name: "Sofía Guzmán",
     team: "equipo 03",
     gender: "F",
-    interestedIn: ["M"],
     tags: ["fotografia", "k-pop", "reggaeton"],
   },
   {
     name: "Valentina Cruz",
     team: "equipo 11",
     gender: "F",
-    interestedIn: ["M"],
     tags: ["plantas", "manualidades", "podcasts"],
   },
 ];
@@ -191,10 +197,17 @@ export async function seedRoster(
     });
 
     const id = participant.id as ParticipantId;
+    /*
+     * The §0 floor reads `photo_url IS NOT NULL` (the WHERE in
+     * `byRoomForRanking`). Without this every seeded person is ABSENT from
+     * every ranking -- which reads as an empty board and a 404 profile, not
+     * as a missing photo.
+     */
+    await participants.setPhoto(id, SEEDED_PHOTO);
     await participants.saveDeclared(id, declaredFor(person.tags));
     await participants.upsertRomanticGate(id, {
       gender: person.gender,
-      interestedIn: [...person.interestedIn],
+      interestedIn: [...OPEN_TO],
       single: true,
       ageBand: 1,
       wantsKids: true,
