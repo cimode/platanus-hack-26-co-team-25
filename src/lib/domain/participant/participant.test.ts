@@ -107,6 +107,7 @@ function participantFixture(
     name: "Ana Ramírez",
     gender: "M",
     birthdate: "1994-08-22",
+    avatar: null,
     photoUrl: "https://blob.example/ana.jpg",
     team: "t-7",
     track: "fintech",

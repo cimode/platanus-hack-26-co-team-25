@@ -35,6 +35,7 @@ describe("pair-simulation-repository", () => {
         name: "Lo",
         gender: "F",
         birthdate: "1996-05-04",
+        avatar: "avatar3",
         consent: { romantic: true, business: true, friendship: true },
       })
     ).participant;
@@ -44,6 +45,7 @@ describe("pair-simulation-repository", () => {
         name: "Hi",
         gender: "M",
         birthdate: "1994-03-12",
+        avatar: "avatar1",
         consent: { romantic: true, business: true, friendship: true },
       })
     ).participant;
