@@ -13,6 +13,12 @@
 
 import { z } from "zod";
 
+import { emoteForLifeEvent } from "../../domain/emotes/actions";
+import {
+  playableByAll,
+  REACTION_EMOTES,
+  type ReactionEmote,
+} from "../../domain/emotes/emotes";
 import type { Lens, PairScore, Person } from "../../domain/matching/engine";
 import {
   mockNarrateBeat,
@@ -45,6 +51,31 @@ const SAFETY_RULES = [
 ].join("\n");
 
 const PET_WORD_RE = /\b(dogs?|cats?|pupp(?:y|ies)|pups?|kittens?|pets?)\b/i;
+
+/**
+ * What each reaction reads as on screen, in the model's own vocabulary.
+ *
+ * Stated in words rather than left to the emote's name: "walk" alone invites a
+ * departure, when the sheet is a few steps that end back on the mark. The list
+ * is generated from REACTION_EMOTES so a newly packed one-shot cannot be
+ * offered without a description (the `satisfies` below fails to compile).
+ */
+const EMOTE_MEANINGS = {
+  celebrate: "cheering, arms up — a win, an arrival, something worth marking",
+  wave: "a small warm greeting or acknowledgement — low-key, everyday",
+  cry: "quiet grief or disappointment",
+  walk: "a few steps and back on the mark — going somewhere, a change of place",
+  angry: "frustrated, arms crossed — friction that has not become a fight",
+  fight: "a real clash, squaring off — a collision of wills",
+  defeat: "shoulders down, giving in — a loss",
+  love: "hearts, smitten — tenderness, closeness, a new arrival in the family",
+} satisfies Record<ReactionEmote, string>;
+
+const EMOTE_RULES = [
+  "Also choose the reaction BOTH avatars play while this event is on screen, from exactly this list:",
+  ...REACTION_EMOTES.map((emote) => `  ${emote} — ${EMOTE_MEANINGS[emote]}`),
+  "Pick the one that fits what happens in THIS event, not the mood of the whole story. When nothing fits well, prefer the plainest honest option over a dramatic one.",
+].join("\n");
 
 function personFacts(label: string, p: Person): string {
   const ls = p.declared.lifeShape;
@@ -195,16 +226,24 @@ function beatRequestId(index: number): string {
  * `timeline.narrate.beat.{index}`; nomination uses `timeline.nominate`.
  */
 export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
-  const textSchema = z.object({ text: z.string() });
+  // Two keys, not one. `z.enum` is what makes the vocabulary a hard constraint
+  // rather than a request: `generateObject` re-asks the model until it answers
+  // inside the list, so nothing downstream ever parses free text for an emote.
+  const beatSchema = z.object({
+    text: z.string(),
+    emote: z.enum(REACTION_EMOTES),
+  });
 
   return {
     async narrate(beats, persons, lens, opts): Promise<NarrateResult> {
       const [a, b] = persons;
       const mockAll = (): string[] =>
         beats.map((beat, i) => mockNarrateBeat(beat, a, b, opts.seed, i));
+      const mockEmotes = (): ReactionEmote[] =>
+        beats.map((beat) => emoteForLifeEvent(beat.kind));
 
       if (beats.length === 0) {
-        return { texts: [], narration: "mock" };
+        return { texts: [], emotes: [], narration: "mock" };
       }
 
       const { inventory, beatOutline, perBeat, preamble } =
@@ -215,16 +254,24 @@ export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
       const narrateOne = async (
         beat: Beat,
         i: number
-      ): Promise<{ text: string; live: boolean; petGuarded: boolean }> => {
+      ): Promise<{
+        text: string;
+        emote: ReactionEmote;
+        live: boolean;
+        petGuarded: boolean;
+        emoteFallback: boolean;
+      }> => {
         const mockText = (): string =>
           mockNarrateBeat(beat, a, b, opts.seed, i);
+        const mockEmote = emoteForLifeEvent(beat.kind);
         const prompt = [
           ...preamble,
           `Below is the COMPLETE ordered outline of this timeline, for continuity. You are writing beat ${i + 1} ONLY.`,
           beatOutline,
           `State established by the end of beat ${i + 1} — ${perBeat[i]}.`,
           `Write beat ${i + 1} — year ${beat.year}, ${beat.kind}, what happens: ${beat.hint}. One or two sentences, under 300 characters. Do not narrate any other beat and do not number your answer.`,
-          'Respond with a JSON object having exactly one key, "text", whose value is that sentence and nothing else.',
+          EMOTE_RULES,
+          'Respond with a JSON object having exactly two keys: "text", the sentence and nothing else, and "emote", one value from the list above.',
           grounding,
           SAFETY_RULES,
         ].join("\n\n");
@@ -234,11 +281,22 @@ export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
             const result = await llm.generate({
               id: beatRequestId(i),
               prompt,
-              schema: textSchema,
+              schema: beatSchema,
               note: `timeline beat ${i + 1}/${beats.length}`,
             });
             const v = validateSentenceText(result.text);
             if (!v.ok) continue;
+            // `z.enum` already guarantees the value is one of the eight, so what
+            // is left to check is physical: does BOTH avatars' sheet exist. With
+            // no plates named there is nothing to check against, and rejecting
+            // every choice would quietly turn the model off.
+            const plates = [opts.avatarA, opts.avatarB].filter(
+              (plate): plate is string => typeof plate === "string"
+            );
+            const playable =
+              plates.length === 0 || playableByAll(plates, result.emote);
+            const emote = playable ? result.emote : mockEmote;
+            const emoteFallback = !playable;
             if (inventory.pets.length === 0 && PET_WORD_RE.test(v.text)) {
               const text = mockText();
               try {
@@ -246,14 +304,26 @@ export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
               } catch {
                 /* renderer must not break narration */
               }
-              return { text, live: true, petGuarded: true };
+              return {
+                text,
+                emote,
+                emoteFallback,
+                live: true,
+                petGuarded: true,
+              };
             }
             try {
               opts.onSentence?.(i, v.text);
             } catch {
               /* renderer must not break narration */
             }
-            return { text: v.text, live: true, petGuarded: false };
+            return {
+              text: v.text,
+              emote,
+              emoteFallback,
+              live: true,
+              petGuarded: false,
+            };
           } catch {
             /* retry once, then mock this beat */
           }
@@ -264,7 +334,15 @@ export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
         } catch {
           /* renderer must not break narration */
         }
-        return { text, live: false, petGuarded: false };
+        // The whole beat failed, so the emote is not a rejected CHOICE -- it is
+        // part of the same mock fallback the prose took. Not counted twice.
+        return {
+          text,
+          emote: mockEmote,
+          emoteFallback: false,
+          live: false,
+          petGuarded: false,
+        };
       };
 
       const limit = resolveConcurrency();
@@ -272,14 +350,17 @@ export function createTimelineNarrator(llm: LlmPort): TimelineNarrator {
       const mockFallbacks = settled.filter((r) => !r.live).length;
       const liveCount = settled.length - mockFallbacks;
       const petGuardReplacements = settled.filter((r) => r.petGuarded).length;
+      const emoteFallbacks = settled.filter((r) => r.emoteFallback).length;
 
       if (liveCount === 0) {
-        return { texts: mockAll(), narration: "mock" };
+        return { texts: mockAll(), emotes: mockEmotes(), narration: "mock" };
       }
 
       return {
         texts: settled.map((r) => r.text),
+        emotes: settled.map((r) => r.emote),
         narration: "live",
+        ...(emoteFallbacks > 0 ? { emoteFallbacks } : {}),
         ...(petGuardReplacements > 0 ? { petGuardReplacements } : {}),
         ...(mockFallbacks > 0 ? { mockFallbacks } : {}),
       };

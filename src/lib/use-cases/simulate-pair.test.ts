@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { TAG_TOKENS, tagFor } from "../../components/simulate/event-tag";
 import { stubLlm } from "../adapters/llm/fake";
 import { createTimelineNarrator } from "../adapters/timeline/narrator";
+import {
+  type Emote,
+  isReactionEmote,
+  playableByAll,
+} from "../domain/emotes/emotes";
 import type {
   BusinessGate,
   Consent,
@@ -40,6 +45,12 @@ import type {
 import { type SimulatePairDeps, simulatePair } from "./simulate-pair";
 
 const FIXED_SENTENCE = "Una frase fija para la prueba.";
+/**
+ * Deliberately NOT what `emoteForLifeEvent` answers for most beats, so a test
+ * can tell the model's choice apart from the deterministic fallback. `cry` is
+ * the map's answer only for `epilogue`.
+ */
+const FIXED_EMOTE = "cry";
 
 const ROOM_ID: RoomId = "33333333-3333-7333-8333-333333333333";
 const CREATED_AT = new Date("2026-08-22T18:00:00.000Z");
@@ -419,7 +430,10 @@ function countingLlm(inner: LlmPort): LlmPort & { generateCalls: string[] } {
 }
 
 function fixedSentenceLlm(): LlmPort {
-  return stubLlm(() => ({ text: FIXED_SENTENCE }));
+  // The stub validates against the caller's schema, so this object must satisfy
+  // the beat schema in full: a missing `emote` would silently push every beat
+  // down the mock-prose path and quietly stop testing the live one.
+  return stubLlm(() => ({ text: FIXED_SENTENCE, emote: FIXED_EMOTE }));
 }
 
 function pairSimulationsFake(): PairSimulationRepository & {
@@ -484,6 +498,132 @@ const EVENT_KINDS: EventKind[] = [
   "vignette",
 ];
 
+/**
+ * ANA and BRUNO wearing real plates.
+ *
+ * The room fixtures leave `avatar: null` on purpose (they cover the pre-column
+ * rows), so the plate-carrying assertions build their own pair — and give the
+ * two people DIFFERENT plates, because the whole point of these tests is that
+ * a plate cannot end up on the wrong body.
+ */
+const PLATED_ROOM = [
+  rankable(ANA, "Ana", {
+    participant: { team: "alpha", quizCompletedAt: T0, avatar: "avatar3" },
+    romanticGate: SUBJECT_ROMANTIC,
+    businessGate: BUSINESS,
+    declared: {
+      moneyPosture: 3,
+      rootedness: 3,
+      familyGravity: 0,
+      capacityHoursBand: 2,
+      distanceBand: 1,
+      chronotype: 1,
+      tags: ["escalada", "ramen", "podcasts"],
+    },
+  }),
+  rankable(BRUNO, "Bruno", {
+    participant: {
+      team: "alpha",
+      quizCompletedAt: new Date(T0.getTime() + 10 * 60_000),
+      avatar: "avatar1",
+    },
+    romanticGate: MUTUAL_ROMANTIC,
+    businessGate: BUSINESS,
+    declared: {
+      moneyPosture: 3,
+      rootedness: 3,
+      familyGravity: 0,
+      capacityHoursBand: 2,
+      distanceBand: 1,
+      chronotype: 1,
+      tags: ["escalada", "ramen", "cine"],
+    },
+  }),
+  ROW_CARLA,
+  ROW_DARIO,
+];
+
+describe("simulatePair · avatars and reactions", () => {
+  it("carries each person's own plate into the read model", async () => {
+    const deps = depsFor(
+      PLATED_ROOM,
+      LATENTS,
+      [ANA, BRUNO],
+      fixedSentenceLlm()
+    );
+    const life = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+
+    expect(life).not.toBeNull();
+    expect(life?.subject).toMatchObject({ id: ANA, avatar: "avatar3" });
+    expect(life?.other).toMatchObject({ id: BRUNO, avatar: "avatar1" });
+  });
+
+  it("swaps the plate WITH the person when the other one reads the same pair", async () => {
+    // The canonical row is stored subject-is-lo. Whoever opens it must see
+    // themselves as `subject`, wearing THEIR OWN body. Reading the plate off the
+    // slot instead of the person is how each viewer ends up watching their own
+    // life acted out by the other person — invisible in a fixture where both
+    // wear the same avatar, which is why these two differ.
+    const shared = pairSimulationsFake();
+    const forAna = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      depsFor(PLATED_ROOM, LATENTS, [ANA, BRUNO], fixedSentenceLlm(), shared)
+    );
+    const forBruno = await simulatePair(
+      { subjectId: BRUNO, otherId: ANA, lens: "romantic" },
+      depsFor(PLATED_ROOM, LATENTS, [ANA, BRUNO], fixedSentenceLlm(), shared)
+    );
+
+    expect(forAna?.subject).toMatchObject({ id: ANA, avatar: "avatar3" });
+    expect(forAna?.other).toMatchObject({ id: BRUNO, avatar: "avatar1" });
+
+    expect(forBruno?.subject).toMatchObject({ id: BRUNO, avatar: "avatar1" });
+    expect(forBruno?.other).toMatchObject({ id: ANA, avatar: "avatar3" });
+
+    // Same story, opposite seats: the events are byte-identical either way.
+    expect(forBruno?.events).toEqual(forAna?.events);
+  });
+
+  it("gives every event a reaction both avatars can play", async () => {
+    const deps = depsFor(
+      PLATED_ROOM,
+      LATENTS,
+      [ANA, BRUNO],
+      fixedSentenceLlm()
+    );
+    const life = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+
+    expect(life?.events.length).toBeGreaterThan(0);
+    for (const event of life?.events ?? []) {
+      expect(isReactionEmote(event.emote), `${event.kind}`).toBe(true);
+      expect(playableByAll(["avatar3", "avatar1"], event.emote as Emote)).toBe(
+        true
+      );
+    }
+  });
+
+  it("still animates every event when no plate is on file", async () => {
+    // The pre-column rows: no sprite will render, but the emote is still there
+    // so nothing downstream has to branch on it.
+    const deps = depsFor(AC1_ROOM, LATENTS, [ANA, BRUNO], fixedSentenceLlm());
+    const life = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+
+    expect(life?.subject.avatar).toBeNull();
+    for (const event of life?.events ?? []) {
+      expect(isReactionEmote(event.emote)).toBe(true);
+    }
+  });
+});
+
 describe("simulatePair", () => {
   it("AC-1 · happy path: ranked romantic pair resolves a PairedTimeline with valid events", async () => {
     const llm = countingLlm(fixedSentenceLlm());
@@ -500,11 +640,12 @@ describe("simulatePair", () => {
     }
 
     expect(life.lens).toBe("romantic");
-    expect(life.subject).toEqual({ id: ANA, name: "Ana" });
+    expect(life.subject).toEqual({ id: ANA, name: "Ana", avatar: null });
     expect(life.other).toEqual({
       id: BRUNO,
       name: "Bruno",
       photoUrl: `https://blob.example/${BRUNO}.jpg`,
+      avatar: null,
     });
     expect(life.horizonYears).toBeGreaterThanOrEqual(8);
     expect(life.horizonYears).toBeLessThanOrEqual(14);
@@ -854,8 +995,8 @@ describe("SimulatedLife friendship branch (AC-5 type pin)", () => {
     };
     probe({
       lens: "friendship",
-      subject: { id: ANA, name: "Ana" },
-      other: { id: BRUNO, name: "Bruno", photoUrl: null },
+      subject: { id: ANA, name: "Ana", avatar: "avatar3" },
+      other: { id: BRUNO, name: "Bruno", photoUrl: null, avatar: "avatar1" },
       events: [],
     });
   });

@@ -73,3 +73,10 @@ node_modules/
 
 # emote pipeline scratch (clips, frames); the packed sheets live in public/sprites/emotes
 .emotes-work/
+
+# face-fit PoC outputs
+scripts/face/out/
+scripts/face/__pycache__/
+
+# agent worktrees (hookai /work pipelines)
+.hookai-worktrees/

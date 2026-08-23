@@ -48,6 +48,7 @@ function mapEvents(timeline: Timeline): LifeEvent[] {
       year: event.year,
       kind: event.kind,
       text: event.text,
+      emote: event.emote,
     }))
     .sort((a, b) => a.year - b.year);
 }
@@ -72,11 +73,16 @@ function toCanonicalLife(
   hiRow: RankableParticipant
 ): SimulatedLife {
   const base = {
-    subject: { id: loRow.participant.id, name: loRow.participant.name },
+    subject: {
+      id: loRow.participant.id,
+      name: loRow.participant.name,
+      avatar: loRow.participant.avatar,
+    },
     other: {
       id: hiRow.participant.id,
       name: hiRow.participant.name,
       photoUrl: hiRow.participant.photoUrl,
+      avatar: hiRow.participant.avatar,
     },
     events: mapEvents(timeline),
   };
@@ -110,11 +116,19 @@ function projectForViewer(
   if (canonical.lens === "friendship") {
     return {
       lens: "friendship",
-      subject: { id: canonical.other.id, name: canonical.other.name },
+      subject: {
+        id: canonical.other.id,
+        name: canonical.other.name,
+        // The plate travels WITH the person, not with the slot. Leaving this
+        // reading `canonical.subject.avatar` is how each viewer ends up
+        // watching their own story acted out in the other person's body.
+        avatar: canonical.other.avatar,
+      },
       other: {
         id: canonical.subject.id,
         name: canonical.subject.name,
         photoUrl: otherPhotoUrl,
+        avatar: canonical.subject.avatar,
       },
       events: canonical.events,
     };
@@ -122,11 +136,16 @@ function projectForViewer(
 
   return {
     lens: canonical.lens,
-    subject: { id: canonical.other.id, name: canonical.other.name },
+    subject: {
+      id: canonical.other.id,
+      name: canonical.other.name,
+      avatar: canonical.other.avatar,
+    },
     other: {
       id: canonical.subject.id,
       name: canonical.subject.name,
       photoUrl: otherPhotoUrl,
+      avatar: canonical.subject.avatar,
     },
     events: canonical.events,
     horizonYears: canonical.horizonYears,
@@ -224,6 +243,10 @@ export async function simulatePair(
       seed: pairSeed(lo, hi, lens),
       offspringConsentA: true,
       offspringConsentB: true,
+      // Verification input only: an emote the pair cannot both play falls back
+      // to the deterministic map inside the narrator.
+      avatarA: loRow.participant.avatar,
+      avatarB: hiRow.participant.avatar,
     },
     deps.narrator
   );

@@ -19,6 +19,13 @@ import type { Lens, PairScore, Person, TermName } from "../matching/engine.ts";
 
 export type { Lens, PairScore, Person, TermName } from "../matching/engine.ts";
 
+/**
+ * Type-only: erased at compile time, so the engine still imports no runtime
+ * value from the emotes package and the 16 KB sheet manifest never reaches a
+ * bundle that only needs to generate structure.
+ */
+import type { ReactionEmote } from "../emotes/emotes.ts";
+
 // ---------------------------------------------------------------------------
 // The common interface (every approach exports `generateTimeline` with this shape)
 // ---------------------------------------------------------------------------
@@ -43,6 +50,17 @@ export interface TimelineOpts {
   onStructure?: (beats: readonly Beat[]) => void;
   /** index is the beat's position in the list passed to onStructure. */
   onSentence?: (index: number, text: string) => void;
+  /**
+   * The plates the two people wear, when the caller knows them.
+   *
+   * Only the narrator reads these, and only to VERIFY the emote the model
+   * chose: one emote animates both avatars, so a sheet missing on either side
+   * has to fall back to the map. Optional because the engine must still run in
+   * a structural test that has no participants behind it -- unknown plates skip
+   * verification rather than rejecting every choice.
+   */
+  avatarA?: string | null;
+  avatarB?: string | null;
 }
 
 /**
@@ -80,7 +98,19 @@ export interface TimelineNarrator {
 
 export interface NarrateResult {
   texts: string[]; // one per beat, same order
+  /**
+   * The reaction each beat's avatars play, one per beat, same order as `texts`.
+   *
+   * REQUIRED, and always a `ReactionEmote` -- never a locomotion loop. The live
+   * narrator asks the model to choose alongside the sentence and verifies the
+   * answer against what the pair's avatars actually have packed; the mock
+   * answers from `emoteForLifeEvent`. Either way every beat animates, so the
+   * screen never has to decide what to do with a missing one.
+   */
+  emotes: ReactionEmote[];
   narration: NarrationMode;
+  /** Live only: beats whose chosen emote was rejected and fell back to the map. */
+  emoteFallbacks?: number;
   model?: string;
   /** Live only: sentences replaced because they referenced a pet no event established. */
   petGuardReplacements?: number;
@@ -141,6 +171,8 @@ export interface TimelineMeta {
   petGuardReplacements?: number;
   /** Live parallel narration: beats whose own call failed and took mock prose. */
   mockFallbacks?: number;
+  /** Live narration: beats whose chosen emote was rejected by verification. */
+  emoteFallbacks?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +233,8 @@ export interface TimelineEvent {
   arcId: string;
   kind: EventKind;
   domain: string;
-  text: string; // narrated sentence(s) — user-facing, safety-scanned
+  text: string; // narrated sentence(s) — user-facing, safety-scanned  /** What the two avatars play when this beat is on screen. Never a loop. */
+  emote: ReactionEmote;
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useDragScroll } from "@/components/shared/use-drag-scroll";
 import { EndingCard } from "@/components/simulate/ending-card";
 import { EventCard } from "@/components/simulate/event-card";
+import { PairStage } from "@/components/simulate/pair-stage";
 import { TimelinePath } from "@/components/simulate/timeline-path";
 import type { SimulatedLife } from "@/lib/domain/reveal/timeline";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,12 @@ export function TimelineRail({
           Vida simulada
         </h1>
       </header>
+
+      <PairStage
+        event={life.events[activeIndex] ?? null}
+        other={life.other}
+        subject={life.subject}
+      />
 
       <TimelinePath events={life.events} progress={activeIndex} />
 

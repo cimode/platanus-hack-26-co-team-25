@@ -24,7 +24,8 @@
       "!public",
       "!coverage",
       "!drizzle",
-      "!timeline"
+      "!timeline",
+      "!.hookai-worktrees"
     ]
   },
   "formatter": {

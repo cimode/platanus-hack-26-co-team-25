@@ -25,6 +25,7 @@
  *      via the shared gateway client, or the deterministic mock).
  */
 
+import { emoteForLifeEvent } from "../emotes/actions.ts";
 import { TERM_LABELS } from "../matching/engine.ts";
 import type { OutcomeName, PatternName, StepName } from "./grammar.ts";
 import {
@@ -501,6 +502,9 @@ export const generateTimeline: GenerateTimeline = async (
     kind: beat.kind,
     domain: beat.domain,
     text: narrated.texts[i],
+    // Defensive `??` even though both narrators fill the array: a beat with no
+    // reaction would be an avatar frozen mid-timeline, and the map is free.
+    emote: narrated.emotes[i] ?? emoteForLifeEvent(beat.kind),
   }));
 
   const arcs: Arc[] = kept.map((p) => ({
@@ -523,6 +527,9 @@ export const generateTimeline: GenerateTimeline = async (
       : {}),
     ...(narrated.mockFallbacks !== undefined
       ? { mockFallbacks: narrated.mockFallbacks }
+      : {}),
+    ...(narrated.emoteFallbacks !== undefined
+      ? { emoteFallbacks: narrated.emoteFallbacks }
       : {}),
   };
   const personA = { id: a.id, name: a.name };

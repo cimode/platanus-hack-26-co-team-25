@@ -9,7 +9,10 @@ import {
   emoteSheet,
   emoteSheets,
   isEmote,
+  isReactionEmote,
   plateUrl,
+  playableByAll,
+  REACTION_EMOTES,
   ROOM_EVENTS,
 } from "./emotes";
 import { EMOTE_MANIFEST } from "./emotes.manifest";
@@ -154,5 +157,62 @@ describe("the packed manifest", () => {
     expect(emoteSheet("/venue.jpg", "wave")).toBeNull();
     expect(emoteSheets("/venue.jpg")).toEqual([]);
     expect(availableEmotes("robot")).toEqual([]);
+  });
+});
+
+describe("REACTION_EMOTES — the vocabulary a life beat may choose from", () => {
+  it("is EXACTLY the set of packed sheets that return to the plate", () => {
+    // The load-bearing invariant of the whole feature. A reaction attached to a
+    // timeline event must leave the avatar standing where it started; a loop
+    // never fires `animationend`, so `AvatarSprite` never returns to idle and
+    // the character is left walking away forever. Packing a new one-shot and
+    // forgetting to offer it, or packing a loop and accidentally offering it,
+    // both fail here.
+    const oneShots = EMOTES.filter((emote) =>
+      AVATARS.every((avatar) => emoteSheet(avatar, emote)?.loop !== true)
+    );
+    expect([...REACTION_EMOTES].sort()).toEqual([...oneShots].sort());
+  });
+
+  it("offers no locomotion sheet to the model", () => {
+    for (const emote of REACTION_EMOTES) {
+      for (const avatar of AVATARS) {
+        expect(emoteSheet(avatar, emote)?.loop, `${avatar}/${emote}`).not.toBe(
+          true
+        );
+      }
+    }
+  });
+
+  it("is playable by every authored avatar", () => {
+    // The model picks one emote for a pair, so both sprites must have it.
+    for (const emote of REACTION_EMOTES) {
+      expect(playableByAll([...AVATARS], emote), emote).toBe(true);
+    }
+  });
+
+  it("recognises its own members and rejects loops and junk", () => {
+    for (const emote of REACTION_EMOTES)
+      expect(isReactionEmote(emote)).toBe(true);
+    expect(isReactionEmote("walk-back")).toBe(false);
+    expect(isReactionEmote("sad-walk-left")).toBe(false);
+    expect(isReactionEmote("moonwalk")).toBe(false);
+    expect(isReactionEmote(7)).toBe(false);
+  });
+});
+
+describe("playableByAll", () => {
+  it("is false when any named avatar lacks the sheet", () => {
+    expect(playableByAll(["avatar1", "nope"], "celebrate")).toBe(false);
+  });
+
+  it("ignores unknown-avatar rows rather than letting them veto", () => {
+    // A participant registered before the avatar column has null; that is a
+    // sprite that will not render, not a reason to downgrade the other's emote.
+    expect(playableByAll(["avatar1", null], "celebrate")).toBe(true);
+  });
+
+  it("is false when nothing is known at all", () => {
+    expect(playableByAll([null, undefined], "celebrate")).toBe(false);
   });
 });

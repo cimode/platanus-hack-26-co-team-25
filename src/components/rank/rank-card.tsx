@@ -52,6 +52,15 @@ export function RankCard({
         "transition-transform hover:-translate-y-0.5",
         "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
       )}
+      /*
+       * A link is natively draggable, and inside a drag-scrolled strip that is
+       * a bug: pressing on a card and shoving sideways made Chrome start a
+       * ghost-drag of the URL, which fires `dragstart` -> `pointercancel` and
+       * kills the row's own drag after the first few pixels. Nothing here is
+       * meant to be dropped anywhere, so the native gesture only has something
+       * to take away.
+       */
+      draggable={false}
       href={`/profile/${entry.id}`}
       /* Inline, per card, because the stagger differs per card -- and the
          reduced-motion block matches on `[style*="animation"]`, so an inline

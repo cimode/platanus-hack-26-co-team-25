@@ -212,6 +212,70 @@ test.describe("1c · the ranking", () => {
     await expect(last).toBeInViewport();
   });
 
+  /**
+   * The exit from this screen, with a real mouse.
+   *
+   * Every other test here queries the card and every profile test arrives by
+   * `goto` -- so for a long time the suite proved the href was right and never
+   * once proved that pressing it went anywhere. It did not: the row's drag
+   * captured the pointer on `pointerdown`, which retargets the click to the
+   * scroller, and the <Link> underneath never saw it. Touch and the keyboard
+   * both worked, so the bug was invisible to a phone AND to this file.
+   *
+   * `click()` rather than `press("Enter")` on purpose: the keyboard path was
+   * the one that never broke.
+   */
+  test("AC-RANK-9 · clicking an entry opens that person's profile", async ({
+    page,
+  }) => {
+    await open(page, "romantic");
+    const first = cards(page).first();
+    const href = await first.getAttribute("href");
+    expect(href).toMatch(/^\/profile\//);
+    await first.click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    // And the screen it lands on is the one that can simulate a life, which is
+    // the only reason to walk to a profile at all.
+    await expect(
+      page.getByRole("link", { name: /^Simular vida/ })
+    ).toBeVisible();
+  });
+
+  /**
+   * The other half of the same gesture: a shove must scroll and must NOT open
+   * whatever it happened to start on.
+   *
+   * A card is a link, and a link is natively draggable -- so pressing on one
+   * and moving used to make Chrome ghost-drag the URL, fire `dragstart` and
+   * cancel the pointer after a handful of pixels. The row moved ~20px of the
+   * 200 asked for and then stuck.
+   */
+  test("AC-RANK-9 · dragging the row scrolls it and opens nobody", async ({
+    page,
+  }) => {
+    await open(page, "romantic");
+    const row = page.getByRole("region", { name: /Tu ranking/ });
+    const box = await row.boundingBox();
+    if (!box) throw new Error("the rank row is not on screen");
+
+    const y = box.y + box.height / 2;
+    const from = box.x + box.width - 40;
+    await page.mouse.move(from, y);
+    await page.mouse.down();
+    // Ten steps, not one jump: a single move is one pointermove, and the bug
+    // this pins let exactly one pointermove through before dying.
+    for (let step = 1; step <= 10; step++) {
+      await page.mouse.move(from - step * 20, y);
+    }
+    await page.mouse.up();
+
+    // The full distance dragged, so a drag that dies early still fails.
+    await expect
+      .poll(() => row.evaluate((node) => node.scrollLeft))
+      .toBeGreaterThan(150);
+    await expect(page).toHaveURL(/\/rank$/);
+  });
+
   test("AC-PORT-3 · no score reaches the page as text", async ({ page }) => {
     await open(page, "romantic");
     const text = await page.locator("main").innerText();
