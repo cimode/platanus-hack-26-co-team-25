@@ -52,6 +52,8 @@ const PARTICIPANT: Participant = {
   id: P_ID,
   roomId: ROOM_ID,
   name: "Ana",
+  gender: "F",
+  birthdate: "1996-05-04",
   photoUrl: "https://blob.example/ana.jpg",
   team: "alpha",
   track: null,
@@ -108,8 +110,14 @@ describe("toPerson", () => {
     expect(person.structural.cohort).toBe(1);
     expect(person.structural.acquaintances).toEqual([KNOWS_A, KNOWS_B]);
 
+    // A stored romantic row still wins where one exists (pre-D18 rows); the
+    // business gate has none and is derived from `MVP_GATES` (D18, §6).
     expect(person.gates.romantic).toEqual(ROMANTIC);
-    expect(person.gates.business).toBeUndefined();
+    expect(person.gates.business).toEqual({
+      riskPosture: 1,
+      exitHorizon: 1,
+      redlinesOk: true,
+    });
 
     // The absent pillars are ABSENT KEYS, never a fabricated 0.5: the engine
     // imputes PRIOR_MEAN / PRIOR_SE from a missing key and reads row PRESENCE
