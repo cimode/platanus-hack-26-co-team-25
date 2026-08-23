@@ -17,10 +17,18 @@
  * with two reversed options or a missing pillar does not fail loudly later, it
  * silently biases that person's estimates.
  *
- * So the pipeline degrades rather than throws, in three steps:
+ * So the pipeline degrades rather than throws, in four steps:
  *   1. author five blocks
- *   2. repair only the positions that failed validation, once
- *   3. fall back to the committed `INSTRUMENT` block at that position
+ *   2. judge the five for tone — plain, predictable or un-anchored blocks are
+ *      rejected exactly like structurally broken ones
+ *   3. repair only the positions that failed, once, carrying the judge's own
+ *      words back to the author
+ *   4. fall back to the committed `INSTRUMENT` block at that position
+ *
+ * Step 2 is the only step whose failure costs nothing: a dead or confused judge
+ * is treated as "no objection", because a structurally valid block with a dull
+ * scenario is strictly better for the participant than the fallback everybody
+ * else is also seeing.
  *
  * Step 3 is why the fifteen reviewed blocks stay in the repo. They are no longer
  * what everyone answers; they are what nobody has to see an error instead of.
@@ -34,6 +42,8 @@ import {
   type AuthoredBatch,
   authoredBatchSchema,
   authorPrompt,
+  judgePrompt,
+  verdictsSchema,
 } from "../domain/quiz/authoring.ts";
 import {
   type Block,
@@ -119,6 +129,47 @@ function problemWith(block: Block): string | null {
   }
 }
 
+/**
+ * Ask the judge which of these blocks reads as dull, predictable or random.
+ *
+ * Returns one entry per *rejected* position, holding the judge's problems as it
+ * wrote them — the repair prompt quotes them verbatim, so paraphrasing here
+ * would throw away the only concrete instruction the second attempt gets.
+ *
+ * Never throws. See the note at the top of the file.
+ */
+async function judgeTone(
+  blocks: Block[],
+  deps: { llm: LlmPort },
+  note: string
+): Promise<Map<number, string[]>> {
+  const rejected = new Map<number, string[]>();
+  if (blocks.length === 0) return rejected;
+
+  try {
+    const judged = await deps.llm.generate({
+      id: "quiz.judge",
+      prompt: judgePrompt(blocks),
+      schema: verdictsSchema,
+      note,
+    });
+
+    for (const verdict of judged.verdicts) {
+      if (verdict.pass) continue;
+      rejected.set(
+        verdict.position,
+        verdict.problems.length > 0
+          ? verdict.problems
+          : ["rejected by the desirability judge, without a stated reason"]
+      );
+    }
+  } catch {
+    // No objection recorded: the block stands on its structure alone.
+  }
+
+  return rejected;
+}
+
 export async function generateQuizBatch(
   input: GenerateQuizBatchInput,
   deps: { llm: LlmPort }
@@ -169,6 +220,7 @@ export async function generateQuizBatch(
       break;
     }
 
+    const candidates = new Map<number, Block>();
     for (const raw of authored.blocks) {
       const assignment = planAt.get(raw.position);
       // A position outside this batch means the model lost the plan; drop it
@@ -181,8 +233,27 @@ export async function generateQuizBatch(
         problems.set(raw.position, problem);
         continue;
       }
-      accepted.set(raw.position, block);
-      if (attempt > 0) repairedAt.push(raw.position);
+      candidates.set(raw.position, block);
+    }
+
+    // The judge runs on the first pass only. A repaired block it would reject
+    // again has nowhere left to go but the fallback, and one flat scenario
+    // written for this participant beats a block a hundred people share.
+    if (attempt === 0) {
+      const rejected = await judgeTone(
+        [...candidates.values()],
+        deps,
+        `participant ${participantId}, batch ${batch}`
+      );
+      for (const [position, stated] of rejected) {
+        if (!candidates.delete(position)) continue;
+        problems.set(position, stated.join("; "));
+      }
+    }
+
+    for (const [position, block] of candidates) {
+      accepted.set(position, block);
+      if (attempt > 0) repairedAt.push(position);
     }
   }
 
