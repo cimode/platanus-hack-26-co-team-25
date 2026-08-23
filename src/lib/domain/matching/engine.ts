@@ -26,11 +26,18 @@ export interface LatentEstimate {
   se?: number; // posterior SE; default DEFAULT_SE
 }
 
+/**
+ * Every declared variable may be missing: the intake no longer asks the declared
+ * round (docs/domain.md D20), so for most of the room none of these exist. A
+ * missing one is UNMEASURED — its term scores at the neutral midpoint with the
+ * weights untouched (AUDIT S15), exactly as `distanceBand` always has. It is
+ * never imputed as 0, which would be a real answer at the end of the axis.
+ */
 export interface LifeShape {
-  moneyPosture: number; // 0..1 declared (PILLARS §2, Life Shape & Capacity)
-  rootedness: number; // 0..1 declared
-  familyGravity: number; // 0..1 declared
-  capacityHoursBand: number; // 0..3 declared retrospective hours band
+  moneyPosture?: number; // 0..1 declared (PILLARS §2, Life Shape & Capacity)
+  rootedness?: number; // 0..1 declared
+  familyGravity?: number; // 0..1 declared
+  capacityHoursBand?: number; // 0..3 declared retrospective hours band
 }
 
 export interface RomanticGate {
@@ -57,7 +64,7 @@ export interface Person {
     distanceBand?: number;
     lifeShape: LifeShape;
     tags: string[]; // interests / media / food / activity / pets
-    chronotype: number; // 0..3
+    chronotype?: number; // 0..3; missing → neutral overlap (D20)
   };
   structural: {
     team?: string;
@@ -465,9 +472,17 @@ function evaluateGates(a: Person, b: Person, lens: Lens): GateState {
 // Term scores — each in [0,1]; every form cites PILLARS §2/§4
 // ---------------------------------------------------------------------------
 
+/**
+ * The degraded score of any unmeasured declared term: the neutral midpoint, with
+ * the weights untouched (AUDIT S15). Shared by every declared variable since D20
+ * stopped asking the declared round, so a room where nobody answered it ranks on
+ * the latents and the structure rather than on fabricated extremes.
+ */
+const NEUTRAL = 0.5;
+
 /** Normalized, inverted re-contact score: shorter re-contact latency = better. */
 function distanceScore(band: number | undefined): number {
-  if (band === undefined) return 0.5; // degraded: neutral midpoint, weights untouched (AUDIT S15)
+  if (band === undefined) return NEUTRAL;
   return 1 - clamp01(band / 3);
 }
 
@@ -527,21 +542,26 @@ function termAgency(
 function termLifeShape(a: Person, b: Person, lens: Lens): number {
   const la = a.declared.lifeShape;
   const lb = b.declared.lifeShape;
-  const capA = clamp01(la.capacityHoursBand / 3);
-  const capB = clamp01(lb.capacityHoursBand / 3);
+  const capA = capacityUnit(la.capacityHoursBand);
+  const capB = capacityUnit(lb.capacityHoursBand);
   if (lens === "romantic") {
-    const pairs: Array<[number, number]> = [
+    const pairs: Array<[number | undefined, number | undefined]> = [
       [la.moneyPosture, lb.moneyPosture],
       [la.rootedness, lb.rootedness],
       [la.familyGravity, lb.familyGravity],
       [capA, capB],
     ];
     let s = 0;
-    for (const [x, y] of pairs)
-      s += Math.exp(-((x - y) ** 2) / (2 * LIFESHAPE_SIGMA ** 2));
+    for (const [x, y] of pairs) s += gaussianSimilarity(x, y);
     return s / pairs.length;
   }
   if (lens === "business") {
+    // Unmeasured on either side: there is no gap to grade (S15).
+    if (
+      la.capacityHoursBand === undefined ||
+      lb.capacityHoursBand === undefined
+    )
+      return NEUTRAL;
     const gap = Math.min(
       3,
       Math.abs(la.capacityHoursBand - lb.capacityHoursBand)
@@ -549,12 +569,30 @@ function termLifeShape(a: Person, b: Person, lens: Lens): number {
     return CAPACITY_GAP_BUSINESS[gap]; // full-time vs nights-and-weekends = resentment engine
   }
   // friendship: level (plain mean, γ=0) on capacity hours + chronotype window overlap
-  const level = (capA + capB) / 2;
-  const chronoGap = Math.min(
-    3,
-    Math.abs(a.declared.chronotype - b.declared.chronotype)
-  );
-  return 0.5 * level + 0.5 * CHRONO_OVERLAP[chronoGap];
+  const level = ((capA ?? NEUTRAL) + (capB ?? NEUTRAL)) / 2;
+  return 0.5 * level + 0.5 * chronoOverlap(a, b);
+}
+
+/** The 0..3 capacity band as a 0..1 level; stays absent when unmeasured. */
+function capacityUnit(band: number | undefined): number | undefined {
+  return band === undefined ? undefined : clamp01(band / 3);
+}
+
+/** Gaussian kernel on two 0..1 values; neutral when either side is unmeasured. */
+function gaussianSimilarity(
+  x: number | undefined,
+  y: number | undefined
+): number {
+  if (x === undefined || y === undefined) return NEUTRAL;
+  return Math.exp(-((x - y) ** 2) / (2 * LIFESHAPE_SIGMA ** 2));
+}
+
+/** Chronotype window overlap by band gap; neutral when either side is unmeasured. */
+function chronoOverlap(a: Person, b: Person): number {
+  const ca = a.declared.chronotype;
+  const cb = b.declared.chronotype;
+  if (ca === undefined || cb === undefined) return NEUTRAL;
+  return CHRONO_OVERLAP[Math.min(3, Math.abs(ca - cb))];
 }
 
 /**
@@ -570,11 +608,7 @@ function termCommonGround(a: Person, b: Person): number {
   const union = ta.size + tb.size - inter;
   const jaccard = union === 0 ? 0 : inter / union; // degraded: no tags → 0, no renorm
   const kernel = 1 - Math.exp(-TAG_KERNEL_K * jaccard);
-  const chronoGap = Math.min(
-    3,
-    Math.abs(a.declared.chronotype - b.declared.chronotype)
-  );
-  return TAG_WEIGHT * kernel + CHRONO_WEIGHT * CHRONO_OVERLAP[chronoGap];
+  return TAG_WEIGHT * kernel + CHRONO_WEIGHT * chronoOverlap(a, b);
 }
 
 /**

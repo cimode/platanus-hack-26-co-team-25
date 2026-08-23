@@ -1,8 +1,10 @@
 import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
 import { createGeneratedBlockRepository } from "./adapters/db/generated-block-repository";
+import { createGenerationClaimsRepository } from "./adapters/db/generation-claims-repository";
 import { createLatentRepository } from "./adapters/db/latent-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
+import { createQuizPoolRepository } from "./adapters/db/quiz-pool-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
 import { createDbRoster } from "./adapters/db/roster";
@@ -11,12 +13,14 @@ import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import { createDbTimelines } from "./adapters/timeline";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
+import type { GenerationClaims } from "./ports/generation-claims";
 import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
 import type { PhotoStore } from "./ports/photo-store";
 import type { ProfilePort } from "./ports/profile";
+import type { QuizPoolRepository } from "./ports/quiz-pool";
 import type { RankingPort } from "./ports/ranking";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
@@ -57,6 +61,10 @@ export interface Deps {
   llm: LlmPort;
   roster: ParticipantsPort;
   generatedBlocks: GeneratedBlockRepository;
+  /** The per-batch and per-pool-slot locks the generation chain takes. */
+  claims: GenerationClaims;
+  /** The room's pre-authored batch-1 sets. */
+  pool: QuizPoolRepository;
   participants: ParticipantRepository;
   rooms: RoomRepository;
   responses: ResponseRepository;
@@ -76,6 +84,8 @@ export type ServerDeps = Pick<
   | "llm"
   | "roster"
   | "generatedBlocks"
+  | "claims"
+  | "pool"
   | "participants"
   | "rooms"
   | "responses"
@@ -143,6 +153,10 @@ function rankingDeps(): PrepareResultsDeps {
  * model is Sonnet behind AI Gateway: `generateQuizBatch` only ever sees an
  * `LlmPort`, which is why its tests pass `stubLlm()` and touch no network.
  *
+ * The result is a structural superset of every use case's deps interface
+ * (`GenerationDeps`, `QuizProgressDeps`, ...), so a screen passes
+ * `serverDeps()` whole and TypeScript picks the members the use case names.
+ *
  * Like the database members it is a getter, so a page that needs neither a model
  * nor a connection opens neither.
  *
@@ -176,6 +190,12 @@ export function serverDeps(): ServerDeps {
     },
     get generatedBlocks() {
       return createGeneratedBlockRepository(getDb());
+    },
+    get claims() {
+      return createGenerationClaimsRepository(getDb());
+    },
+    get pool() {
+      return createQuizPoolRepository(getDb());
     },
     get participants() {
       return createParticipantRepository(getDb());

@@ -128,3 +128,54 @@ default accent here.
 Mobile frames at 390×844 first. Real Spanish copy from above, and at least one frame with
 deliberately long options to prove the layout holds. Show rest, most-selected,
 most+least-selected, and a between-batch moment. Name tokens, never invent hex.
+
+---
+
+## 8. As built — "B · Diálogo"
+
+Decided by the product owner from an interactive mock-up, 2026-08-23. The nine
+questions of §5, answered in code (`src/components/quiz/`):
+
+1. **The 2×2 is gone.** Four full-width rows, an RPG dialogue menu: a faint `▸`
+   cursor in the gutter, the text, `min-h-14`, `border-2 border-border bg-card
+   shadow-card rounded-xl`. They centre in whatever height the bubble leaves.
+2. **Most** lifts (`-translate-y-0.5 border-primary bg-primary-tint shadow-toy`,
+   cursor lit in `text-primary`) and says "Más yo" in mono at the row's end.
+   **Least** (most+least mode only) sits pressed (`translate-y-1 shadow-none
+   bg-surface-alt border-dashed border-ink-faint`), struck through, cursor `✕`,
+   "Menos yo". Both carry a word and a shape; colour is never the only cue.
+3. **At rest the four are identical.** Same fill, ring, weight and cursor; the
+   shuffle (`shownOrderFor`) means there is no first row either.
+4. **The scenario is told by the participant's own avatar** (`scene-stage.tsx`):
+   the stored plate (`participants.avatar`, drawn with the emotes library's
+   `AvatarSprite` so it is the same body as in the room) stands on the left,
+   feet on the baseline of a speech bubble (`bg-card border-2 border-border
+   rounded-2xl shadow-card`, a CSS two-triangle tail, no image) that carries a
+   mono eyebrow "escena N de 15" and the scenario in Nunito Sans semibold.
+   Above 160 characters the text steps down one size; it is never truncated.
+5. **Progress:** the flow's one bar (`FlowProgress`, 16 steps: registration +
+   15 blocks, `aria-valuenow = 1 + position`) under a header with the mono
+   counter "N/15" and, from block 2, the ghost "Atrás" link.
+6. **Nothing happens between batches.** The "Tanda N de 3" beats are gone with
+   the inline generation they covered; only the opening moment survives, told
+   in the same bubble. A participant who outruns the writer meets
+   `GenerationWait` — the same stage, "Escribiendo tus preguntas…", refreshing
+   every 3s until the rows hold the block.
+7. **Nothing fills the rows but type**: there is no empty space to fill once a
+   row is one line of text with a cursor.
+8. **Back** costs one header slot, no layout.
+9. **Motion:** the press (down one step, shadow gone — the system's pressed
+   pattern) and the sprite, which plays its `celebrate` clip when "Más yo"
+   lands. Both stop under `prefers-reduced-motion`.
+
+**Single pick is the default** (`HOOKAI_QUIZ_MOST_LEAST=1` restores two marks).
+Each row is `<button type="submit" name="mostKey" value={key}>`, so a tap
+answers the block with no JavaScript; hydrated, the island holds the form
+~650ms so the press and the reaction read, ignores a second tap, then submits
+with that row as the submitter. There is no "Siguiente" in this mode; the hint
+reads "Toca la que más se parece a ti". Most+least keeps the hidden inputs and
+an explicit "Siguiente ▸" / "Terminar ▸".
+
+Budget at 390×844 with a 220-character scenario and four 8-word options:
+header ≈76px, stage ≈240px, rows ≈292px, hint and padding ≈60px — under the
+fold with room to spare, and `e2e/quiz.spec.ts` AC-1 asserts it.

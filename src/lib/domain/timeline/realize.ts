@@ -100,10 +100,14 @@ function soloTag(p: Person, shared: string[], fallback: string): string {
   return p.declared.tags.map(lc).find((t) => !shared.includes(t)) ?? fallback;
 }
 
-/** [more all-in, steadier] by declared capacity hours band (tie → [a, b]). */
+/**
+ * [more all-in, steadier] by declared capacity hours band (tie → [a, b]).
+ * An unmeasured band (D20: the declared round is no longer asked) sits at the
+ * midpoint, like `byDistance` already does, so it never wins the ordering.
+ */
 function byCapacity(c: RealizeCtx): [Person, Person] {
-  const ca = c.a.declared.lifeShape.capacityHoursBand;
-  const cb = c.b.declared.lifeShape.capacityHoursBand;
+  const ca = c.a.declared.lifeShape.capacityHoursBand ?? 1.5;
+  const cb = c.b.declared.lifeShape.capacityHoursBand ?? 1.5;
   return cb > ca ? [c.b, c.a] : [c.a, c.b];
 }
 
@@ -116,8 +120,8 @@ function byDistance(c: RealizeCtx): [Person, Person] {
 
 /** [less rooted (the mover), more rooted] by declared rootedness. */
 function byRootedness(c: RealizeCtx): [Person, Person] {
-  const ra = c.a.declared.lifeShape.rootedness;
-  const rb = c.b.declared.lifeShape.rootedness;
+  const ra = c.a.declared.lifeShape.rootedness ?? 0.5;
+  const rb = c.b.declared.lifeShape.rootedness ?? 0.5;
   return rb < ra ? [c.b, c.a] : [c.a, c.b];
 }
 

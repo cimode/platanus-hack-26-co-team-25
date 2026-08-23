@@ -26,8 +26,8 @@ import { isSinglePick } from "./single-pick";
  * the rows rather than an arithmetic guess about where they are:
  *
  *   completed          → /results
- *   advanced           → /quiz          (the page shows the beat if one opens)
- *   re-answer (behind) → /quiz?start=1  (straight to the frontier, no beat)
+ *   advanced           → /quiz          (the block, or the wait if it is not written yet)
+ *   re-answer (behind) → /quiz?start=1  (straight to the frontier)
  *
  * `InstrumentVersionMismatchError` propagates for the same reason it does on
  * the page: a room on another structural version must not be written to.
@@ -35,9 +35,15 @@ import { isSinglePick } from "./single-pick";
 
 /**
  * The FormData contract, validated before a use case sees it (docs/domain.md
- * §7, docs/form-response.md §10). `leastKey` arrives as "" from the island when
- * no second mark is placed — the use case rejects that too, but the empty
- * string is a form artefact, so it is normalised here.
+ * §7, docs/form-response.md §10).
+ *
+ * `mostKey` arrives two ways and this reads both the same: under single pick
+ * each option row is `<button type="submit" name="mostKey" value="c">`, so
+ * the browser -- with or without JavaScript -- posts the SUBMITTER's name and
+ * value as the field; under most+least it is a hidden input the island keeps.
+ * `leastKey` is absent under single pick and "" from the island when no second
+ * mark is placed -- the use case rejects that too, but the empty string is a
+ * form artefact, so it is normalised here.
  */
 const KEY = z.enum(["a", "b", "c", "d"] satisfies OptionKey[]);
 

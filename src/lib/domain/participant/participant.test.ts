@@ -130,7 +130,8 @@ describe("floor", () => {
       businessGate: BUSINESS_GATE,
       acquaintances: [],
     };
-    // B: photo and consent, but quit during the declared round.
+    // B: photo and consent, and no declared band at all -- which since D20 is
+    // every participant, because the declared round is no longer asked.
     const b: RankableParticipant = {
       participant: participantFixture("b", {
         declared: { ...NO_BANDS },
@@ -165,8 +166,11 @@ describe("floor", () => {
       expect(floorReason(a, lens), lens).toBeNull();
       expect(meetsFloor(a, lens), lens).toBe(true);
 
-      expect(floorReason(b, lens), lens).toBe("declared-incomplete");
-      expect(meetsFloor(b, lens), lens).toBe(false);
+      // D20: the declared clause is gone from the floor. B ranks on the
+      // latents and the structure; the engine scores each unmeasured declared
+      // term at its neutral midpoint rather than on a fabricated zero.
+      expect(floorReason(b, lens), lens).toBeNull();
+      expect(meetsFloor(b, lens), lens).toBe(true);
 
       expect(floorReason(c, lens), lens).toBe("no-photo");
       expect(meetsFloor(c, lens), lens).toBe(false);
@@ -188,8 +192,9 @@ describe("floor", () => {
     expect(bandToUnit(1)).toBeCloseTo(1 / 3, 12);
     expect(bandToUnit(3)).toBe(1);
 
-    // A quiz abandoner ranks; a declared-round abandoner does not (§0), so
-    // "complete" has to mean all six bands and nothing less.
+    // `declared_at` is still only written for all six bands (the repository
+    // and the check constraint agree on it), even though nothing asks for
+    // them any more: "complete" has to mean all six and nothing less.
     expect(isDeclaredComplete(ALL_BANDS)).toBe(true);
     const bandKeys = [
       "moneyPosture",

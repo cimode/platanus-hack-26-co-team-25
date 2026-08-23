@@ -12,7 +12,6 @@ import type {
   GeneratedBlockRepository,
   StoredBlock,
 } from "../ports/generated-block-repository";
-import type { LlmPort } from "../ports/llm";
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { ResponseRepository } from "../ports/response-repository";
 import type { Room, RoomRepository } from "../ports/room-repository";
@@ -31,22 +30,16 @@ import {
  * `INSTRUMENT.version` (docs/domain.md §5 / §10.1(b) -- the structural
  * version) before reading a single response or generated block; then reads
  * progress from the rows alone -- first unanswered position, its batch,
- * answered count, `completed` from `quizCompletedAt` -- obtains *this
- * participant's* block for that position through
- * `ensureQuizBatch({ participantId, batch }, { llm, generatedBlocks })`
- * (docs/domain.md D16: stored `generated_blocks` rows, or authored and stored
- * inline, with the committed constant as the per-position fallback; never
- * the `INSTRUMENT` constant read directly) and returns the public block view
- * (no `pillar`, `keyed`, `focusPillar`, `domain` or `source`) with a
- * deterministic `shownOrder` (docs/domain.md §0, D10).
+ * answered count, `completed` from `quizCompletedAt` -- reads *this
+ * participant's* stored block for that position (docs/domain.md D16; never
+ * the `INSTRUMENT` constant, and never a model: the deps carry no `LlmPort`
+ * at all) and returns the public block view (no `pillar`, `keyed`,
+ * `focusPillar`, `domain` or `source`) with a deterministic `shownOrder`
+ * (docs/domain.md §0, D10). When the block is not stored yet the view is
+ * `pending`, with no block.
  *
- * All three tests use inline in-memory fakes of ParticipantRepository,
- * RoomRepository (bySlug, byId, create over one map keyed by room id,
- * recording every byId call), ResponseRepository (recording every read and
- * save), a GeneratedBlockRepository (byBatch, byParticipant, saveBatch over
- * one map keyed by participant id and position, recording every call) and an
- * LlmPort whose `generate` rejects and counts its calls -- no adapter import,
- * so the biome.json hexagon rule holds -- and no database.
+ * All fakes are inline and in-memory -- no adapter import, so the biome.json
+ * hexagon rule holds -- and no database.
  */
 
 const PARTICIPANT_ID = "11111111-1111-4111-8111-111111111111";
@@ -96,8 +89,6 @@ interface WorldOptions {
   quizCompletedAt?: Date | null;
   instrumentVersion?: string;
   blocks?: StoredBlock[];
-  /** Shared across worlds so "in the whole run" is countable. */
-  generateCalls?: { n: number };
 }
 
 function makeWorld(options: WorldOptions = {}) {
@@ -110,7 +101,6 @@ function makeWorld(options: WorldOptions = {}) {
     saveBatch: [],
     markQuizCompleted: 0,
   };
-  const generateCalls = options.generateCalls ?? { n: 0 };
 
   const participant: Participant = {
     id: PARTICIPANT_ID,
@@ -118,7 +108,7 @@ function makeWorld(options: WorldOptions = {}) {
     name: "Ana Ramírez",
     gender: "F",
     birthdate: "1996-05-04",
-    avatar: null,
+    avatar: "avatar3",
     photoUrl: null,
     team: null,
     track: null,
@@ -252,18 +242,10 @@ function makeWorld(options: WorldOptions = {}) {
     },
   };
 
-  const llm: LlmPort = {
-    generate() {
-      generateCalls.n++;
-      return Promise.reject(new Error("the model is down"));
-    },
-  };
-
   const deps: QuizProgressDeps = {
     participants,
     responses,
     rooms: roomRepository,
-    llm,
     generatedBlocks,
   };
 
@@ -276,7 +258,6 @@ function makeWorld(options: WorldOptions = {}) {
       generatedBlocks,
     },
     calls,
-    generateCalls,
     participant,
     responseRows,
     blockRows,
@@ -307,17 +288,19 @@ function expectPublicOnly(block: PublicBlock | null | undefined): PublicBlock {
 }
 
 describe("quizProgress", () => {
-  it("AC-8 · resumes at the first unanswered position with its batch and count, serving the participant's stored block through generatedBlocks.byBatch without calling generate, serves block 15 pre-marked when all rows exist unmarked, clamps at, keeps shownOrder stable without leaking pillar, keyed, focusPillar, domain or source, and reads the room by id exactly once per resolved participant", async () => {
-    const generateCalls = { n: 0 };
+  it("AC-8 · resumes at the first unanswered position with its batch and count, serving the participant's stored block through generatedBlocks.byBatch, serves block 15 pre-marked when all rows exist unmarked, clamps at, keeps shownOrder stable without leaking pillar, keyed, focusPillar, domain or source, carries roomId and avatar, and reads the room by id exactly once per resolved participant", async () => {
     const all = Array.from({ length: 15 }, (_, index) => index + 1);
 
     // Responses at {1, 2, 3, 5}: the frontier is the first *gap*, not the count.
-    const gapped = makeWorld({ answered: [1, 2, 3, 5], generateCalls });
+    const gapped = makeWorld({ answered: [1, 2, 3, 5] });
     const atGap = await quizProgress({ sessionToken: TOKEN }, gapped.deps);
     expect(atGap?.nextPosition).toBe(4);
     expect(atGap?.batch).toBe(1);
     expect(atGap?.answeredCount).toBe(4);
     expect(atGap?.completed).toBe(false);
+    expect(atGap?.pending).toBe(false);
+    expect(atGap?.roomId).toBe(ROOM_ID);
+    expect(atGap?.avatar).toBe("avatar3");
     expect(expectPublicOnly(atGap?.block).scenario).toBe("escena 4");
     expect(gapped.calls.roomsById).toEqual([ROOM_ID]);
     expect(gapped.calls.byBatch).toContainEqual({
@@ -328,7 +311,6 @@ describe("quizProgress", () => {
     // Positions 1-10 answered: block 11, which is batch 3.
     const tenDone = makeWorld({
       answered: Array.from({ length: 10 }, (_, index) => index + 1),
-      generateCalls,
     });
     const atEleven = await quizProgress({ sessionToken: TOKEN }, tenDone.deps);
     expect(atEleven?.nextPosition).toBe(11);
@@ -342,23 +324,18 @@ describe("quizProgress", () => {
     });
 
     // Completed: the timestamp is what "done" means, and no block is fetched.
-    const done = makeWorld({
-      answered: all,
-      quizCompletedAt: NOW,
-      generateCalls,
-    });
+    const done = makeWorld({ answered: all, quizCompletedAt: NOW });
     const finished = await quizProgress({ sessionToken: TOKEN }, done.deps);
     expect(finished?.completed).toBe(true);
+    expect(finished?.pending).toBe(false);
     expect(finished?.block ?? null).toBeNull();
+    expect(finished?.roomId).toBe(ROOM_ID);
+    expect(finished?.avatar).toBe("avatar3");
     expect(done.calls.byBatch).toHaveLength(0);
     expect(done.calls.roomsById).toEqual([ROOM_ID]);
 
     // Fifteen rows and a null timestamp: block 15 again, pre-marked.
-    const unmarked = makeWorld({
-      answered: all,
-      quizCompletedAt: null,
-      generateCalls,
-    });
+    const unmarked = makeWorld({ answered: all, quizCompletedAt: null });
     const lastBlock = await quizProgress(
       { sessionToken: TOKEN },
       unmarked.deps
@@ -369,7 +346,7 @@ describe("quizProgress", () => {
     expect(lastBlock?.existing).toEqual(responseAt(15));
 
     // Untouched.
-    const fresh = makeWorld({ answered: [], generateCalls });
+    const fresh = makeWorld({ answered: [] });
     const opening = await quizProgress({ sessionToken: TOKEN }, fresh.deps);
     expect(opening?.nextPosition).toBe(1);
     expect(opening?.batch).toBe(1);
@@ -377,7 +354,7 @@ describe("quizProgress", () => {
     expect(expectPublicOnly(opening?.block).scenario).toBe("escena 1");
 
     // An unknown session is null, and never reaches the room or the blocks.
-    const stranger = makeWorld({ answered: [], generateCalls });
+    const stranger = makeWorld({ answered: [] });
     const nobody = await quizProgress(
       { sessionToken: UNKNOWN_TOKEN },
       stranger.deps
@@ -396,10 +373,7 @@ describe("quizProgress", () => {
     // ...and it is not one order repeated for all fifteen positions.
     const orders: string[] = [];
     for (const position of all) {
-      const world = makeWorld({
-        answered: all.slice(0, position - 1),
-        generateCalls,
-      });
+      const world = makeWorld({ answered: all.slice(0, position - 1) });
       const view = await quizProgress({ sessionToken: TOKEN }, world.deps);
       expect(view?.nextPosition).toBe(position);
       expect(view?.shownOrder).toBe(shownOrderFor(PARTICIPANT_ID, position));
@@ -413,10 +387,7 @@ describe("quizProgress", () => {
     expect(new Set(orders).size).toBeGreaterThan(1);
 
     // `at` ahead of the frontier is clamped to it; nobody jumps forward.
-    const clamped = makeWorld({
-      answered: [1, 2, 3, 4, 5, 6, 7],
-      generateCalls,
-    });
+    const clamped = makeWorld({ answered: [1, 2, 3, 4, 5, 6, 7] });
     const behind = await quizProgress(
       { sessionToken: TOKEN, at: 12 },
       clamped.deps
@@ -428,17 +399,13 @@ describe("quizProgress", () => {
       batch: 2,
     });
 
-    // Stored blocks are served; the model is never woken up.
-    expect(generateCalls.n).toBe(0);
+    // A read never writes a block.
+    expect(clamped.calls.saveBatch).toHaveLength(0);
+    expect(gapped.calls.saveBatch).toHaveLength(0);
   });
 
   it("AC-10 · throws InstrumentVersionMismatchError naming v0 and v1 before any response or generated_blocks read, returns null for an unknown token without reading the room, recovers once the version matches, and throws naming the roomId when byId returns null", async () => {
-    const generateCalls = { n: 0 };
-    const world = makeWorld({
-      answered: [1, 2, 3],
-      instrumentVersion: "v0",
-      generateCalls,
-    });
+    const world = makeWorld({ answered: [1, 2, 3], instrumentVersion: "v0" });
 
     const mismatch = await quizProgress(
       { sessionToken: TOKEN },
@@ -455,7 +422,6 @@ describe("quizProgress", () => {
     expect(world.calls.responseSaves).toHaveLength(0);
     expect(world.calls.byBatch).toHaveLength(0);
     expect(world.calls.byParticipant).toHaveLength(0);
-    expect(generateCalls.n).toBe(0);
 
     // The session is resolved first, so an unknown token never reads a room.
     const roomReadsBefore = world.calls.roomsById.length;
@@ -489,28 +455,32 @@ describe("quizProgress", () => {
     expect(world.calls.byBatch).toHaveLength(blockCallsAfterRecovery);
   });
 
-  it("AC-12 · with an empty GeneratedBlockRepository and a rejecting LlmPort, quizProgress authors batch 1 inline as five fallback rows equal to the constant's blocks, answerBlock advances through positions 1..5, and the next quizProgress authors batch 2 the same way -- generate called exactly twice", async () => {
-    const generateCalls = { n: 0 };
-    const world = makeWorld({ answered: [], blocks: [], generateCalls });
+  it("AC-12 · with an empty GeneratedBlockRepository the view is pending with no block and nothing written; once batch 1 is stored the block is served, answerBlock advances through 1..5, and position 6 is pending again until batch 2 lands", async () => {
+    const world = makeWorld({ answered: [], blocks: [] });
 
     const opening = await quizProgress({ sessionToken: TOKEN }, world.deps);
+    expect(opening?.pending).toBe(true);
     expect(opening?.nextPosition).toBe(1);
     expect(opening?.batch).toBe(1);
-    const firstBlock = expectPublicOnly(opening?.block);
-    expect(firstBlock.scenario).toBe(INSTRUMENT.blocks[0].scenario);
-    expect(firstBlock.options.map((option) => option.text)).toEqual(
-      INSTRUMENT.blocks[0].options.map((option) => option.text)
-    );
+    expect(opening?.completed).toBe(false);
+    expect(opening?.block).toBeNull();
+    expect(opening?.shownOrder).toBeNull();
+    expect(opening?.existing).toBeNull();
+    expect(opening?.roomId).toBe(ROOM_ID);
+    expect(opening?.avatar).toBe("avatar3");
+    // A read generates nothing and writes nothing.
+    expect(world.calls.saveBatch).toHaveLength(0);
+    expect(world.blockRows.size).toBe(0);
 
-    // The whole batch was authored and stored -- as fallbacks, since the model
-    // rejected -- and the model was asked exactly once.
-    expect(world.blockRows.size).toBe(5);
-    for (const position of [1, 2, 3, 4, 5]) {
-      const stored = world.blockRows.get(`${PARTICIPANT_ID}:${position}`);
-      expect(stored?.source).toBe("fallback");
-      expect(stored?.block).toEqual(INSTRUMENT.blocks[position - 1]);
-    }
-    expect(generateCalls.n).toBe(1);
+    // The chain lands batch 1 (as the pipeline would, in the background).
+    await world.deps.generatedBlocks.saveBatch(
+      PARTICIPANT_ID,
+      seededBlocks().filter((stored) => stored.block.batch === 1)
+    );
+    const ready = await quizProgress({ sessionToken: TOKEN }, world.deps);
+    expect(ready?.pending).toBe(false);
+    expect(expectPublicOnly(ready?.block).scenario).toBe("escena 1");
+    expect(ready?.shownOrder).toBe(shownOrderFor(PARTICIPANT_ID, 1));
 
     for (const position of [1, 2, 3, 4, 5]) {
       const result = await answerBlock(
@@ -527,27 +497,47 @@ describe("quizProgress", () => {
       expect(result.nextPosition).toBe(position + 1);
     }
     expect(world.responseRows.size).toBe(5);
-    for (const position of [1, 2, 3, 4, 5]) {
-      expect(world.responseRows.get(position)?.shownOrder).toBe(
-        shownOrderFor(PARTICIPANT_ID, position)
-      );
-    }
 
+    // Batch 2 is not there yet: pending at 6, and still nothing generated.
     const second = await quizProgress({ sessionToken: TOKEN }, world.deps);
+    expect(second?.pending).toBe(true);
     expect(second?.nextPosition).toBe(6);
     expect(second?.batch).toBe(2);
-    const sixthBlock = expectPublicOnly(second?.block);
-    expect(sixthBlock.scenario).toBe(INSTRUMENT.blocks[5].scenario);
-    expect(sixthBlock.options.map((option) => option.text)).toEqual(
-      INSTRUMENT.blocks[5].options.map((option) => option.text)
-    );
+    expect(second?.answeredCount).toBe(5);
+    expect(second?.block).toBeNull();
+    expect(world.blockRows.size).toBe(5);
 
-    expect(world.blockRows.size).toBe(10);
-    for (let position = 1; position <= 10; position++) {
-      const stored = world.blockRows.get(`${PARTICIPANT_ID}:${position}`);
-      expect(stored?.source).toBe("fallback");
-      expect(stored?.block).toEqual(INSTRUMENT.blocks[position - 1]);
-    }
-    expect(generateCalls.n).toBe(2);
+    // Looking back at an answered block still works while 6 is pending.
+    const back = await quizProgress({ sessionToken: TOKEN, at: 3 }, world.deps);
+    expect(back?.pending).toBe(false);
+    expect(back?.nextPosition).toBe(3);
+    expect(expectPublicOnly(back?.block).scenario).toBe("escena 3");
+    expect(back?.existing?.position).toBe(3);
+  });
+
+  it("treats a row stored as fallback as not authored -- pending -- unless the participant already answered it", async () => {
+    const fallbackOnly = INSTRUMENT.blocks.slice(0, 5).map((block) => ({
+      block,
+      source: "fallback" as const,
+    }));
+    const world = makeWorld({ answered: [1], blocks: fallbackOnly });
+
+    // Position 2: a fallback row nobody answered is a block nobody should read.
+    const pending = await quizProgress({ sessionToken: TOKEN }, world.deps);
+    expect(pending?.nextPosition).toBe(2);
+    expect(pending?.pending).toBe(true);
+    expect(pending?.block).toBeNull();
+
+    // Position 1 was answered against that row: it is the question the
+    // answer refers to, so looking back shows it.
+    const answered = await quizProgress(
+      { sessionToken: TOKEN, at: 1 },
+      world.deps
+    );
+    expect(answered?.pending).toBe(false);
+    expect(expectPublicOnly(answered?.block).scenario).toBe(
+      INSTRUMENT.blocks[0].scenario
+    );
+    expect(world.calls.saveBatch).toHaveLength(0);
   });
 });

@@ -166,9 +166,8 @@ describe("registerParticipant", () => {
     expect(rows.get(participant.id)?.dataConsentAt).toEqual(TODAY);
 
     expect(rows.get(participant.id)?.photoUrl).toBe(participant.photoUrl);
-    expect(intakeStepOf(await repo.bySessionToken(sessionToken))).toBe(
-      "declared"
-    );
+    // D20: registration hands off straight to the questions.
+    expect(intakeStepOf(await repo.bySessionToken(sessionToken))).toBe("quiz");
   });
 
   it("AC-2 · a 15-year-old and a missing photo are both refused before a row exists", async () => {
@@ -210,7 +209,7 @@ describe("registerParticipant", () => {
     expect(row.photoUrl).toBeNull();
 
     // The same session token, followed, lands back on the registration screen
-    // -- never in the declared round.
+    // -- never in the quiz.
     const token = failure.sessionToken as SessionToken;
     const resumed = await repo.bySessionToken(token);
     expect(resumed?.photoUrl).toBeNull();

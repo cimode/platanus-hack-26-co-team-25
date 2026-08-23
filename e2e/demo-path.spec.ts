@@ -383,10 +383,10 @@ test.describe("1b · the room", () => {
 });
 
 test.describe("demo path", () => {
-  // The intake leg of the demo path lives in e2e/intake.spec.ts (issue #6):
-  // register -> photo -> consent on a 390px viewport, per-lens consent
-  // defaulting to off, and the three safety invariants around it. It is not
-  // duplicated here -- one acceptance criterion, one test.
+  // The intake leg of the demo path lives in e2e/intake.spec.ts (issue #6,
+  // reshaped by #42 and D20): one registration screen on a 390px viewport
+  // handing straight over to /quiz, and the safety invariants around it. It
+  // is not duplicated here -- one acceptance criterion, one test.
 
   // TODO: un-skip when lens selection exists.
   // Acceptance criteria: choosing a lens must change --primary on the subtree.

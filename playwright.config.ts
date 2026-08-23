@@ -114,8 +114,13 @@ export default defineConfig({
     // room global setup seeds, so `/` lists the cast instead of nobody. A
     // developer's `.env` naming the real demo room cannot override it, which
     // is the point -- a test run must never read `platanus-hack-26-bogota`.
+    //
+    // Pool warming is off: every /intake and /qr render would otherwise author
+    // whole forms against the real gateway for a room nobody answers in -- the
+    // specs seed the blocks they need (e2e/helpers, e2e/intake.spec.ts).
     env: {
       HOOKAI_ROOM_SLUG: ROOM_SLUG,
+      HOOKAI_QUIZ_POOL_TARGET: "0",
       ...(GATED ? { SITE_GATE_PASSWORD: GATE_PASSWORD } : {}),
     },
   },

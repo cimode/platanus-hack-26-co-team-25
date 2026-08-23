@@ -7,7 +7,7 @@ import type {
   ParticipantId,
 } from "../../src/lib/domain/participant";
 import { avatarFor } from "../../src/lib/domain/participant/avatar";
-import { SEEDED_PHOTO } from "./intake-declared";
+import { SEEDED_PHOTO } from "./intake";
 
 /**
  * The cast the room screens are tested against.

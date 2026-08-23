@@ -6,7 +6,8 @@
  * (`InstrumentVersionMismatchError` from `quiz-progress.ts`), then loads *this
  * participant's* block at `position` through
  * `generatedBlocks.byBatch(participantId, batchOf(position))` — a write never
- * authors, so `ensureQuizBatch` and `saveBatch` are never called here (D16) —
+ * authors, so neither `continueQuizGeneration` nor `saveBatch` is called here
+ * (D16/D20) —
  * and validates the submitted keys against that block before anything is
  * written.
  *

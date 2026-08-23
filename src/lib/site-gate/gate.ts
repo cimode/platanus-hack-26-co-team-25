@@ -91,7 +91,7 @@ export function safeNextPath(raw: string | null | undefined): string {
  * method -- a Server Action is a POST to the page route:
  *
  * - `/qr` -- the code the host holds up (issue #57). Exact path.
- * - `/intake` and everything under it -- registration and the declared round.
+ * - `/intake` and everything under it -- registration.
  * - `/quiz` and everything under it -- the fifteen blocks.
  * - `/results` -- where block 15 hands off. Exact path: `/results/<lens>` is
  *   the reveal (issue #10), and the reveal is the product.
