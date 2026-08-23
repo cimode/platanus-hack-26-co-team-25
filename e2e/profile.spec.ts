@@ -20,10 +20,23 @@ async function open(page: Page, path: string, lens = "romantic") {
   return page.goto(path);
 }
 
-/** The visible 404 text. NOT the whole document: Next echoes router state that
- *  differs between two identical requests to the SAME url, so comparing raw
- *  HTML would fail for a reason that has nothing to do with disclosure. */
-const bodyText = (page: Page) => page.evaluate(() => document.body.innerText);
+/**
+ * The visible 404 text, once there IS any.
+ *
+ * NOT the whole document: Next echoes router state that differs between two
+ * identical requests to the SAME url, so comparing raw HTML would fail for a
+ * reason that has nothing to do with disclosure.
+ *
+ * And polled, because reading it immediately returned "" for one of the two
+ * 404s under parallel load -- which turned a disclosure test into a race
+ * between two page loads.
+ */
+async function bodyText(page: Page): Promise<string> {
+  await expect
+    .poll(() => page.evaluate(() => document.body.innerText.trim().length))
+    .toBeGreaterThan(0);
+  return page.evaluate(() => document.body.innerText);
+}
 
 test.describe("1d · the profile", () => {
   test("AC-PROF-1 · a ranked person renders under their own name", async ({
@@ -155,8 +168,14 @@ test.describe("1d · the profile", () => {
     page,
   }) => {
     await open(page, `/profile/${SUBJECT}`);
-    const moving = await page.evaluate(() => document.getAnimations().length);
-    expect(moving, "the stage should be alive by default").toBeGreaterThan(0);
+    // Polled for the same reason as `simulate.spec.ts`: a single sample under
+    // parallel load measures when the dev server painted, not whether the
+    // avatar moves.
+    await expect
+      .poll(() => page.evaluate(() => document.getAnimations().length), {
+        message: "the stage should be alive by default",
+      })
+      .toBeGreaterThan(0);
 
     await page.emulateMedia({ reducedMotion: "reduce" });
     await open(page, `/profile/${SUBJECT}`);

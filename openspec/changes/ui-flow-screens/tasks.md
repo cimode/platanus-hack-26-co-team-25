@@ -46,7 +46,7 @@ unit targets its immediate predecessor. No task below names a base branch.
 | U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | **DONE** — `feat/ui-flow-u6-rank` |
 | U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | **DONE** — `feat/ui-flow-u7-profile` |
 | ~~U8~~ | ~~timeline fixture + `simulateLife` + composition ×1~~ | — | — | — | **DISSOLVED by R9/R10** |
-| U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | **Ready** |
+| U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | **DONE** — `feat/ui-flow-u9-simulate` |
 
 **Numbers are NOT reused.** U4, U5 and U8 stay struck through rather than
 renumbering U6/U7/U9 down, because `apply-progress.md`, six Engram observations
@@ -579,9 +579,18 @@ trust it.
 
 The spec wants "P consents to friendship but not romance ⇒ friendship renders,
 romance 404s". The fixture carries no consent (R15), so that scenario has no
-subject. **The e2e asserts the reachable half of the same guarantee** — the same
-person's profile *differs* between lenses, i.e. this is not one global profile —
-and the test carries a comment saying which half it is testing and why. A test
+subject. The e2e asserts instead that the same person's profile *differs*
+between lenses, and the test carries a comment saying which half it tests.
+
+**Corrected after `sdd-verify`: this is NOT "the same underlying guarantee", and
+the first version of this row claimed it was.** The spec's scenario is about
+*reachability* — romance must 404. The substitute is about *variation*. Calling
+them the same is exactly the overclaim this row exists to avoid. The verifier
+also measured what the substitute catches: it passes at **2 of 3** lenses,
+because for the tested pair business and friendship render identically and only
+romantic differs. `readings.size === 3` would fail today; `> 1` still fails on
+the "one order for three lenses" bug U6's probe caught, so it guards something
+real — just less than three lenses' worth. A test
 that quietly asserted something weaker than its AC id claims would be worse than
 no test.
 
@@ -600,55 +609,116 @@ Two loose ends U2 logged against this unit and R9 answered instead:
 - `TimelinePort.simulate` taking `subjectId: string` rather than `ViewerId` —
   moot, the port is gone. `mockSimulatedLife` takes `Participant` directly.
 
-## Phase U9 — `/simulate/[id]`, screen 1f (~420)
+## Phase U9 — `/simulate/[id]`, screen 1f — **DONE**
 
-Depends on U3 and U7. The largest remaining unit and the only one near the
-400-line line — **if 9.0–9.2 alone pass ~300, stop and open the PR there**, then
-take the rail and the ending card as a second slice.
+- [x] 9.0 RED+GREEN: `src/components/simulate/mock.ts` —
+      `mockSimulatedLife(otherId, room, candidates)`. It takes the `RankedRoom`
+      screens 1c/1d already built, so eligibility is decided by the SAME ranking.
+      **It deliberately does not structurally satisfy `TimelinePort.simulate`** —
+      pretending to be an adapter buys a swap nobody will make, since #33
+      replaces the call site and not this signature. RED was 6 assertion
+      failures against a Fake-It `null`.
+- [x] 9.1 RED: all sixteen `EventKind` members present exactly once in every
+      simulation, so AC-SIM-5 always has 16 cards to count. Paired horizons land
+      in 8–14 / 5–10 and every event year sits inside its own horizon. **Both
+      `Ending` outcomes and both epilogue states are reachable in one roster** —
+      a probabilistic split would ship one branch of the ending card rendered by
+      nothing, which is the exact defect the 1c and 1d verifies found.
+- [x] 9.2 `src/app/simulate/[id]/page.tsx` — Server Component, viewer from the
+      impersonation cookie, `notFound()` on `null`. One check, not three.
+- [x] 9.3 `event-card.tsx` — exactly one chip via `tagFor(kind)`, never a lookup
+      this component owns. Per-item `pop-in` delay stays an inline style.
+- [x] 9.4 `timeline-rail.tsx` — the only client island;
+      `useDragScroll({ initial: "center" })`; holds one number (which card is
+      centred) that both the year pill and the walking pair read.
+- [x] 9.5 Year pill `Año {N} de {horizonYears}`, from data, narrowed by the union
+      so the friendship branch cannot render it. A source grep asserts no
+      component hardcodes a horizon. (AC-SIM-3, AC-SIM-4)
+- [x] 9.6 `timeline-path.tsx` — props are exactly `{ events, progress }`, and no
+      sibling reads layout geometry, so 1e replaces this one file. Plus
+      `walking-pair.tsx` on the existing `@utility walking`.
+- [x] 9.7 `ending-card.tsx` — TWO branches, never three: `"open"` is unreachable
+      by construction and writing a case for it would read as though it can
+      happen. No probability, percentage or survival fraction.
+- [x] 9.8 `Proponer encuentro` — a `<button type="button">`. Inert is the
+      requirement, not an omission: the e2e listens for non-GET requests and
+      asserts none is issued. (AC-SIM-8)
+- [x] 9.9 `offspringVisible` is imported by nothing under `src/app/**` or
+      `src/components/**` outside its own module, and `SimulatedLife` carries no
+      offspring field. (AC-PORT-8)
+- [x] 9.10 E2E `e2e/simulate.spec.ts` — **26/26** across both viewports.
 
-- [ ] 9.0 RED+GREEN: `src/components/simulate/mock.ts` —
-      `mockSimulatedLife({subjectId, otherId, lens})` returning `SimulatedLife |
-      null` from `@/lib/domain/reveal/timeline`, structurally satisfying
-      `TimelinePort.simulate` so issue #33 replaces it without touching a screen. **`null` for an unknown id, for a person absent
-      from `mockRankedRoom` under that lens, and for `otherId === subjectId`** —
-      resolved through the ranking mock, never a literal. (AC-SIM-1, AC-SIM-2)
-- [ ] 9.1 RED: the content must include **one event of each of the 16
-      `EventKind` members** across at least one pair, so AC-SIM-5 has a subject.
-      Romantic and business get a data-driven `horizonYears`; friendship returns
-      the branch that structurally has none. **Never hardcode 12** — a test greps
-      the module for a bare horizon literal. (AC-SIM-3, AC-SIM-4)
-- [ ] 9.2 `src/app/simulate/[id]/page.tsx` — Server Component, viewer from
-      `enterRoom` (R11), `notFound()` on `null`. (AC-SIM-1, AC-SIM-2)
-- [ ] 9.3 `src/components/simulate/event-card.tsx` — year, narrated text,
-      **exactly one** chip via `tagFor(kind)`; never two, never untagged.
-      Per-item `pop-in` delay stays an inline style. (AC-SIM-5)
-- [ ] 9.4 `src/components/simulate/timeline-rail.tsx` — the **only** client
-      island here; consumes `useDragScroll({ initial: "center" })` from U3;
-      events ascending by year. (AC-SIM-5)
-- [ ] 9.5 Year header pill `Año {N} de {horizonYears}` from data. **No literal
-      horizon anywhere in the component tree** — a test greps the sources.
-      Friendship renders no pill and no dissolution card; name
-      `FriendshipTimeline` to write that probe. (AC-SIM-3, AC-SIM-4)
-- [ ] 9.6 `src/components/simulate/timeline-path.tsx` — props are exactly
-      `{ events, progress }`; a third prop must fail `tsc`. No sibling reads
-      layout geometry, so 1e can replace this one file. Plus `walking-pair.tsx`
-      using the existing `@utility walking`. (AC-SIM-7)
-- [ ] 9.7 `src/components/simulate/ending-card.tsx` — narrates `Ending`:
-      `apart` names the year and renders `epilogue` after it in document order;
-      `together` says they reached the horizon. **Two variants only** — do not
-      write an `"open"` case, it is unreachable. No probability, percentage or
-      survival fraction. (AC-SIM-6)
-- [ ] 9.8 `Proponer encuentro` CTA — role + accessible name, keyboard focusable,
-      **inert**: no Server Action, no write. (AC-SIM-8)
-- [ ] 9.9 RED (was 8.5): `offspringVisible` is consulted nowhere in the render
-      path and `SimulatedLife` carries no offspring field in this change.
-      (AC-PORT-8)
-- [ ] 9.10 E2E `e2e/simulate.spec.ts` — 16 kinds each render exactly one chip and
-      **the chip's TOKEN is one of the seven** (R8 — never assert the label,
-      there are 16 of those); `ritual` resolves from `--tag-ritual*` while the
-      `high` pill resolves from `--band-high*`; self-simulation 404s;
-      consent-invariant DOM and no `/beb[eé]|hijo|offspring/i` name; 0 running
-      animations under reduced motion. (AC-SIM-3..9, AC-PORT-8)
+### 9.11 — the flake hunt found a real bug, not a flake
+
+`AC-SIM-7 · reduced motion` failed in **4 of 5** parallel runs, passed alone
+every time, and was green under `--workers=1`. The obvious reading is a timing
+flake. The actual message was `Expected 0, Received 1`.
+
+**One animation was surviving the reduced-motion guard, and it was ours.**
+`TimelinePath`'s wrapper carried `transition-[left] duration-500`. A running CSS
+transition IS an entry in `document.getAnimations()`, and `globals.css`'s block
+matches `[style*="animation"]` plus seven class names — none of which that
+wrapper has. It failed only intermittently because it depended on whether the
+scroll had settled when the count was taken.
+
+**The fix was not to widen the guard.** `progress` is driven by a scroll position
+that already updates continuously, so a 500ms ease on top of it was easing a
+value that never jumped — it made the pair LAG the drag. Deleting the transition
+fixed the guard and the feel in one line.
+
+Two genuine flakes were closed alongside it, both the same shape — **a single
+sample measuring the machine instead of the property**:
+
+| Test | Was | Now |
+|---|---|---|
+| AC-SIM-7 / AC-PROF-6 "is alive" | one `getAnimations()` sample right after `goto`; 0 before first paint under load | `expect.poll` — the property is "this page HAS animations", not "it has them at this instant" |
+| AC-SIM-2 / AC-PROF-2 "404 bodies match" | `innerText` read immediately; `""` for one of the two 404s, turning a disclosure test into a race between two page loads | polled until non-empty, then compared |
+
+The "is stopped" halves are deliberately **not** polled: polling for zero waits
+for a page to go quiet and calls that a pass, which inverts the guarantee.
+
+Proven by six consecutive clean parallel runs, 110/110 each.
+
+### 9.12 — probes proven live, and why one of them had to be a grep
+
+| Mutation | Probe | Observed |
+|---|---|---|
+| the horizon pill rendered under friendship | AC-SIM-4 | `Expected 0, Received 1` |
+| a chip painted from `bg-band-high` | AC-SIM-5 source guard | offender listed |
+
+The second needed a **source** guard, and why is the useful part: `--band-high`
+and `--tag-ritual` are declared byte-identical (`#fbe3de`), so a chip painted
+from the band token computes to exactly the tag token's value and **every
+runtime colour comparison says it is fine** — proven, by watching the colour
+test stay green under that mutation. AC-SIM-5 asks which token the chip resolves
+FROM, and that question only exists in the source. The colour assertion covers
+six of seven families; the grep covers the seventh, and the test says so instead
+of implying it covers all seven.
+
+The grep's first version matched `/band-/` anywhere and flagged the docblock that
+EXPLAINS the rule. A guard that fires on its own documentation is a guard people
+delete.
+
+### R18 — what U7's verify found
+
+`sdd-verify` returned **FAIL** on U7: 4 CRITICAL, 9 WARNING. **Every safety
+property it attacked held** — 404 bodies byte-identical at 18,567 bytes once the
+requester's own URL segment and Next's nonce are removed; none of the subject's
+five non-shared tags in the HTML or the flight payload; no viewer id on the wire.
+The failures were coverage and disclosure, not behaviour. All four are closed:
+the empty-tags assertion that could not fail, the photoless placeholder that
+could not render, the untested consent-invariance claim, and a missing
+apply-progress batch — plus a **mutation-dead** viewer-self guard whose first
+repair moved the shadow instead of removing it.
+
+### R19 — a delegated verify owns the working tree
+
+The U7 verify ran while its own tree was being edited under it, because design
+feedback arrived mid-run. **The hazard was written down two units earlier and
+walked into anyway.** The agent detected the divergence itself and clobbered
+nothing, but roughly a third of a 211k-token run went to code that no longer
+existed. Wait for it, or kill it. There is no third option that produces a
+report worth reading.
 
 ## Phase 10 — Cross-cutting verification (folded into each unit's PR)
 
