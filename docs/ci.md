@@ -212,6 +212,8 @@ and log a notice — CI stays green rather than red while waiting on setup.
 
    ```bash
    pnpm dlx vercel link          # choose your PERSONAL scope (Hobby), name it "hookai"
+   # "hookai" is the product's former name. The Vercel project keeps it so the
+   # linked project id, its environment variables and the domain stay put.
    cat .vercel/project.json # -> projectId, orgId
    ```
 
@@ -245,7 +247,7 @@ Once production has deployed once, put that URL in `deploy-url` in
 Deploying on Hobby is fine for CI and for the demo, with one caveat worth
 knowing before the engine is written rather than after.
 
-**Function duration is capped lower on Hobby than on Pro**, and hookai's
+**Function duration is capped lower on Hobby than on Pro**, and dipia's
 workload is exactly the shape that hits a duration ceiling: generating a full
 timeline of canonical events, then an offspring image, inside one request. A
 single blocking route handler that waits for all of it is the risky design on

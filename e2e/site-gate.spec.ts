@@ -37,7 +37,7 @@ test.describe("site gate", () => {
     // executed would still be in the source.
     const html = await (await request.get("/gate?next=/room")).text();
     expect(html).not.toContain("<script");
-    for (const word of ["dipia", "hookai", "quiz"]) {
+    for (const word of ["dipia", "quiz"]) {
       expect(
         html.toLowerCase(),
         `the gate must not mention "${word}"`

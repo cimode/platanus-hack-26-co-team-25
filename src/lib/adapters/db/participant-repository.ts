@@ -272,7 +272,7 @@ export function createParticipantRepository(
     async bySessionToken(token: SessionToken): Promise<Participant | null> {
       // A cookie is attacker-controlled input. `participant_sessions.token` is
       // a Postgres `uuid`, which errors on a malformed literal instead of
-      // matching nothing -- so a stale or tampered `hookai_session` would 500
+      // matching nothing -- so a stale or tampered `dipia_session` would 500
       // every screen rather than taking the unknown-session path to /intake.
       if (!isUuid(token)) return null;
 

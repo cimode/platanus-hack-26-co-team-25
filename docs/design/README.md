@@ -4,7 +4,7 @@ Everything needed to iterate on the **Dipia** design system in an external tool 
 the result back.
 
 Dipia is warm cream, coral, rounded display type, hard toy shadows and pixel-art sprites
-over crisp UI. **Light-only.** It replaced the dark hookai system in commit `d6e0d4d` —
+over crisp UI. **Light-only.** It replaced the earlier dark system in commit `d6e0d4d` —
 if you find a reference to brand cyan, OKLCH, Instrument Serif or `.glow` anywhere, that
 document is stale.
 

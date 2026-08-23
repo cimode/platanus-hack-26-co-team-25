@@ -35,7 +35,6 @@ const FORBIDDEN = [
   "Life shape",
   "Step",
   "Paso",
-  "hookai",
 ];
 
 /**

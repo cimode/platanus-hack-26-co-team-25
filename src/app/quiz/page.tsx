@@ -12,7 +12,7 @@ import { isSinglePick } from "./single-pick";
 /**
  * `/quiz` — fifteen forced-choice blocks in three batches (issue #9).
  *
- * A Server Component. It reads the `hookai_session` cookie, calls
+ * A Server Component. It reads the `dipia_session` cookie, calls
  * `quizProgress` with `serverDeps()` and renders whatever the ROWS say: there
  * is no step column and no "current block" anywhere (docs/domain.md §0), so a
  * reload, a second phone or a browser restored from sleep all land on the first

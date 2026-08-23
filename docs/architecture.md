@@ -3,7 +3,7 @@
 Ports and adapters. `src/lib/` is the hexagon.
 
 The general pattern is documented by the `hexagonal-architecture` skill in
-`.claude/skills/`. This file records the parts specific to hookai: where things
+`.claude/skills/`. This file records the parts specific to dipia: where things
 actually live, what is enforced mechanically, and the two ways it goes wrong here.
 
 ## Shape

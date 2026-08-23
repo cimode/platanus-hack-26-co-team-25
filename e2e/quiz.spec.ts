@@ -248,7 +248,7 @@ test.describe("quiz", () => {
     expect([...rows[0].shownOrder].sort().join("")).toBe("abcd");
   });
 
-  test("AC-3 · a context without a hookai_session cookie lands on /intake with no scenario and no quiz_responses row", async ({
+  test("AC-3 · a context without a dipia_session cookie lands on /intake with no scenario and no quiz_responses row", async ({
     page,
     browser,
   }) => {

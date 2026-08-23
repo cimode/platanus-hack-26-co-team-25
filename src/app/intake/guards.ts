@@ -8,7 +8,7 @@ import { intakeStepOf, type Participant } from "@/lib/domain/participant";
  *
  * Progress is read from the rows and never from a status column
  * (docs/domain.md §0), so `/intake/declared` re-resolves the participant from
- * the `hookai_session` cookie and re-checks for itself: a URL typed into the
+ * the `dipia_session` cookie and re-checks for itself: a URL typed into the
  * bar reaches the page without the one before it ever rendering.
  *
  * `intakeStepOf` is the single rule -- a row with no photo, no gender or no

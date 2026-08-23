@@ -38,7 +38,7 @@ interface RegisterInput {
   dataConsent: "on";     // the data-treatment checkbox; absent when unticked (#49)
 }
 // → participants row with gender, birthdate, photo_url, data_consent_at and the three consents `true`
-// → sets the httpOnly cookie `hookai_session`; the token never appears in any payload
+// → sets the httpOnly cookie `dipia_session`; the token never appears in any payload
 ```
 
 `dataConsent` is the ONE authorisation this version asks for (issue #49): the box is
@@ -333,7 +333,7 @@ What the server derives and stores per answer — none of it comes from the clie
 
 ```ts
 {
-  participantId: fromCookie("hookai_session"),
+  participantId: fromCookie("dipia_session"),
   instrumentVersion: INSTRUMENT.version,                  // "v1"
   position, mostKey, leastKey, shownOrder,                // as received
   scenario: block.scenario,                               // block = generated_blocks row for (participantId, position)

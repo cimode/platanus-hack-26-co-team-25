@@ -1,9 +1,9 @@
-# hookai — design brief for Claude Design
+# dipia — design brief for Claude Design
 
 **Design system: Dipia.** Warm cream, coral, rounded display type, hard toy shadows,
 pixel-art sprites over crisp UI. Light-only.
 
-This replaces the dark hookai system (brand cyan, OKLCH, Instrument Serif + Geist,
+This replaces the earlier dark system (brand cyan, OKLCH, Instrument Serif + Geist,
 `.glow`), removed in commit `d6e0d4d`. **Nothing from that system is current.** If you
 have seen an older version of this brief, discard it.
 
@@ -28,7 +28,7 @@ state. When this file and `/design` disagree, `/design` wins, and this file is s
 
 ## 1. What you are working on
 
-**hookai** is a simulation engine for human relationships, built for a 36-hour hackathon
+**dipia** is a simulation engine for human relationships, built for a 36-hour hackathon
 in Bogotá. About 100 people in one room fill in a short questionnaire on their phones, and
 the engine ranks who in that room would actually matter to them — romantically,
 professionally, or as a friend.
@@ -67,7 +67,7 @@ earned.
 
 ### Brand
 
-`hookai`, always lowercase, one word, tight tracking. The wordmark *is* the logo, set in
+`dipia`, always lowercase, one word, tight tracking. The wordmark *is* the logo, set in
 Baloo 2 extrabold, usually next to a coral dot carrying a toy shadow.
 
 ### Colour — warm, never grey
@@ -199,7 +199,7 @@ spinners.
 - Amber means friction, never a lens
 - Destructive `#9a2b1e` stays distinct from coral
 - Pixel in the art, crisp in the chrome
-- `hookai` lowercase
+- `dipia` lowercase
 
 ## 8. Two things I already suspect are wrong
 

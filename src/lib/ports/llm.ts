@@ -4,7 +4,7 @@ import type { z } from "zod";
  * The seam between the engine and the model.
  *
  * Every engine function takes an `LlmPort` rather than reaching for a client
- * directly. That is what makes the deterministic half of hookai testable: a
+ * directly. That is what makes the deterministic half of dipia testable: a
  * test passes a fake, production passes the real client, and neither knows the
  * difference. It also means the engine can be driven headless from a CLI, which
  * is how you iterate on prompts without clicking through the UI.

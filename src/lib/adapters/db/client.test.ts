@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDb, getDb, resetDb } from "./client";
 
 const FAKE_URL =
-  "postgresql://user:pw@ep-fake-123.us-east-2.aws.neon.tech/hookai?sslmode=require";
+  "postgresql://user:pw@ep-fake-123.us-east-2.aws.neon.tech/dipia?sslmode=require";
 
 afterEach(() => {
   resetDb();

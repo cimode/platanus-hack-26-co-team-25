@@ -37,13 +37,13 @@ the only value this change is permitted to fabricate.
 Every new page SHALL resolve the viewer through a single server-side resolver that
 reads only cookies. The viewer MUST NOT be taken from a route segment, query
 string, form field, or header. When both credentials are present the real session
-token (`hookai_session`) MUST win over the impersonation cookie
+token (`dipia_session`) MUST win over the impersonation cookie
 (`dipia_impersonating`); when neither resolves to a person, the page MUST render a
 "choose who you are" state and MUST NOT call a ranking, profile or timeline port.
 
 #### Scenario: AC-PORT-1 · impersonation cookie resolves the viewer
 
-- GIVEN `dipia_impersonating` names a person on the roster and no `hookai_session`
+- GIVEN `dipia_impersonating` names a person on the roster and no `dipia_session`
 - WHEN any of `/rank`, `/profile/[id]`, `/simulate/[id]` renders
 - THEN the port call receives that person as the viewer
 
@@ -51,7 +51,7 @@ token (`hookai_session`) MUST win over the impersonation cookie
 
 - GIVEN both cookies are set and resolve to different people
 - WHEN the page renders
-- THEN the viewer is the person behind `hookai_session`
+- THEN the viewer is the person behind `dipia_session`
 
 #### Scenario: AC-PORT-1 · no credential reaches no port
 
