@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
+import { isDrag } from "@/components/shared/use-drag-scroll";
 import {
   filterParticipants,
   type Participant,
@@ -35,6 +36,21 @@ export function ParticipantCombobox({
   const [active, setActive] = useState(0);
   const [selected, setSelected] = useState<Participant | null>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Where a press on an option started, so pointerup can tell a tap from a
+  // scroll. One ref for the whole list: only one pointer is ever down on it.
+  const press = useRef<{ id: number; x: number; y: number } | null>(null);
+
+  function closeSoon() {
+    // Pointer-down on an option fires before blur, but the browser still
+    // queues this; defer so the choice lands before the list unmounts.
+    blurTimer.current = setTimeout(() => setOpen(false), 120);
+  }
+
+  function cancelClose() {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    blurTimer.current = null;
+  }
 
   const matches = useMemo(
     () => filterParticipants(roster, query),
@@ -105,18 +121,15 @@ export function ParticipantCombobox({
           "focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-ring/25"
         )}
         id={inputId}
-        onBlur={() => {
-          // Pointer-down on an option fires before blur, but the browser still
-          // queues this; defer so the choice lands before the list unmounts.
-          blurTimer.current = setTimeout(() => setOpen(false), 120);
-        }}
+        onBlur={closeSoon}
         onChange={(event) => handleChange(event.target.value)}
         onFocus={() => {
-          if (blurTimer.current) clearTimeout(blurTimer.current);
+          cancelClose();
           setOpen(true);
         }}
         onKeyDown={handleKeyDown}
         placeholder="escribe tu nombre..."
+        ref={inputRef}
         role="combobox"
         type="text"
         value={query}
@@ -159,10 +172,50 @@ export function ParticipantCombobox({
                 id={`${listId}-${i}`}
                 key={person.id}
                 onMouseEnter={() => setActive(i)}
-                // Pointer-down, not click: on touch the input blurs first and
-                // a click handler would never fire.
+                /* preventDefault on MOUSEdown, not on pointerdown, and that
+                   distinction is the whole bug this replaced. Both keep focus
+                   on the input so the list does not close under the cursor --
+                   but pointerdown is also where the browser decides whether a
+                   touch may scroll, so cancelling it there made the list
+                   unscrollable on a phone. `mousedown` is a compatibility
+                   event that only arrives after a touch has already been
+                   ruled a tap, so it can never cost a scroll. */
+                onMouseDown={(event) => event.preventDefault()}
+                onPointerCancel={() => {
+                  press.current = null;
+                }}
+                /* Arm, do not choose. Choosing here meant the option under
+                   your finger was picked the instant it landed, so dragging
+                   the list on a phone always selected whatever you touched
+                   first -- there was no gesture left to scroll with. */
                 onPointerDown={(event) => {
-                  event.preventDefault();
+                  cancelClose();
+                  press.current = {
+                    id: event.pointerId,
+                    x: event.clientX,
+                    y: event.clientY,
+                  };
+                }}
+                onPointerUp={(event) => {
+                  const start = press.current;
+                  press.current = null;
+                  if (!start || start.id !== event.pointerId) return;
+                  // Both axes: the strips this slop was written for scroll in
+                  // x, this list scrolls in y, and a tap is still a tap in
+                  // either. Same constant on purpose -- a picker and a strip
+                  // disagreeing about what counts as a drag is how a phone
+                  // starts feeling arbitrary.
+                  if (
+                    isDrag(start.x, event.clientX) ||
+                    isDrag(start.y, event.clientY)
+                  ) {
+                    // A scroll, not a tap. Leave the list where it is -- but
+                    // the input may have blurred on the way down, so give back
+                    // the close that blur was owed.
+                    if (document.activeElement !== inputRef.current)
+                      closeSoon();
+                    return;
+                  }
                   choose(person);
                 }}
                 role="option"
