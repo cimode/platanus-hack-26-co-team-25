@@ -151,12 +151,17 @@ test.describe("intake", () => {
     context,
   }) => {
     const slug = roomSlug();
-    const before = (await roomMembers()).length;
+    // Counted by NAME, not by room size: the room is shared with every other
+    // test in this run and one of them registers while this one is refused.
+    const refused = "Nico Vera";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
 
     // Too young.
     await page.goto(intakeUrl(slug));
     await photoField(page).setInputFiles(FIXTURE_PHOTO);
-    await nameField(page).fill("Nico Vera");
+    await nameField(page).fill(refused);
     await genderField(page).selectOption("M");
     await birthdateField(page).fill(bornAgo(15));
     await submitButton(page).click();
@@ -166,7 +171,7 @@ test.describe("intake", () => {
 
     // No photo.
     await page.goto(intakeUrl(slug));
-    await nameField(page).fill("Nico Vera");
+    await nameField(page).fill(refused);
     await genderField(page).selectOption("M");
     await birthdateField(page).fill(bornAgo(27));
     await submitButton(page).click();
@@ -175,7 +180,7 @@ test.describe("intake", () => {
     await expect(page.getByText(/agrega una foto/i)).toBeVisible();
 
     expect(await sessionCookies(context)).toHaveLength(0);
-    expect((await roomMembers()).length).toBe(before);
+    expect(await named()).toBe(0);
   });
 
   test('AC-6b · an unknown room slug shows "Esta sala no existe" and no form', async ({
