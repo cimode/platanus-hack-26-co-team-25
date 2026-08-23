@@ -44,6 +44,11 @@ export const DEFAULT_NARRATE_CONCURRENCY = 6;
 export const MAX_SENTENCE_CHARS = 400;
 
 const SAFETY_RULES = [
+  // FIRST line on purpose: the rest of this prompt is in English and the model
+  // will answer in the language it was asked in unless told otherwise. Every
+  // other string on this screen is Spanish, so an English sentence in the
+  // middle of the board is the one thing a reader notices before the story.
+  'Write the sentence in SPANISH — neutral Latin American Spanish, the way people speak in Chile. Only the value of "text" is Spanish; the JSON keys and the emote name stay exactly as written below.',
   "Warm, concrete, specific. Third person, present tense. One to two sentences per event.",
   "NEVER include: ultimatums or demands framed as threats; judging either person's character or morals; third parties entering the romance; health scares, loss of life, or medical storylines; any intoxicant; religious references; political references; shaming anyone about money; naming psychology constructs or conflict-communication constructs (describe behavior concretely instead).",
   "Never state numeric chances, percentages, or how likely the relationship is to last.",
