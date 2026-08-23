@@ -35,6 +35,27 @@ export type Slide =
       footer?: string;
       seconds: number;
     }
+  | {
+      kind: "scenario";
+      id: string;
+      /** Runs into the figure: "Imaginá que estás en un evento con" */
+      setup: string;
+      /** The scale. Display face, accent, very large. */
+      figure: string;
+      /** The question the figure makes unanswerable. */
+      question: string;
+      seconds: number;
+    }
+  | {
+      kind: "loop";
+      id: string;
+      title: string;
+      /** Steps that happen INSIDE the app. */
+      steps: string[];
+      /** The step that happens outside it -- the point of the whole diagram. */
+      exit: { label: string; note: string };
+      seconds: number;
+    }
   | { kind: "live"; id: string; seconds: number }
   | { kind: "closing"; id: string; line: string };
 
@@ -106,6 +127,42 @@ export const SLIDES: Slide[] = [
     seconds: 11,
   },
 
+  // The scale is the argument: at 15.000 the question stops being "¿me animo?"
+  // and becomes "¿a quién?" -- which is a search problem, and search problems
+  // have engineering answers. This is the hinge into the demo.
+  {
+    kind: "scenario",
+    id: "escenario",
+    setup: "Imaginá que estás en un evento con",
+    figure: "15.000 personas",
+    question: "Querés conocer a alguien. ¿Cómo sabés a quién?",
+    seconds: 9,
+  },
+
+  // The loop. Four steps in the app, one outside it.
+  //
+  // The exit step is the whole diagram: "cruzás la sala" is the only thing here
+  // that dipia does not do, and the product succeeds exactly when it stops
+  // being used. The earlier version of this graphic buried that as small caps
+  // on box 6 of 6; here it is the payoff, set apart and in the accent.
+  //
+  // Five steps, not six -- six boxes in a grid with dashed arrows does not read
+  // from the back of a dark room, and "entrás a la sala" is already established
+  // by the scenario slide before it.
+  {
+    kind: "loop",
+    id: "loop",
+    title: "De una sala llena de extraños a una conversación.",
+    steps: [
+      "Respondés 12 preguntas",
+      "Elegís un lente",
+      "La sala se ordena",
+      "Ves la vida que compartirían",
+    ],
+    exit: { label: "Cruzás la sala", note: "fuera de la pantalla" },
+    seconds: 13,
+  },
+
   { kind: "live", id: "demo", seconds: 130 },
 
   {
@@ -117,5 +174,5 @@ export const SLIDES: Slide[] = [
 
 /** Total spoken budget before the live demo begins. Must fit problema + solución. */
 export const SETUP_SECONDS = SLIDES.filter(
-  (s) => s.kind === "statement" || s.kind === "figures"
+  (s) => s.kind !== "cover" && s.kind !== "closing" && s.kind !== "live"
 ).reduce((total, s) => total + s.seconds, 0);

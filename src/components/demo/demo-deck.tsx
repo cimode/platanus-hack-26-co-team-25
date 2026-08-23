@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { BrowserFrame } from "@/components/demo/browser-frame";
 import { SLIDES, type Slide } from "@/components/demo/slides";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,55 @@ function SlideBody({ slide }: { slide: Slide }) {
         </Center>
       );
 
+    case "scenario":
+      return (
+        <Center>
+          <p className="font-sans text-ink-soft text-[clamp(1.25rem,2.6vw,2.25rem)] leading-snug">
+            {slide.setup}
+          </p>
+          <p className="font-display font-extrabold text-[clamp(4rem,11vw,9rem)] text-primary leading-none tracking-tight">
+            {slide.figure}
+          </p>
+          <p className="max-w-5xl text-balance text-center font-display font-bold text-[clamp(1.75rem,4vw,3.25rem)] leading-snug">
+            {slide.question}
+          </p>
+        </Center>
+      );
+
+    case "loop":
+      return (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-10">
+          <h1 className="max-w-6xl text-balance text-center font-display font-extrabold text-[clamp(2rem,4.6vw,4rem)] leading-[1.1] tracking-tight">
+            {slide.title}
+          </h1>
+
+          {/* Row one: everything that happens inside the app. */}
+          <div className="flex w-full max-w-7xl items-stretch justify-center gap-3">
+            {slide.steps.map((step, position) => (
+              <Fragment key={step}>
+                {position > 0 ? <LoopArrow /> : null}
+                <LoopStep index={position + 1} label={step} />
+              </Fragment>
+            ))}
+          </div>
+
+          {/* Row two, alone and full width: the step dipia does NOT run. The
+              break between the rows is the message -- the loop leaves the
+              screen, and the product wins when the user does. */}
+          <div className="flex w-full max-w-7xl flex-col items-center gap-3">
+            <ChevronDown className="size-7 text-ink-faint" aria-hidden />
+            <div className="flex w-full flex-col gap-2 rounded-2xl bg-primary px-7 py-5 text-primary-foreground shadow-toy">
+              <span className="font-mono text-[clamp(0.65rem,0.95vw,0.9rem)] uppercase tracking-widest opacity-80">
+                {slide.exit.note}
+              </span>
+              <span className="font-display font-extrabold text-[clamp(1.5rem,3vw,2.5rem)] leading-tight">
+                {slide.exit.label}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+
     case "live":
       return (
         <div className="flex min-h-0 flex-1 flex-col px-6 pt-6 pb-2">
@@ -150,6 +199,29 @@ function SlideBody({ slide }: { slide: Slide }) {
         </Center>
       );
   }
+}
+
+function LoopStep({ index, label }: { index: number; label: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-5 text-left">
+      <span className="font-mono text-ink-faint text-[clamp(0.6rem,0.85vw,0.8rem)] tracking-widest">
+        0{index}
+      </span>
+      <span className="text-balance font-display font-bold text-[clamp(1.1rem,1.9vw,1.75rem)] leading-tight">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** Rendered BEFORE each step except the first, so it can never dangle at the end. */
+function LoopArrow() {
+  return (
+    <ChevronRight
+      className="size-6 shrink-0 self-center text-ink-faint"
+      aria-hidden
+    />
+  );
 }
 
 function Center({ children }: { children: React.ReactNode }) {

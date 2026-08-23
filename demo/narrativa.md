@@ -12,12 +12,35 @@
 
 ## Presupuesto
 
-| Bloque | Sugerido | Este guion |
-| --- | --- | --- |
-| problema | ~20s | 28s |
-| solución / impacto / ambición | ~20-30s | 23s |
-| demo / cómo lo resuelven | ~125-140s | ~127s |
-| **total** | **180s** | **~178s** |
+| Bloque | Sugerido | Este guion | |
+| --- | --- | --- | --- |
+| problema (pregunta · 1 de cada 5 · ministerios · epidemia) | ~20s | **40s** | 🔴 |
+| solución (tesis · escenario · loop) | ~20-30s | **33s** | 🟠 |
+| demo / cómo lo resuelven | ~125-140s | **~100s** | 🔴 |
+| **total** | **180s** | **~178s** | |
+
+**El reparto está mal, aunque el total cierre.** Los 23s que se pasan arriba salen
+del demo — y el demo es donde se juegan *ejecución*, *aspecto técnico* y *ambición*:
+**65% de la rúbrica**. La estructura del organizador dice "sugerida"; el corte a 3:01
+es lo único duro. O sea: pasarse no rompe ninguna regla, sólo te cobra el demo.
+
+### Dónde recortar (elegir uno)
+
+**A · Apretar todo sin perder beats — recomendado (−19s → 54s)**
+| Beat | Ahora | Apretado | Cómo |
+| --- | --- | --- | --- |
+| 1 de cada 5 | 7s | — | fusionarlo como primera línea de *ministerios* |
+| ministerios | 13s | 10s | "Reino Unido 2018. Japón 2021." sin adornos |
+| tesis | 11s | 7s | el loop ya explica el *cómo*; acá sólo el giro |
+| escenario | 9s | 7s | |
+| loop | 13s | 10s | no leas las cuatro cajas — se leen solas |
+
+**B · Soltar un beat entero (−13s → 60s)**
+Cae *ministerios*. Es el argumento más prescindible: "otros países se preocupan"
+apoya, pero no es tuyo. Sobreviven la pregunta, la cifra y la epidemia.
+
+**C · Dejarlo en 73s.** Legítimo si creés que el problema vende más que el demo.
+Sabé lo que estás pagando: ~100s de demo en vez de 130.
 
 ⚠️ La versión original de esta narrativa medía **~70s antes del demo**. El presupuesto
 son 40-50s. Lo que sobraba salía del demo — que es donde se juegan ejecución, aspecto
@@ -98,7 +121,36 @@ que hace que el cierre suene a remate y no a repetición.
 
 ---
 
-### [SLIDE 6 · demo en vivo] — ~127s
+### [SLIDE 6 · escenario] — 9s
+
+> Imaginá que estás en un evento con **quince mil personas**.
+> Querés conocer a alguien. **¿Cómo sabés a quién?**
+
+> La escala es el argumento. Con 15.000 la pregunta deja de ser *"¿me animo?"* y
+> pasa a ser *"¿a quién?"* — y eso ya es un problema de búsqueda, que sí tiene
+> respuesta de ingeniería. Es la bisagra hacia el demo.
+>
+> Si querés anclarlo a algo local, cambiá "un evento" por un lugar que la sala
+> reconozca. Cuanto más concreto, mejor.
+
+---
+
+### [SLIDE 7 · el loop] — 13s
+
+> Respondés doce preguntas, elegís un lente, la sala se ordena,
+> y ves la vida que compartirían.
+> Y entonces — **cruzás la sala.**
+
+> **No leas las cuatro cajas en voz alta**: se leen solas y te cuesta 6 segundos.
+> Decí la secuencia de corrido y frená en la quinta.
+>
+> El diagrama tiene un solo punto: la última caja es **lo único que dipia no hace**.
+> Está aparte, en coral, marcada *fuera de la pantalla*. El producto gana cuando
+> dejás de usarlo. En la versión vieja eso era letra chica en la caja 6 de 6.
+
+---
+
+### [SLIDE 8 · demo en vivo] — ~127s
 
 La app real, embebida. Sin cambiar de ventana.
 
@@ -122,7 +174,7 @@ la línea de tiempo. Ver `demo/beats-tecnicos.md` cuando lo escribamos.)*
 
 ---
 
-### [SLIDE 7 · cierre] — 5s
+### [SLIDE 9 · cierre] — 5s
 
 > Y bueno, muchas gracias por su atención.
 > Somos dipia. **Nos apasionan las conexiones reales, no un número más en un feed.**
