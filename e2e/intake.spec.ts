@@ -1,14 +1,10 @@
 import path from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import {
-  participantBySession,
-  roomMembers,
-  seedPoolSet,
-} from "./fixtures/intake";
+import { participantBySession, roomMembers } from "./fixtures/intake";
 import { createQuizParticipant } from "./helpers/quiz-participant";
 
 /**
- * Intake on a phone (issue #42, docs/domain.md D18 and D20).
+ * Intake on a phone (issue #42, docs/domain.md D18, D20 and D21).
  *
  *     /intake?room=<slug>  one screen  ->  /quiz
  *
@@ -66,17 +62,17 @@ const dataBox = (page: Page) =>
   page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
 /**
- * What `/quiz` shows the moment registration lands on it (D20): the beat that
- * opens the first batch when the questions are already there -- a pool set
- * was adopted -- or the "writing your questions" state while they are being
- * authored. Either is the quiz; which one depends on whether another test in
- * the same room took the pool set first, so both are accepted.
+ * What `/quiz` shows the moment registration lands on it (D21): the opening
+ * moment, and nothing else. There is no second possibility any more -- the
+ * questions are dealt from the committed bank and written by `registerAction`
+ * itself, so the redirect can only ever land on a form that already exists.
+ * A "writing your questions" state here would be a regression, and AC-1 says
+ * so with an explicit count of zero.
  */
-const quizOpening = (page: Page) =>
-  page
-    .getByText(/quince escenas/i)
-    .or(page.getByText(/escribiendo tus preguntas/i))
-    .first();
+const quizOpening = (page: Page) => page.getByText(/doce escenas/i);
+
+/** The wait screen that D21 deleted. It must never come back. */
+const WRITING = /escribiendo tus preguntas/i;
 
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "dipia_session");
@@ -134,10 +130,6 @@ test.describe("intake", () => {
     const birthdate = bornAgo(27);
     const served: string[] = [];
 
-    // A set of first questions waiting in the room's pool, so registration
-    // adopts it and the first render is block 1's beat rather than a wait.
-    await seedPoolSet();
-
     await page.goto(intakeUrl(slug));
     await expect(submitButton(page)).toBeVisible();
     served.push(await page.content());
@@ -149,9 +141,12 @@ test.describe("intake", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    // Straight to the questions: no declared round in between (D20).
+    // Straight to the questions: no declared round in between (D20), and
+    // nothing to wait for -- the twelve blocks were written by the same
+    // action that created the row (D21).
     await expect(page).toHaveURL(/\/quiz(\?|$)/);
     await expect(quizOpening(page)).toBeVisible();
+    await expect(page.getByText(WRITING)).toHaveCount(0);
     served.push(await page.content());
 
     // The row itself, read through the repository behind the session cookie.
@@ -249,8 +244,8 @@ test.describe("safety invariants", () => {
     await expect(bar).toHaveAttribute("aria-valuenow", /\d/);
     await expect(bar).toHaveAttribute("aria-valuemax", /\d/);
 
-    // The first quiz screen, for a participant with their fifteen blocks --
-    // the screen registration lands on (D20).
+    // The first quiz screen, for a participant with their twelve blocks --
+    // the screen registration lands on (D20/D21).
     const quiz = await createQuizParticipant({ context });
     const quizPage = await context.newPage();
     // `?start=1` dismisses the beat that opens a batch, so what is inspected is

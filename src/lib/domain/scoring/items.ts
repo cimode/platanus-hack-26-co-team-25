@@ -122,12 +122,12 @@ export function itemParametersOf(instrument: Instrument): BlockItems[] {
 }
 
 /**
- * The parameters of the COMMITTED form only.
+ * The parameters of the COMMITTED `INSTRUMENT` form only.
  *
- * Under D16 this is the per-participant **fallback**, not what most people
- * answer. Anyone scoring a participant who was served generated blocks must
- * derive their items from THEIR OWN blocks — see the warning on
- * `estimateLatents`. This constant is the right input only for a participant
- * who actually got the fallback form.
+ * Nobody answers that form. Every participant is dealt twelve blocks out of the
+ * question bank (`domain/quiz/bank.ts`), so anyone scoring a real respondent
+ * must derive their items from THAT PERSON'S OWN blocks — see the warning on
+ * `estimateLatents`. This constant is for tests and tooling holding the
+ * `INSTRUMENT` form in their hands, and for nothing else.
  */
 export const ITEM_PARAMETERS: BlockItems[] = itemParametersOf(INSTRUMENT);

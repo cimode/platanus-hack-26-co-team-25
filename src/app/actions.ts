@@ -2,10 +2,9 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
-import { continueQuizGeneration } from "@/lib/use-cases/ensure-quiz-batch";
+import { assignQuizForm } from "@/lib/use-cases/assign-quiz-form";
 import { findParticipant } from "@/lib/use-cases/list-participants";
 import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
 import { LENS_COOKIE } from "./lens";
@@ -45,32 +44,16 @@ export async function impersonateAction(
     path: "/",
   });
 
-  // Start authoring this participant's questions now, in the background
-  // (docs/domain.md D20). The roster carries no room, so the venue default is
-  // the room generation is claimed under -- the same one `/intake` falls back
-  // to; without it there is nothing to claim and nothing is scheduled.
-  //
-  // `after` runs once the response is sent and is bounded by this route's
-  // maxDuration (120s on `src/app/page.tsx`), which is why the budget here is
-  // 90s rather than the registration action's 240s: one batch, two at most.
-  // `continueQuizGeneration` never rejects -- an unhandled rejection in a
-  // background task would crash the invocation -- and stops itself when the
-  // budget is spent; the quiz reads never generate, so whatever is missing is
-  // authored by the next claim holder.
+  // Give this participant their form if they do not have one (docs/domain.md
+  // D21). Awaited rather than deferred, because it is one INSERT of twelve
+  // rows dealt from the committed bank -- there is no model behind it and
+  // nothing to budget for -- and because the demo path walks straight into
+  // `/quiz` from here. `saveBatch` upserts, so impersonating the same person
+  // twice re-writes the same twelve rows rather than a second form.
   //
   // TEMPORARY HOME. Registration (#6) is the real "a participant arrives"
   // event and already does this; impersonation keeps it for the demo path.
-  const venueSlug = process.env.HOOKAI_ROOM_SLUG;
-  const room = venueSlug ? await deps.rooms.bySlug(venueSlug) : null;
-  if (room) {
-    const roomId = room.id;
-    after(() =>
-      continueQuizGeneration(
-        { participantId: participant.id, roomId, budgetMs: 90_000 },
-        serverDeps()
-      )
-    );
-  }
+  await assignQuizForm({ participantId: participant.id }, deps);
 
   // `redirect` signals by throwing, so nothing below runs and the declared
   // return type is only reached on the error paths above.

@@ -26,18 +26,19 @@ floored at `SE_FLOOR`. Mixed keying is what makes trait *levels* recoverable at
 all: on an all-positive form the same likelihood pins only contrasts, `Σθ ≈ 0`,
 which `scoring.test.ts` AC-3 demonstrates rather than asserts (`AUDIT.md` F1).
 
-## Where the parameters come from (D16)
+## Where the parameters come from
 
-Every participant answers **their own generated form**, so `items` is never a
+Every participant answers **their own twelve blocks**, dealt from the committed
+question bank by `formFor()` (`domain/quiz/bank.ts`), so `items` is never a
 constant: it is `itemParametersOfBlocks(stored.map((s) => s.block))` over that
 participant's `generated_blocks` rows. `itemParametersOf(INSTRUMENT)` and the
-`ITEM_PARAMETERS` constant describe the **fallback** form only — correct input
-for a participant who actually got it, and a silent scoring error for everyone
-else. That is why `ITEM_PARAMETERS` is not re-exported from `index.ts`: reaching
-for it has to be a deliberate import, not a barrel autocomplete.
+`ITEM_PARAMETERS` constant describe the committed `INSTRUMENT` form, which
+nobody is served — a silent scoring error for every real respondent. That is why
+`ITEM_PARAMETERS` is not re-exported from `index.ts`: reaching for it has to be
+a deliberate import, not a barrel autocomplete.
 
-What every form shares is structure — 15 positions, the 4/4/4/3 focus-pillar
-rotation, four pillars once per block, one reversed option on the focus pillar
+What every form shares is structure — 12 positions, three focus blocks per
+pillar, four pillars once per block, one reversed option on the focus pillar
 (`PILLARS.md` §7.2). The likelihood reads `pillar` and `keyed` and never a word
 of scenario text, which is what puts 200 different forms on one common metric.
 

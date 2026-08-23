@@ -1,17 +1,18 @@
 /**
- * `/quiz`'s Suspense fallback (docs/domain.md D16).
+ * `/quiz`'s Suspense fallback (docs/domain.md D16, D21).
  *
  * `loading.tsx` wraps the page in a Suspense boundary, so a navigation into
- * `/quiz` commits at once and this streams while `quizProgress` reads. Reads
- * never generate any more -- the page answers `pending` and `GenerationWait`
- * takes over when the block is not written -- so what this covers is the
- * handful of SELECTs on venue wifi, and it is laid out as the same column as
- * the wait screen it most often resolves into, so the two do not jump.
+ * `/quiz` commits at once and this streams while `quizProgress` reads. There
+ * is nothing else it can be covering any more: the questions come from the
+ * committed bank and were written as this participant's rows at registration,
+ * so what streams behind it is a handful of SELECTs on venue wifi and never a
+ * model. The old "writing your questions" state is gone with the generation it
+ * described.
  *
  * It must not await anything: a Suspense fallback that suspends on a read is
  * not a loading screen (the `/results` note in docs/domain.md §7). So it
- * carries no count, no name, no block and no avatar -- the wordmark, and what
- * is happening.
+ * carries no count, no name, no block and no avatar -- the wordmark, and the
+ * fact that something is on its way.
  *
  * `role="status"` with `aria-live="polite"` announces the line on arrival and
  * lets the block replace it without cutting a screen reader off mid-sentence.
@@ -36,7 +37,7 @@ export default function QuizLoading() {
           className="font-mono text-xs tracking-[0.06em] text-ink-muted tabular-nums motion-safe:animate-pulse"
           role="status"
         >
-          Escribiendo tus preguntas…
+          Un momento…
         </p>
       </div>
     </main>

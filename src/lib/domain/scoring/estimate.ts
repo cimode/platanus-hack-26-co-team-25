@@ -1,5 +1,5 @@
 /**
- * estimate.ts — 15 block responses in, one posterior per pillar out (issue #7).
+ * estimate.ts — 12 block responses in, one posterior per pillar out (issue #7).
  *
  * Honest label (`AUDIT.md` S8): **Bayesian MAP scoring of a Thurstonian choice
  * model with fixed, authored item parameters.** The parameters are not
@@ -72,7 +72,7 @@
  * 1. Respondents are simulated FROM this model with THESE parameters, so
  *    recovery measures whether the arithmetic inverts its own generative model.
  *    It catches sign errors, ipsativity bugs and optimizer failures, and it
- *    bounds the information content of the DESIGN (15 blocks, mixed keying,
+ *    bounds the information content of the DESIGN (12 blocks, mixed keying,
  *    most+least) conditional on the model being true. It is not evidence about
  *    real people and must never be quoted as if it were.
  * 2. Matching the corpus figure is a consistency check between two simulations,
@@ -356,24 +356,22 @@ function evaluate(
  * `items` is REQUIRED, and it must be the parameters of the blocks THIS
  * PARTICIPANT was actually served.
  *
- * Under D16 each participant gets their own generated form. The structure is
- * fixed for everyone — 15 positions, the 4/4/4/3 focus rotation, four pillars
- * once each, one reversed option on the focus pillar — and `validateBlock`
- * enforces exactly that, which is what makes the measurement comparable across
- * people. But it does NOT pin which option KEY carries which pillar, and the
- * authoring model chooses that per block. One person's option `c` may be agency
- * where another's is politeness.
+ * Each participant is dealt their own twelve blocks from the question bank. The
+ * structure is fixed for everyone — 12 positions, three focus blocks per pillar,
+ * four pillars once each, one reversed option on the focus pillar — and
+ * `validateBlock` enforces exactly that, which is what makes the measurement
+ * comparable across people. But it does NOT pin which option KEY carries which
+ * pillar, and each authored block chooses that for itself. One person's option
+ * `c` may be agency where another's is politeness.
  *
  * So scoring someone's responses against a form they did not answer maps their
  * keys onto the wrong pillars and returns a confident, well-formed, wrong
- * answer. This parameter used to default to the committed form's parameters,
- * which is now the FALLBACK form rather than what most people see — a default
- * that would have been silently correct in testing and silently wrong in the
- * room. Build the items from the participant's own `generated_blocks` with
- * `itemParametersOfBlocks`, or from `INSTRUMENT` only for a participant who
- * really was served the fallback.
+ * answer. This parameter used to default to the committed form's parameters —
+ * a default that would have been silently correct in testing and silently wrong
+ * in the room, since nobody is served that form. Build the items from the
+ * participant's own `generated_blocks` with `itemParametersOfBlocks`.
  *
- * Responses may be any subset of the 15 blocks — a partially answered quiz
+ * Responses may be any subset of the 12 blocks — a partially answered quiz
  * scores, just less precisely (AC-4).
  */
 export function estimateLatents(

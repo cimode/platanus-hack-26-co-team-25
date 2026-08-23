@@ -6,6 +6,7 @@ import {
   type Participant,
   type SessionToken,
 } from "@/lib/domain/participant";
+import { INSTRUMENT } from "@/lib/domain/quiz";
 import type { ParticipantRepository } from "@/lib/ports/participant-repository";
 import type { PhotoStore } from "@/lib/ports/photo-store";
 import type { Room, RoomRepository } from "@/lib/ports/room-repository";
@@ -27,7 +28,7 @@ const ROOM: Room = {
   id: "22222222-2222-7222-8222-222222222222",
   slug: "e2e-room",
   name: "Room",
-  instrumentVersion: "v1",
+  instrumentVersion: INSTRUMENT.version,
   createdAt: new Date("2026-08-22T17:00:00.000Z"),
 };
 

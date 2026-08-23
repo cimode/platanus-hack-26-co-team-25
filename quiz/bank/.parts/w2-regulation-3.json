@@ -1,0 +1,779 @@
+{
+  "blocks": [
+    {
+      "focusPillar": "regulation",
+      "domain": "street-food",
+      "scenario": "Haces fila por una arepa y el vendedor te saluda como si fueras su primo perdido. Te da dos adicionales de la casa.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Igual pago las dos arepas completas",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le aclaro el error sin ofenderlo",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido aceptar el rol de primo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Entro en pánico y me voy corriendo",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "car-trips",
+      "scenario": "Vamos cuatro en el carro y todos gritan cuando pasamos un puente. Nadie sabe por qué empezó eso.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo gritando en cada puente futuro",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Pregunto el origen sin burlarme",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Propongo un puente nuevo para gritar",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me obsesiono pensando en el origen",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "swimming-pools",
+      "scenario": "Sales de la piscina y te pones las chanclas de otra persona sin darte cuenta. Caminas media hora así.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Busco al dueño y se las devuelvo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me disculpo sin hacer drama",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Me quedo con las chanclas buenas",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me angustio pensando que soy ladrón",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "supermarket-lines",
+      "scenario": "Estás pagando en el supermercado cuando el altavoz anuncia tu nombre para reclamar un premio. Toda la fila te mira.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino de pagar y luego reclamo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le agradezco a la fila su paciencia",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Salgo de la fila a reclamar ya",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me convenzo de que es una broma cruel",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "rain",
+      "scenario": "Corres bajo la lluvia y encuentras un sofá empapado en plena calle. Nadie parece dueño de él.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo mi camino sin detenerme más",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Aviso a un vecino por si acaso",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido llevarme el sofá a casa",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Imagino teorías absurdas sobre el sofá",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "shared-bills",
+      "scenario": "Dividiendo la cuenta del asado, el gato del vecino salta a la mesa y firma con la pata la servilleta. Todos se quedan en silencio.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino de calcular lo que debo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le agradezco al gato su aporte",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Declaro al gato testigo oficial",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo paralizado sin saber qué hacer",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "public-transport",
+      "scenario": "Subes al bus y el señor de al lado lleva la misma camisa exacta que tú. Nadie más lo nota.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me bajo en mi parada de siempre",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le hago un comentario amable al respecto",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le propongo bajarnos juntos por la broma",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Empiezo a sudar pensando que es destino",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "diy-repairs",
+      "scenario": "Intentas arreglar un cajón flojo y terminas desarmando media cocina. Ahora hay tornillos por todas partes.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo hasta dejar todo armado de nuevo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le aviso a mi familia del desastre",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido rediseñar la cocina de una vez",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Grito y abandono todo en el piso",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "board-games",
+      "scenario": "En una noche de juegos confundes la ficha de tu amigo con la tuya durante media partida. Nadie lo nota hasta el final.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino la partida con las reglas claras",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Confieso el error sin culpar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decreto que la partida empieza de nuevo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me lamento del error toda la noche",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "surprise-parties",
+      "scenario": "En la fiesta sorpresa todos susurran aunque ya gritaron sorpresa hace rato. Nadie vuelve a hablar normal.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo la fiesta como estaba planeada",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Pregunto en voz baja por qué susurramos",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Anuncio en voz alta que ya pasó",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Sigo susurrando nervioso el resto de la noche",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "autocorrect",
+      "scenario": "Le escribes a tu amigo pero el autocorrector cambia playa por plaza y él llega al lugar equivocado. Te espera una hora.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Voy a buscarlo a la plaza",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me disculpo sin excusas raras",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido cambiar el plan a la plaza",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me atormento pensando en su espera",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "cooking",
+      "scenario": "Estás sirviendo la sopa cuando suena una alarma de incendio falsa en el edificio. Todos salen con el plato en la mano.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Vuelvo a servir cuando pasa la alarma",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Les ofrezco sopa a los vecinos afuera",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Organizo una cena improvisada en el pasillo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo convencido de que hay fuego real",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "laundry",
+      "scenario": "Sacas la ropa de la lavadora y encuentras un zapato que no es tuyo entre las prendas. Nadie en la casa lo reconoce.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo doblando el resto de la ropa",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Pregunto a los vecinos si es suyo",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido quedarme con el zapato misterioso",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Reviso la lavadora diez veces angustiado",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "park-walks",
+      "scenario": "Caminando en el parque, una ardilla se sienta junto a ti en la banca y espera a que le hables. No se mueve.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo mi caminata como todos los días",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le hablo con calma sin espantarla",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido adoptar la banca como punto fijo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo congelado sin saber qué hacer",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "queues",
+      "scenario": "Haces fila para el baño público y la persona adelante cumple años el mismo día que tú. Se enteran por casualidad.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo esperando mi turno tranquilo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le deseo feliz cumpleaños con calma",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Propongo que celebremos juntos ese día",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me obsesiono buscando más coincidencias",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "heatwave",
+      "scenario": "Prendes el ventilador para el calor y termina volando todos los papeles del apartamento. La sala queda cubierta de hojas.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Recojo todo antes de seguir con mi día",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le aviso a mi compañero del desastre",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido dejar las hojas como decoración",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Corro a apagar todo entrando en pánico",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "travel",
+      "scenario": "En el aeropuerto alguien te abraza pensando que eres su hermano que no ve hace años. El abrazo dura demasiado.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo camino a mi puerta de embarque",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le explico el error con cariño",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido seguirle el juego un rato",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo dudando si soy yo el confundido",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "taxis",
+      "scenario": "En el taxi compartido todos bajan el volumen de la música al pasar por cierta esquina. Nadie explica por qué.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo el viaje sin preguntar más",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Pregunto el motivo con buena onda",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Propongo subir el volumen esa vez",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo dándole vueltas al misterio",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "beach-day",
+      "scenario": "En la playa cambias tu toalla con la de un desconocido sin darte cuenta. Los dos terminan bronceándose en la equivocada.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Le devuelvo su toalla enseguida",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me disculpo con una sonrisa",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Propongo intercambiar toallas el resto del día",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me preocupo pensando que perdí la mía",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "groceries",
+      "scenario": "Estás escogiendo frutas cuando el supermercado anuncia por altavoz que cierran en un minuto. Te quedan cinco cosas en la lista.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino la lista rápido igual",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le cedo el paso a otro cliente",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido qué comprar en diez segundos",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me bloqueo sin poder decidir nada",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "sports-casual",
+      "scenario": "Jugando fútbol en el parque, aparece un paraguas abierto en plena mitad de la cancha. Nadie sabe de dónde salió.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo jugando esquivando el paraguas",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Pregunto de quién es sin molestar",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido usarlo como nuevo arco",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Paro el partido alarmado por el paraguas",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "building-elevator",
+      "scenario": "Entras al ascensor y el perro del vecino aprieta el botón del piso equivocado con la pata. El ascensor sube solo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Bajo en mi piso cuando puedo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le agradezco al perro su ayuda",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido dejar que el perro elija el piso",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me pongo nervioso pensando que quedé atrapado",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "recipes",
+      "scenario": "Preparas una receta nueva y descubres que tu vecino cocina exactamente lo mismo al mismo tiempo. Se enteran por el olor.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino mi receta como la planeé",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le comento la coincidencia con calma",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Propongo cocinar juntos la próxima vez",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me obsesiono pensando en la casualidad",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "plants",
+      "scenario": "Riegas una planta pequeña y en una semana ocupa toda la sala del apartamento. Ya no cabe el sofá.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo regándola con la misma rutina",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le aviso a mi compañero del cambio",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido podarla a mi manera",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Entro en pánico calculando cuánto más crecerá",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "regulation",
+      "domain": "movies-series",
+      "scenario": "En el cine confundes a un actor de la fila de atrás con el protagonista de la película. Le pides una foto.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo viendo la película tranquilo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me disculpo por la confusión con gracia",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido pedirle la foto de todas formas",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Repaso el momento avergonzado toda la noche",
+          "pillar": "regulation",
+          "keyed": "reversed"
+        }
+      ]
+    }
+  ]
+}

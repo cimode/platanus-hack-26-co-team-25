@@ -1,5 +1,6 @@
 import { createDb } from "../src/lib/adapters/db/client";
 import { createRoomRepository } from "../src/lib/adapters/db/room-repository";
+import { INSTRUMENT } from "../src/lib/domain/quiz/instrument";
 import { seedRoster } from "./fixtures/roster";
 import { seedLatents, seedSimulations } from "./fixtures/simulations";
 
@@ -71,7 +72,10 @@ export default async function globalSetup(): Promise<void> {
   await rooms.create({
     slug,
     name: `E2E run ${run}`,
-    instrumentVersion: "v1",
+    // The room records the structural version it administers, and quizProgress
+    // and scoreParticipant both refuse a room whose version is not the current
+    // one -- so a literal here would fail every run the day the shape moves.
+    instrumentVersion: INSTRUMENT.version,
   });
 
   /*

@@ -232,7 +232,7 @@ describe("createParticipantRepository", () => {
 
     const bySlug = await repos.rooms.bySlug(room.slug);
     expect(bySlug?.id).toBe(room.id);
-    expect(bySlug?.instrumentVersion).toBe("v1");
+    expect(bySlug?.instrumentVersion).toBe(INSTRUMENT.version);
     // D9: a slug identifies one room; the second create is rejected, not a
     // silent second room automation could wander into.
     await expect(

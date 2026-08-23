@@ -3,21 +3,22 @@ import { Progress } from "@/components/ui/progress";
 /**
  * The one progress bar the whole flow shares (issue #42).
  *
- * Sixteen steps: the registration screen and the fifteen quiz blocks. The
+ * Thirteen steps: the registration screen and the twelve quiz blocks. The
  * declared round is gone from the flow, so registration hands straight over to
- * block 1. The bar is the ONLY progress copy on an intake screen -- no "step N
- * of N", no screen title, nothing that names what is being asked (the product
- * correction of 2026-08-22). The quiz keeps its own mono counter beside the bar
- * because a block is a countable thing to the person answering it; the
- * registration screen is not.
+ * block 1, and the form itself is twelve blocks long since the questions came
+ * from the committed bank (docs/domain.md D21). The bar is the ONLY progress
+ * copy on an intake screen -- no "step N of N", no screen title, nothing that
+ * names what is being asked (the product correction of 2026-08-22). The quiz
+ * keeps its own mono counter beside the bar because a block is a countable
+ * thing to the person answering it; the registration screen is not.
  *
  * A Server Component wrapper around the shadcn `Progress` primitive, which
  * renders `role="progressbar"` with `aria-valuenow` and `aria-valuemax` -- the
  * accessible name is Spanish and deliberately neutral.
  */
 
-/** 1 registration + 15 blocks. */
-export const FLOW_TOTAL_STEPS = 16;
+/** 1 registration + 12 blocks. */
+export const FLOW_TOTAL_STEPS = 13;
 
 /** The registration screen is step 1; block 1 follows it. */
 export const FLOW_REGISTER_STEP = 1;

@@ -201,7 +201,7 @@ grep -rn "AC-2" e2e src
 - id: AC-2
   kind: sad            # happy | sad | edge | safety
   file: e2e/intake.spec.ts
-  given: a participant who answered all 15 blocks but attached no photo
+  given: a participant who answered all 12 blocks but attached no photo
   when: they submit
   then: submission is blocked with a visible reason and nothing is persisted
 ```

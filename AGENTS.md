@@ -34,12 +34,17 @@
   `reactToEvent`; README there) over the domain catalogue `src/lib/domain/emotes/`;
   playable reference at `/design/emotes`.
 
-- **create_quest** (`.claude/workflows/create_quest.js`) — Generates the full 15-block
-  quiz in 3 delivered batches (5 questions + 20 image prompts each) via quest-skill:
-  author → desirability judge → repair → persist to `quiz/batch-N.json`, batch by
-  batch so results land progressively. Args: `{ language?: 'es', imagesPerQuestion?: 4,
-  outDir?: string }`. The reversed-keyed slot rotates across pillars (4/4/4/3 over 15
-  blocks); every pillar appears in every block by design — see `PILLARS.md` §7.2/§8.
+- **create_quest** (`.claude/workflows/create_quest.js`) — ⚠️ **Not what the app serves.**
+  It authors blocks in 3 delivered batches (5 questions + 20 image prompts each) via
+  quest-skill — author → desirability judge → repair → persist to `quiz/batch-N.json`.
+  Since `docs/domain.md` **D21** the deployed form is the committed bank: 400 blocks in
+  `quiz/bank/*.json`, merged and validated offline by `node scripts/quiz-bank/merge.mjs`
+  (`docs/quiz-generation.md`), from which `formFor(participantId)` deals each participant
+  twelve. Nothing generates at request time. Use this workflow to DRAFT candidates — write
+  them into `quiz/bank/.parts/` and run the merge — not to produce a form. Args: `{
+  language?: 'es', imagesPerQuestion?: 4, outDir?: string }`. Every pillar appears in every
+  block by design, with exactly one reversed-keyed option on the focus pillar — see
+  `PILLARS.md` §7.2/§8.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

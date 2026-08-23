@@ -5,18 +5,21 @@
  * the first unanswered position is the frontier, `answeredCount` is the count of
  * rows, and `completed` is `participants.quiz_completed_at !== null`.
  *
- * Under D16 the block itself is *this participant's* own, read from the
- * stored `generated_blocks` rows. This use case never generates: a read that
- * could wake a model is a page render that can take a minute, and the
- * generation pipeline (`ensure-quiz-batch.ts`) is claim-guarded so that the
- * screen can simply fire it in `after()` and come back. When the block at
- * `nextPosition` is not stored yet — or only stored as a `fallback` row, the
- * committed instrument that nobody should read any more — the view is
- * `pending` and carries no block; the screen shows a wait and retries.
+ * The block itself is one of the twelve `formFor(participantId)` deals from the
+ * committed bank — a pure function of who the participant is. The rows in
+ * `generated_blocks` are the record of what they were shown, written once at
+ * registration (`assignQuizForm`), and this read serves the stored row.
+ *
+ * There is nothing to wait for. When the row at `nextPosition` is missing — a
+ * participant registered before the form was assigned, or one carrying the
+ * legacy `source = 'fallback'` rows nobody should read any more — this use case
+ * assigns the form itself and serves the block it just wrote. That costs one
+ * INSERT and no model call, so the self-healing path renders a question rather
+ * than a spinner.
  *
  * The room's structural version is checked first (docs/domain.md D2 / §5 /
  * §10.1(b)): `rooms.byId(participant.roomId)`, and a mismatch throws
- * `InstrumentVersionMismatchError` before a single response or generated block
+ * `InstrumentVersionMismatchError` before a single response or stored block
  * is read.
  *
  * Only `PublicBlock` leaves this module: `pillar`, `keyed`, `focusPillar`,
@@ -32,6 +35,7 @@ import type { GeneratedBlockRepository } from "../ports/generated-block-reposito
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { ResponseRepository } from "../ports/response-repository";
 import type { RoomRepository } from "../ports/room-repository";
+import { assignQuizForm } from "./assign-quiz-form.ts";
 
 /** What a card renders, and nothing more. */
 export interface PublicOption {
@@ -39,7 +43,7 @@ export interface PublicOption {
   text: string;
 }
 
-/** The block as the client island may see it (docs/domain.md D16, §5). */
+/** The block as the client island may see it (docs/domain.md §5). */
 export interface PublicBlock {
   position: number;
   scenario: string;
@@ -61,23 +65,18 @@ export interface QuizProgressInput {
 
 export interface QuizProgressView {
   participantId: ParticipantId;
-  /** The screen fires the generation chain for this room when `pending`. */
+  /** The room this person registered into; the screen carries it onward. */
   roomId: string;
-  /** The plate this person wears, so the wait and the block can draw them. */
+  /** The plate this person wears, so the block can draw them. */
   avatar: Avatar | null;
   /** The position on screen: the frontier, or `at` when it is behind it. */
   nextPosition: number;
   batch: number;
   answeredCount: number;
   completed: boolean;
-  /**
-   * True when the block at `nextPosition` has not been written for this
-   * participant yet. `block` and `shownOrder` are null; nothing was generated.
-   */
-  pending: boolean;
-  /** Null when the quiz is complete or the block is still pending. */
+  /** Null only when the quiz is complete. */
   block: PublicBlock | null;
-  /** `shownOrderFor(participantId, nextPosition)`; null when complete or pending. */
+  /** `shownOrderFor(participantId, nextPosition)`; null when complete. */
   shownOrder: string | null;
   /** The row already stored at `nextPosition`, so the screen renders pre-marked. */
   existing: BlockResponse | null;
@@ -125,12 +124,12 @@ export async function requireCurrentRoom(
 }
 
 /**
- * The frontier: the first position 1..15 with no row, or 15 when every position
+ * The frontier: the first position 1..12 with no row, or 12 when every position
  * has one (docs/domain.md §0 — progress is read from the rows).
  *
- * Fifteen rows and no completion timestamp is the re-submit state from the
- * issue's Context: block 15 is served again, pre-marked, and answering it runs
- * the completing write.
+ * Twelve rows and no completion timestamp is the re-submit state from the
+ * issue's Context: the last block is served again, pre-marked, and answering it
+ * runs the completing write.
  */
 export function firstUnanswered(answered: ReadonlySet<number>): number {
   for (let position = 1; position <= BLOCK_COUNT; position++) {
@@ -180,7 +179,6 @@ export async function quizProgress(
       nextPosition: frontier,
       batch: batchOf(frontier),
       completed: true,
-      pending: false,
       block: null,
       shownOrder: null,
       existing: null,
@@ -201,23 +199,29 @@ export async function quizProgress(
   const existing = rows.find((row) => row.position === position) ?? null;
   const stored = await deps.generatedBlocks.byBatch(participant.id, batch);
   const row = stored.find((candidate) => candidate.block.position === position);
-  // A fallback row is the committed instrument, not this person's block, and
-  // the chain will replace it — unless they already answered it, in which
+  // A `fallback` row is the old committed instrument, not a bank block, and
+  // assigning the form replaces it — unless they already answered it, in which
   // case it is the question their answer refers to and is shown as such.
   const usable =
     row !== undefined && (row.source !== "fallback" || existing !== null);
 
-  if (!usable) {
-    return {
-      ...base,
-      nextPosition: position,
-      batch,
-      completed: false,
-      pending: true,
-      block: null,
-      shownOrder: null,
-      existing,
-    };
+  // Self-healing, and cheap: the form is `formFor(participant.id)` either way,
+  // so the only thing missing is the row, and one INSERT supplies it.
+  const block = usable
+    ? row.block
+    : (await assignQuizForm({ participantId: participant.id }, deps)).find(
+        (candidate) => candidate.position === position
+      );
+
+  if (!block) {
+    // `formFor` deals positions 1..BLOCK_COUNT and `position` is clamped to the
+    // frontier, which is one of them. Reaching this means the bank and the
+    // instrument disagree about how long a form is — a boot-time invariant
+    // that has come apart, not a state a participant can be in.
+    throw new Error(
+      `no block at position ${position} in the form assigned to participant ` +
+        `${participant.id}`
+    );
   }
 
   return {
@@ -225,8 +229,7 @@ export async function quizProgress(
     nextPosition: position,
     batch,
     completed: false,
-    pending: false,
-    block: toPublicBlock(row.block),
+    block: toPublicBlock(block),
     shownOrder: shownOrderFor(participant.id, position),
     existing,
   };

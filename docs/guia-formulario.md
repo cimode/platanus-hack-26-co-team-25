@@ -21,7 +21,7 @@ que si alguien cierra la pestaña, lo anterior queda.
 | Paso | Qué pregunta | Dónde se guarda |
 | --- | --- | --- |
 | 1 · registro | foto, nombre, género y fecha de nacimiento, todo junto, más la casilla de tratamiento de datos | tabla `participants` (se crea la fila, con `photo_url`, `gender`, `birthdate`, `data_consent_at` y los tres consentimientos en `true`) |
-| 2 · quiz | 15 situaciones, cada una con 4 opciones; la persona toca la que más se le parece | tabla `quiz_responses` (**una fila por pregunta respondida**, hasta 15) |
+| 2 · quiz | 12 situaciones, cada una con 4 opciones; la persona toca la que más se le parece | tabla `quiz_responses` (**una fila por pregunta respondida**, hasta 12) |
 
 Lo que ya no se pregunta: el consentimiento (participar *es* consentir en esta versión),
 el equipo y el track, los filtros de cada lente, la banda de edad — esa se calcula sola
@@ -29,23 +29,31 @@ a partir de la fecha de nacimiento — y, desde el D20, la **ronda declarada** (
 preguntas de bolsillo, arraigo, familia, horas, distancia y horario). Sus columnas siguen
 en `participants` pero quedan vacías; nada las exige. Ninguna pantalla dice qué se está
 midiendo: no hay títulos de categoría, no hay "Paso 4 de 5" y no hay marca de agua; sólo
-una barra de progreso que cubre los 16 pasos del recorrido (1 registro + 15 bloques).
+una barra de progreso que cubre los 13 pasos del recorrido (1 registro + 12 bloques).
 
 ### ¿Y de dónde salen las preguntas tan rápido?
 
-Las 15 preguntas de cada persona las escribe un modelo, de cinco en cinco, y escribir
-cinco tarda entre 40 y 70 segundos. Para que nadie espere:
+De un archivo. Nada se escribe mientras la persona espera — esa es toda la idea del **D21**.
 
-1. Mientras la persona tiene el formulario abierto, el servidor va escribiendo en segundo
-   plano un **pozo** de cuestionarios completos (las 15 escenas) para la sala (tabla `quiz_pool_sets`); también se llena mientras `/qr` está en pantalla.
-2. Al tocar *Empezar*, el registro toma una de esas cinco del pozo y la vuelve suya (tabla
-   `generated_blocks`). Por eso la primera pregunta aparece de una.
-3. Las siguientes diez se escriben después de responder, en segundo plano, con un
-   **candado** en la base (`quiz_generation_claims`) para que dos peticiones no escriban lo
-   mismo dos veces.
-4. Si una pregunta todavía no está escrita cuando la persona llega a ella, la pantalla
-   dice "estamos escribiendo tus preguntas" y se refresca sola. Una lectura nunca llama
-   al modelo.
+Antes las 15 preguntas de cada persona las escribía un modelo mientras ella miraba una
+pantalla que decía "estamos escribiendo tus preguntas". Eso se leía como una app rota y la
+gente cerraba la pestaña, así que se borró completo. Hoy:
+
+1. Hay un **banco** de 400 preguntas ya escritas, revisadas y guardadas en el repositorio:
+   `quiz/bank/regulation.json`, `politeness.json`, `reliability.json` y `agency.json`, 100
+   en cada uno. Se escribieron una sola vez, fuera de la app.
+2. Al registrarse, la función `formFor(participantId)` le **reparte 12** a esa persona —
+   tres de cada rasgo — usando su propio id como semilla. El mismo id siempre saca las
+   mismas 12 en el mismo orden, y el orden de los rasgos cambia de persona a persona, así
+   que a dos personas no les toca lo mismo en la misma posición.
+3. Esas 12 se guardan de una vez en `generated_blocks` (una sola escritura) antes de que el
+   navegador llegue al quiz. Por eso la primera pregunta aparece de inmediato: ya estaba
+   escrita, y mostrarla no cuesta ni una llamada al modelo.
+
+Para agregar preguntas al banco se escriben aparte, se dejan en `quiz/bank/.parts/` y se
+corre `node scripts/quiz-bank/merge.mjs --write`, que revisa cada una (estructura, largo,
+voz, repetidas) y sólo deja pasar las que cumplen. Está explicado en
+`docs/quiz-generation.md`.
 
 ## 3. ¿Cómo sabemos quién es quién? (la cookie)
 
@@ -69,16 +77,16 @@ Así se lee un contrato (paso 2, una respuesta del quiz):
 
 ```ts
 export const AnswerBlockInput = z.object({
-  position:   z.number().int().min(1).max(15), // qué pregunta: de la 1 a la 15
+  position:   z.number().int().min(1).max(12), // qué pregunta: de la 1 a la 12
   mostKey:    z.enum(["a", "b", "c", "d"]),    // la opción que MÁS se le parece
   leastKey:   z.enum(["a", "b", "c", "d"]).nullable(), // la que MENOS; sólo en el modo de dos marcas
   shownOrder: z.string().regex(/^[abcd]{4}$/), // en qué orden se mostraron las 4 cartas
 });
 ```
 
-En palabras: "acepto un número de pregunta entre 1 y 15, una letra de la a a la d para
+En palabras: "acepto un número de pregunta entre 1 y 12, una letra de la a a la d para
 'más yo', opcionalmente otra letra para 'menos yo', y el orden en que aparecieron las
-cartas". Nada más. Si llega `position: 16` o `mostKey: "z"`, se rechaza.
+cartas". Nada más. Si llega `position: 13` o `mostKey: "z"`, se rechaza.
 
 El otro contrato es igual de simple y está en `docs/form-response.md` §10:
 `RegisterInput` (sala, nombre, género, fecha de nacimiento y la casilla de datos — más la
@@ -87,13 +95,13 @@ filtros y ronda declarada ya no existen: el D18 y el D20 dejaron de preguntar es
 
 ## 5. La parte que confunde: ¿por qué guardamos letras y no el texto?
 
-Cada persona recibe **sus propias 15 preguntas**: las escribe un modelo de lenguaje cuando
-la persona entra, de cinco en cinco, y se guardan en la tabla `generated_blocks` (una fila
-por persona y por posición 1..15). Lo que sí es igual para todo el mundo es la
-**estructura**: 15 posiciones, 4 opciones por pregunta, una por rasgo, y exactamente una
-"al revés". Hay 15 preguntas fijas en el código (`quiz/batch-*.json`, la constante
-`INSTRUMENT`) que definen esa estructura y sirven de ejemplo al modelo; desde el D20 no se
-le muestran a nadie. Una pregunta se ve así:
+Cada persona recibe **sus propias 12 preguntas**: se las reparte el banco cuando se
+registra, y se guardan en la tabla `generated_blocks` (una fila por persona y por posición
+1..12). Lo que sí es igual para todo el mundo es la **estructura**: 12 posiciones, 4
+opciones por pregunta, una por rasgo, y exactamente una "al revés". La constante
+`INSTRUMENT` (versión `bank-1`) es esa estructura, y `validateBlock()` la revisa en cada
+una de las 400 preguntas del banco al arrancar la app: si alguna está mal, la app no
+arranca. Una pregunta se ve así:
 
 ```json
 {
@@ -126,7 +134,7 @@ manda el texto**. Manda esto:
 1. Nadie puede "responder" con un texto que no existe en la pregunta.
 2. Cada opción mide un rasgo de personalidad oculto (`pillar`) y eso **no debe salir al
    navegador**. Con letras, el navegador nunca se entera de qué mide cada carta.
-3. Es más liviano: 100 personas × 15 preguntas × 4 textos sería guardar lo mismo 6.000
+3. Es más liviano: 100 personas × 12 preguntas × 4 textos sería guardar lo mismo 4.800
    veces.
 
 ## 6. Pero entonces, ¿cómo sé qué respondió cada uno? (esto es lo importante)
@@ -144,7 +152,7 @@ así:
 | `most_key` | `c` | lo que mandó el navegador |
 | `least_key` | `null` | lo que mandó el navegador |
 | `shown_order` | `cbad` | lo que mandó el navegador |
-| `instrument_version` | `v1` | qué versión de la **estructura** (15 posiciones, rotación, reglas) estaba activa |
+| `instrument_version` | `bank-1` | qué versión de la **estructura** (12 posiciones, reglas) estaba activa |
 | `scenario` | "Tu amigo movió la perilla del horno…" | **lo busca el servidor** |
 | `most_text` | "Tomo el mando: pedimos pizza y listo" | **lo busca el servidor** |
 | `least_text` | `null` | **lo busca el servidor** (cuando hay `least_key`) |
@@ -209,18 +217,18 @@ texto, su rasgo y su dirección".
 ## 8. Cómo se atan las tablas (el dibujo completo)
 
 ```
+quiz/bank/*.json  (400 preguntas en el repositorio; formFor(id) reparte 12)
+        │
+        ▼
 rooms ──────────< participants >────── participant_sessions   (la cookie)
-  │                   │
-  ├──────< quiz_pool_sets              (cuestionarios completos esperando a alguien)
-  │                   │
-  │                   ├──────────────── romantic_gates        (0 o 1 fila; ya no se escribe)
-  │                   ├──────────────── business_gates        (0 o 1 fila; ya no se escribe)
-  │                   ├──────────────< generated_blocks       (las 15 preguntas DE ESA persona)
-  │                   └──────────────< quiz_responses         (0 a 15 filas)
-  │                                          │
-  └──────< quiz_generation_claims            └── (participant_id, position, most_key)
-            (el candado de quién está          ─────────────────────────────────────▶  generated_blocks.options
-             escribiendo qué)
+                      │
+                      ├──────────────── romantic_gates        (0 o 1 fila; ya no se escribe)
+                      ├──────────────── business_gates        (0 o 1 fila; ya no se escribe)
+                      ├──────────────< generated_blocks       (las 12 preguntas DE ESA persona)
+                      └──────────────< quiz_responses         (0 a 12 filas)
+                                             │
+                                             └── (participant_id, position, most_key)
+                                               ─────────────────────────────────────▶  generated_blocks.options
 ```
 
 - Una flecha con `<` significa "muchos": un room tiene muchas personas; una persona
@@ -239,14 +247,16 @@ rooms ──────────< participants >────── participa
 | "Más yo" y "menos yo" no pueden ser la misma letra | contrato + `check` |
 | Una sola respuesta por persona y pregunta (si vuelve atrás, se reemplaza) | `unique (participant_id, position)` |
 | Cada respuesta apunta a un bloque que esa persona sí vio | el servidor rechaza la respuesta si no existe la fila en `generated_blocks` |
-| Dos peticiones no escriben las mismas cinco preguntas a la vez | el candado en `quiz_generation_claims` |
+| Registrarse dos veces no crea dos formularios | `saveBatch` reescribe las mismas 12 filas (`unique (participant_id, position)`) |
+| Las 400 preguntas del banco cumplen la estructura | `validateBlock()` sobre todas al importar: si una falla, la app no arranca |
 | Las preguntas fijas del código no cambian por accidente | un test que fija el "hash" de la constante `INSTRUMENT` |
 
 ## 10. Para probarlo con tus manos
 
 1. `pnpm run db:migrate` crea las tablas en tu rama de base de datos (la de `.env`).
-2. `pnpm run db:seed` crea el room del evento. Las preguntas de cada persona aparecen en
-   `generated_blocks` cuando esa persona entra (o, en tests, cuando el fixture las guarda).
+2. `pnpm run db:seed` crea el room del evento. Las 12 preguntas de cada persona aparecen en
+   `generated_blocks` en el momento en que se registra (o, en tests, cuando el fixture las
+   guarda con el mismo `formFor`).
 3. `pnpm run db:studio` abre un navegador de tablas: ahí verás `participants`,
    `quiz_responses`, etc., y podrás pegar las consultas de arriba.
 4. Los tests de integración (`pnpm exec vitest run src/lib/adapters/db`) crean personas y
@@ -257,10 +267,12 @@ rooms ──────────< participants >────── participa
 
 | Qué | Archivo |
 | --- | --- |
-| Las 15 preguntas fijas (estructura y ejemplo para el modelo) | `quiz/batch-1.json`, `batch-2.json`, `batch-3.json` |
-| La constante `INSTRUMENT` y sus validaciones | `src/lib/domain/quiz/instrument.ts` |
-| Cómo se generan las preguntas de cada persona, el pozo y el candado | `src/lib/use-cases/ensure-quiz-batch.ts`, `generate-quiz-batch.ts` |
-| Las tablas de preguntas generadas, del pozo y del candado | `src/lib/adapters/db/schema/quiz.ts` |
+| El banco de 400 preguntas | `quiz/bank/regulation.json`, `politeness.json`, `reliability.json`, `agency.json` |
+| El script que arma el banco desde los borradores | `scripts/quiz-bank/merge.mjs` (ver `docs/quiz-generation.md`) |
+| Cargar el banco, validarlo y repartir las 12 (`formFor`) | `src/lib/domain/quiz/bank.ts` |
+| La constante `INSTRUMENT` (la estructura) y sus validaciones | `src/lib/domain/quiz/instrument.ts` |
+| Guardar las 12 preguntas de una persona | `src/lib/use-cases/assign-quiz-form.ts` |
+| La tabla de las preguntas de cada persona | `src/lib/adapters/db/schema/quiz.ts` |
 | El tipo de una respuesta y sus reglas | `src/lib/domain/quiz/response.ts` |
 | La persona y sus consentimientos; a qué pantalla vuelve | `src/lib/domain/participant/participant.ts`, `flow.ts` |
 | El piso (quién puede entrar al ranking) | `src/lib/domain/participant/floor.ts` |
