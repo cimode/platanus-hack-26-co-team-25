@@ -84,8 +84,18 @@ test.describe("1d · the profile", () => {
     await open(page, `/profile/${SUBJECT}`);
     const shared = page.getByRole("list", { name: /en común/i });
     const empty = page.getByRole("status", { name: /nada en común/i });
-    // One or the other, never a bare empty row.
-    expect((await shared.count()) + (await empty.count())).toBe(1);
+
+    const hasList = (await shared.count()) === 1;
+    const hasEmpty = (await empty.count()) === 1;
+    // Exactly one branch, expressed as XOR. The first version of this test
+    // summed the two counts and asserted 1 -- which a bare `<ul>` with no items
+    // satisfies just as well as the designed state does, so `sdd-verify`
+    // replaced the empty state with exactly the blank row the spec forbids and
+    // this test stayed GREEN. A count that both branches satisfy is not a test.
+    expect(hasList !== hasEmpty).toBe(true);
+    if (hasList) {
+      expect(await shared.getByRole("listitem").count()).toBeGreaterThan(0);
+    }
   });
 
   test("AC-PROF-4 · nothing offspring-shaped renders, in any state (safety)", async ({
@@ -104,6 +114,27 @@ test.describe("1d · the profile", () => {
         expect(label, lens).not.toMatch(/beb[eé]|hijo|offspring/i);
       }
     }
+  });
+
+  test("AC-PROF-4 · the render never reads consent, so it cannot vary with it", async ({
+    page,
+  }) => {
+    // HONEST SCOPE, and the honesty is the point. The spec wants two people
+    // identical but for `consent.romantic` to render identical DOM. The fixture
+    // carries no consent at all (R15), so that pair does not exist and this
+    // CANNOT be the test the AC describes.
+    //
+    // What IS assertable is the stronger structural fact underneath it: the
+    // rendered output is a function of `PersonProfile`, and `PersonProfile` has
+    // no consent field -- so consent is not in the render's input at all. This
+    // asserts the observable half: the same person renders identically twice,
+    // and nothing consent-shaped appears in the payload. When #10 supplies real
+    // consent, THIS test must be replaced by the spec's, not extended.
+    await open(page, `/profile/${SUBJECT}`);
+    const first = await page.locator("main").innerHTML();
+    await open(page, `/profile/${SUBJECT}`);
+    expect(await page.locator("main").innerHTML()).toBe(first);
+    expect(first).not.toMatch(/consent|consiente|permiso/i);
   });
 
   test("AC-PROF-5 · the CTA carries the person and nothing else", async ({

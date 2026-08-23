@@ -89,6 +89,20 @@ test.describe("1c · the ranking", () => {
     expect(new Set(heights).size).toBe(1);
   });
 
+  test("AC-RANK-2 · a person with no photo gets a named placeholder", async ({
+    page,
+  }) => {
+    // This branch was dead for two verify passes: `Placement.sprite` is
+    // `readonly string`, so `photoUrl` was never null and nothing in the demo
+    // or the suite had ever rendered the placeholder. The fixture now gives it
+    // exactly one subject per room.
+    await open(page, "romantic");
+    const placeholder = page.getByRole("img", { name: /sin foto todavía/i });
+    await expect(placeholder).toHaveCount(1);
+    await placeholder.scrollIntoViewIfNeeded();
+    await expect(placeholder).toBeVisible();
+  });
+
   test("AC-RANK-3 · both bands render with different computed colours", async ({
     page,
   }) => {

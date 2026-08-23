@@ -101,7 +101,17 @@ export function mockRankedRoom(
     return {
       id: person.id,
       name: person.name,
-      photoUrl: person.photoUrl,
+      // One person per room has not uploaded a photo yet.
+      //
+      // Fabricated ON PURPOSE, and it is not the same class of invention R1
+      // forbids: a fixture must not invent CONSENT, because consent is a
+      // safety property and a wrong guess discloses someone. Photo presence is
+      // a render state, and without a subject for it the placeholder branch on
+      // 1c and 1d is code nobody has ever seen -- which is how a demo finds it
+      // for you, in front of an audience. Keyed on position so it is stable and
+      // so exactly one person carries it. Deleted with the rest of this file
+      // when #10 lands and `photoUrl` is real.
+      photoUrl: position === 4 ? null : person.photoUrl,
       position,
       band: index < highCount ? ("high" as const) : ("mid" as const),
       bond: BONDS[affinity(lens, viewer.id, person.id) % BONDS.length],

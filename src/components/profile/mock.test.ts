@@ -23,7 +23,7 @@ const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
 const CANDIDATES: readonly RankCandidate[] = [
   { id: "p-ana-ramirez", name: "Ana Ramírez", photoUrl: "/sprites/a.png" },
   { id: "p-andres-gil", name: "Andrés Gil", photoUrl: "/sprites/b.png" },
-  { id: "p-camila-soto", name: "Camila Soto", photoUrl: null },
+  { id: "p-camila-soto", name: "Camila Soto", photoUrl: "/sprites/c.png" },
   { id: "p-diego-morales", name: "Diego Morales", photoUrl: "/sprites/d.png" },
   { id: "p-elena-vargas", name: "Elena Vargas", photoUrl: "/sprites/e.png" },
   { id: "p-mateo-herrera", name: "Mateo Herrera", photoUrl: "/sprites/f.png" },
@@ -72,6 +72,42 @@ describe("mockProfile", () => {
       expect(profile(VIEWER.id, lens)).toBeNull();
       expect(profile("", lens)).toBeNull();
     }
+  });
+
+  it("refuses the viewer even when the ranking hands them back", () => {
+    // The guard in `mockProfile` was MUTATION-DEAD: `mockRankedRoom` already
+    // filters the viewer out, so deleting the check left every test green.
+    // `sdd-verify` found that by deleting it. A defence nothing can observe
+    // failing is not a defence -- so this hands in a room that DOES contain the
+    // viewer, which is exactly what a real `RankingPort` might one day return.
+    const current = room("romantic");
+    if (current.status !== "ranked") throw new Error("not ranked");
+    const withViewer: RankedRoom = {
+      ...current,
+      entries: [
+        {
+          id: VIEWER.id,
+          name: VIEWER.name,
+          photoUrl: null,
+          position: 1,
+          band: "high",
+          bond: { term: "lifeShape", label: "les une: ritmo de vida" },
+          friction: null,
+        },
+        ...current.entries,
+      ],
+    };
+
+    // The viewer must be in CANDIDATES too, or the `source` lookup below the
+    // guard returns null on its own and the guard is STILL unobservable. That
+    // is what the first attempt at this test got wrong: it moved the shadow
+    // from the ranking to the roster instead of removing it.
+    const withViewerListed = [
+      { id: VIEWER.id, name: VIEWER.name, photoUrl: "/sprites/z.png" },
+      ...CANDIDATES,
+    ];
+
+    expect(mockProfile(VIEWER.id, withViewer, withViewerListed)).toBeNull();
   });
 
   it("shows exactly the intersection, never the other person's own tags", () => {
