@@ -489,8 +489,15 @@ Filter chips carry the design's labels too — `Todos` / `Banda alta` /
       are LOOKING AT and the cookie names who is LOOKING**, and the second is
       not something a request may assert. One `null` check, one `notFound()`.
       (AC-PROF-1, AC-PROF-2)
-- [x] 7.3 `components/profile/{profile-card,avatar-stage,tag-chips}.tsx`, all
-      Server Components. Shared tags only — intersected in the fixture, never in
+- [x] 7.3 `components/profile/{profile-card,avatar-stage,tag-chips,standing-pill}.tsx`,
+      all Server Components. **Rebuilt to the design after the first pass missed
+      it entirely** — name and standing pill in the header, one dashed card with
+      a mono label and the chips INSIDE it, the CTA immediately under the card
+      rather than at the foot of the screen, a hairline, then the sprite taking
+      the whole lower half with the "la foto real se inserta en la cara del
+      sprite" note. The CTA is high on purpose: it is the only thing to do on
+      this screen, and burying it under the art makes the page look like a dead
+      end. See R17 for the two places the design and the spec disagree. Shared tags only — intersected in the fixture, never in
       the component, so the screen *cannot* present the other person's private
       interests as common ground even by accident. Explicit "nothing in common
       yet" state; photoless stage gets a named placeholder. Interest chips
@@ -514,6 +521,35 @@ Filter chips carry the design's labels too — `Todos` / `Banda alta` /
 
       The tag mutation is the one that matters: it is the privacy leak, caught
       as the other person's private interests being presented as shared.
+
+### R17 — the 1d design vs AC-PROF-3, and the bio that is not invented
+
+The design for 1d (shown after the first build) puts two things on screen that
+the spec argues about.
+
+**1. `1º en tu rank`, a rank index, on the profile.** AC-PROF-3 says the page
+"MUST NOT render a score, percentage, **rank index**, or any wording that implies
+a numeric ordering". The design renders exactly that, in a band-coloured pill.
+
+**Decision: build the design.** The position is the same one screen 1c showed on
+the card the viewer just tapped to get here, so it discloses nothing new *to this
+viewer*; it is not a score and is not invertible into one; and the AC's own
+examples — "87% match", "3rd best" — are judgements, where this is a location.
+It remains the ONLY number on the screen and nothing else here may become a
+second one. If the product decides otherwise it is one line in
+`components/profile/standing-pill.tsx`.
+
+**2. A "SMALL BIO" card of free prose.** Not built, and deliberately.
+`PersonProfile` carries no bio field, and adding one would widen a contract issue
+#10 implements — on our own authority, to put fabricated sentences in a named
+participant's mouth. **Fabricating a band is a fixture doing its job;
+fabricating someone's self-description is not.** The card keeps the design's
+shape (dashed border, mono label, chips inside) and holds what we actually have:
+the bond and friction lines AC-PROF-3 requires, plus the shared tags.
+
+**3. The venue background is dropped on 1d.** 1c carries it because the user
+asked for it there; the 1d design is plain, and the sprite is the subject of the
+lower half. Following the design beat inventing continuity it does not ask for.
 
 ### R16 — AC-PROF-2's lens scenario is not reachable, and the e2e says so
 

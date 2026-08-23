@@ -110,7 +110,7 @@ test.describe("1d · the profile", () => {
     page,
   }) => {
     await open(page, `/profile/${SUBJECT}`, "business");
-    const cta = page.getByRole("link", { name: /simular una vida/i });
+    const cta = page.getByRole("link", { name: /simular vida/i });
     // Exactly the segment. No query string, and above all no viewer id -- a
     // link that leaks out of this session must name a person and nothing about
     // who was looking at them.
