@@ -131,6 +131,54 @@ describe("generateQuizBatch", () => {
     expect(result.blocks[0].scenario).toBe(SCENARIOS[0]);
   });
 
+  it("sorts options that came back out of key order instead of rejecting the block", async () => {
+    const { llm, state } = authorStub(() => {
+      const batch = goodBatch("p-order", 1);
+      const [a, b, c, d] = batch.blocks[1].options;
+      batch.blocks[1].options = [a, b, d, c];
+      return batch;
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-order", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(1);
+    expect(result.repairedAt).toEqual([]);
+    expect(result.blocks[1].options.map((o) => o.key)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("an empty option text or a sixth block costs a position, never the call", async () => {
+    const { llm, state } = authorStub((call) => {
+      const batch = goodBatch("p-sixth", 1);
+      if (call === 1) {
+        batch.blocks[3].options[2].text = "";
+        return {
+          blocks: [
+            ...batch.blocks,
+            authoredFor(assignmentsForBatch("p-sixth", 3)[0]),
+          ],
+        };
+      }
+      return { blocks: [batch.blocks[3]] };
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-sixth", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([4]);
+    expect(result.blocks).toHaveLength(5);
+  });
+
   it("repairs a structurally invalid block by asking for that position alone", async () => {
     const { llm, state, sent } = authorStub((call) => {
       const batch = goodBatch("p-7", 1);
@@ -194,7 +242,7 @@ describe("generateQuizBatch", () => {
     expect((error as Error).message).toContain("batch 3");
   });
 
-  it("throws QuizAuthoringError naming the position that never validates, after repair and one final call", async () => {
+  it("throws QuizAuthoringError naming the position that never validates, after repair and two final calls", async () => {
     const { llm, state, sent } = authorStub(() => {
       const batch = goodBatch("p-9", 2);
       // Position 8 loses a pillar every time, so it can never validate.
@@ -213,12 +261,13 @@ describe("generateQuizBatch", () => {
     expect(error).toBeInstanceOf(QuizAuthoringError);
     expect((error as QuizAuthoringError).positions).toEqual([8]);
     expect((error as Error).message).toContain("position 8");
-    expect(state.authorCalls).toBe(3);
+    expect(state.authorCalls).toBe(4);
     expect(sent.map((s) => s.id)).toEqual([
       "quiz.author.batch-2",
       "quiz.judge",
       "quiz.author.batch-2.repair",
       "quiz.author.batch-2.final",
+      "quiz.author.batch-2.final-2",
     ]);
   });
 

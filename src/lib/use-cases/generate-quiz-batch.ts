@@ -49,6 +49,7 @@ import {
   authoredBlocksSchema,
   authorPrompt,
   judgePrompt,
+  normalizeAuthoredBlock,
   verdictsSchema,
 } from "../domain/quiz/authoring.ts";
 import { type Block, validateBlock } from "../domain/quiz/instrument.ts";
@@ -115,6 +116,8 @@ export class QuizAuthoringError extends Error {
 
 /** How many times the first author call is retried when the model itself fails. */
 const AUTHOR_ATTEMPTS = 3;
+/** Targeted calls after the repair pass, for what is still missing. */
+const FINAL_PASSES = 2;
 
 /**
  * Assemble a domain `Block` from what the model wrote plus what we planned.
@@ -273,7 +276,12 @@ export async function generateQuizBatch(
       // rather than letting it overwrite a block from another batch.
       if (!assignment || accepted.has(raw.position)) continue;
 
-      const block = toBlock(raw, assignment);
+      const normalized = normalizeAuthoredBlock(raw);
+      if ("problem" in normalized) {
+        problems.set(raw.position, normalized.problem);
+        continue;
+      }
+      const block = toBlock(normalized.block, assignment);
       const seen = [
         ...previousScenarios,
         ...acceptedScenarios(),
@@ -283,7 +291,7 @@ export async function generateQuizBatch(
       // Length rules first — they are worded for the repair prompt — then the
       // structural contract every returned block must honour, then novelty.
       const problem =
-        authoredBlockProblem(raw) ??
+        authoredBlockProblem(normalized.block) ??
         problemWith(block) ??
         (repeated === null
           ? null
@@ -370,11 +378,14 @@ export async function generateQuizBatch(
     if (repaired) accept(candidatesIn(repaired), true);
   }
 
-  // --- stage 5: one last call for whatever is still missing ----------------
-  if (missing().length > 0) {
-    replanRepeats(2);
+  // --- stage 5: last calls for whatever is still missing -------------------
+  // Two, not one: a position that survives a repair and a final pass is rare,
+  // but with the pool of whole forms one such position is a lost form, and a
+  // third targeted call is ten seconds against three minutes of authoring.
+  for (let pass = 1; pass <= FINAL_PASSES && missing().length > 0; pass++) {
+    replanRepeats(1 + pass);
     const final = await author(
-      `quiz.author.batch-${batch}.final`,
+      `quiz.author.batch-${batch}.final${pass > 1 ? `-${pass}` : ""}`,
       missing(),
       true
     );

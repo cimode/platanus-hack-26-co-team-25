@@ -8,6 +8,7 @@ import {
   authoredBlocksSchema,
   authorPrompt,
   judgePrompt,
+  normalizeAuthoredBlock,
 } from "./authoring.ts";
 
 /**
@@ -304,19 +305,64 @@ describe("authoredBatchSchema", () => {
 });
 
 describe("authoredBlocksSchema", () => {
-  it("accepts one to five blocks — a repair call asks only for what is missing", () => {
+  it("accepts any number of blocks — the loop, not the schema, decides what is missing", () => {
     const batch = goodBatch();
     expect(authoredBlocksSchema.safeParse(batch).success).toBe(true);
     expect(
       authoredBlocksSchema.safeParse({ blocks: batch.blocks.slice(0, 2) })
         .success
     ).toBe(true);
-    expect(authoredBlocksSchema.safeParse({ blocks: [] }).success).toBe(false);
+    // An empty or an over-long answer is not a failed CALL: the positions it
+    // leaves missing get another call, the extra ones are ignored.
+    expect(authoredBlocksSchema.safeParse({ blocks: [] }).success).toBe(true);
     expect(
       authoredBlocksSchema.safeParse({
         blocks: [...batch.blocks, batch.blocks[0]],
       }).success
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("normalizes option order and turns a missing key or empty text into that block's problem", () => {
+    const batch = goodBatch();
+    const block = batch.blocks[1];
+    block.options = [
+      block.options[0],
+      block.options[1],
+      block.options[3],
+      block.options[2],
+    ];
+    const sorted = normalizeAuthoredBlock(block);
+    expect("block" in sorted && sorted.block.options.map((o) => o.key)).toEqual(
+      ["a", "b", "c", "d"]
+    );
+
+    const twoAs = {
+      ...block,
+      options: [
+        block.options[0],
+        block.options[0],
+        block.options[1],
+        block.options[2],
+      ],
+    };
+    const problem = normalizeAuthoredBlock(twoAs);
+    expect("problem" in problem && problem.problem).toContain(
+      `position ${block.position}`
+    );
+    expect("problem" in problem && problem.problem).toContain(
+      "exactly a, b, c and d"
+    );
+
+    const blank = {
+      ...block,
+      options: block.options.map((o) =>
+        o.key === "c" ? { ...o, text: "  " } : o
+      ),
+    };
+    const empty = normalizeAuthoredBlock(blank);
+    expect("problem" in empty && empty.problem).toContain(
+      'option "c" has no text'
+    );
   });
 });
 

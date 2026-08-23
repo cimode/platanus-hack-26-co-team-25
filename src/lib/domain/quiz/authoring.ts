@@ -43,18 +43,20 @@ import type { Assignment } from "./assignments.ts";
  * production the 220 cap used to fail one call in three.
  */
 export const authoredBlockSchema = z.object({
-  position: z.int().min(1).max(15),
-  scenario: z.string().min(10).max(600),
-  options: z
-    .array(
-      z.object({
-        key: z.enum(["a", "b", "c", "d"]),
-        text: z.string().min(1).max(200),
-        pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
-        keyed: z.enum(["positive", "reversed"]),
-      })
-    )
-    .length(4),
+  // No ranges, no lengths, no counts: the enums guide the model (they reach
+  // it as the JSON schema), but every size rule is checked per block by
+  // `normalizeAuthoredBlock` and `authoredBlockProblem` below, where a miss
+  // costs one position a repair. A size rule here costs the whole call.
+  position: z.int(),
+  scenario: z.string(),
+  options: z.array(
+    z.object({
+      key: z.enum(["a", "b", "c", "d"]),
+      text: z.string(),
+      pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
+      keyed: z.enum(["positive", "reversed"]),
+    })
+  ),
 });
 
 /** Sentences, counted the way a reader counts them: by full stops. */
@@ -84,6 +86,40 @@ const MAX_SCENARIO_CHARS = 220;
 const MAX_OPTION_WORDS = 12;
 
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
+
+const OPTION_KEYS = ["a", "b", "c", "d"] as const;
+
+/**
+ * The block as the loop will use it, or the reason it cannot be.
+ *
+ * Order is not a mistake: options come back as `a, b, d, c` often enough
+ * that rejecting the block for it lost real batches, so they are sorted.
+ * What remains is checked one block at a time — exactly the four keys, no
+ * empty text, a scenario at all — so a miss is that position's repair.
+ */
+export function normalizeAuthoredBlock(
+  raw: AuthoredBlock
+): { block: AuthoredBlock } | { problem: string } {
+  const where = `position ${raw.position}`;
+  const options = raw.options
+    .map((option) => ({ ...option, text: option.text.trim() }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const keys = options.map((option) => option.key);
+  if (keys.join(",") !== OPTION_KEYS.join(",")) {
+    return {
+      problem: `${where}: the options must be exactly a, b, c and d, got ${keys.join(", ") || "none"}`,
+    };
+  }
+  const empty = options.find((option) => option.text.length === 0);
+  if (empty) {
+    return { problem: `${where}: option "${empty.key}" has no text` };
+  }
+  const scenario = raw.scenario.trim();
+  if (scenario.length < 10) {
+    return { problem: `${where}: the scenario is missing` };
+  }
+  return { block: { position: raw.position, scenario, options } };
+}
 
 /** The length complaint about a scenario, worded for the repair prompt. */
 function scenarioProblem(block: AuthoredBlock): string | null {
@@ -136,13 +172,13 @@ export function authoredBlockProblem(block: AuthoredBlock): string | null {
 }
 
 /**
- * What one author call returns: between one and five blocks. The first call
- * asks for five; a repair or top-up asks only for the positions still missing,
- * so the count is the call's, not the batch's. A miscounted answer costs the
- * missing positions another call rather than the whole response.
+ * What one author call returns: some blocks. The first call asks for five; a
+ * repair asks only for the positions still missing, so the count is the
+ * call's, not the batch's -- and it is not enforced here: a sixth block or a
+ * missing one costs the affected positions another call, never the response.
  */
 export const authoredBlocksSchema = z.object({
-  blocks: z.array(authoredBlockSchema).min(1).max(5),
+  blocks: z.array(authoredBlockSchema),
 });
 
 export type AuthoredBlocks = z.infer<typeof authoredBlocksSchema>;
