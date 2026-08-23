@@ -11,9 +11,15 @@
  * pipeline shipped (see `similarity.test.ts`):
  *
  *   · three or more shared content words — the same cast and props
- *   · a shared run of two content words — the same phrase, which is how the
- *     "idéntico al tuyo" joke came back with a different object in front
+ *   · two distinct shared runs of two content words — the same phrases. ONE
+ *     shared run is not enough: against the room's forty newest scenarios a
+ *     single "tamaño real" or "perro vecino" is a coincidence, and a gate
+ *     that fires on it rejected sound blocks in production (2026-08-23)
  *   · character 3-gram Jaccard ≥ 0.35 over the content words — near-verbatim
+ *
+ * A shared MOTIF with different props ("idéntico al tuyo" on a dog, then on a
+ * cart) is deliberately not a hit: that is the prompt's job, through the twist
+ * kind each position is assigned.
  *
  * Contract: pure TypeScript, no I/O, no model. Spanish-aware only in the
  * stopword list; everything else is language-neutral.
@@ -100,6 +106,7 @@ const STOPWORDS = new Set([
 
 const MIN_SHARED_WORDS = 3;
 const MIN_SHARED_PHRASE = 2;
+const MIN_SHARED_PHRASES = 2;
 const MIN_TRIGRAM_JACCARD = 0.35;
 
 /** Lowercase, accents stripped, punctuation gone, stopwords dropped. */
@@ -137,10 +144,12 @@ function sharesPhrase(a: string[], b: string[]): boolean {
   for (let i = 0; i + MIN_SHARED_PHRASE <= a.length; i++) {
     phrases.add(a.slice(i, i + MIN_SHARED_PHRASE).join(" "));
   }
+  const shared = new Set<string>();
   for (let i = 0; i + MIN_SHARED_PHRASE <= b.length; i++) {
-    if (phrases.has(b.slice(i, i + MIN_SHARED_PHRASE).join(" "))) return true;
+    const phrase = b.slice(i, i + MIN_SHARED_PHRASE).join(" ");
+    if (phrases.has(phrase)) shared.add(phrase);
   }
-  return false;
+  return shared.size >= MIN_SHARED_PHRASES;
 }
 
 /** True when `a` and `b` read as the same premise. Symmetric. */

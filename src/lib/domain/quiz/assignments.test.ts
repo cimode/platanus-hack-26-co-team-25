@@ -6,6 +6,7 @@ import {
   DOMAIN_GROUPS,
   DOMAINS,
   groupOf,
+  replanSetting,
   TWIST_KINDS,
 } from "./assignments.ts";
 import { BLOCK_COUNT } from "./instrument.ts";
@@ -135,5 +136,36 @@ describe("assignmentsForBatch with stored domains", () => {
     ];
     expect(new Set(all).size).toBe(BLOCK_COUNT);
     expect(new Set(all.map(groupOf)).size).toBe(BLOCK_COUNT);
+  });
+});
+
+describe("replanSetting", () => {
+  it("moves a position to a domain no sibling or stored block uses, in another theme, with the next twist", () => {
+    const plan = assignmentsForBatch("p-replan", 2);
+    const target = plan[1];
+    const taken = plan.map((a) => a.domain);
+
+    const fresh = replanSetting("p-replan", target, taken, 1);
+
+    expect(fresh.position).toBe(target.position);
+    expect(fresh.batch).toBe(target.batch);
+    expect(fresh.focusPillar).toBe(target.focusPillar);
+    expect(fresh.domain).not.toBe(target.domain);
+    expect(taken).not.toContain(fresh.domain);
+    const takenGroups = new Set(taken.map(groupOf));
+    expect(takenGroups.has(groupOf(fresh.domain))).toBe(false);
+    expect(fresh.twistKind).not.toBe(target.twistKind);
+    expect(TWIST_KINDS).toContain(fresh.twistKind);
+  });
+
+  it("is deterministic and steps the twist further on the second attempt", () => {
+    const target = assignmentsForBatch("p-replan", 1)[0];
+    const once = replanSetting("p-replan", target, [], 1);
+    const again = replanSetting("p-replan", target, [], 1);
+    const further = replanSetting("p-replan", target, [], 2);
+
+    expect(again).toEqual(once);
+    expect(further.twistKind).not.toBe(once.twistKind);
+    expect(further.domain).toBe(once.domain);
   });
 });

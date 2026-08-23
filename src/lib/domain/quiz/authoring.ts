@@ -32,23 +32,31 @@ import type { Assignment } from "./assignments.ts";
  * `focusPillar` are *not* asked for — they are ours, and re-deriving them from
  * the assignment removes a whole class of drift between plan and output.
  */
+/**
+ * SHAPE ONLY. This schema is what `generateObject` validates the model's
+ * output against, and a schema miss fails the WHOLE call as "no object" --
+ * three of those and the batch is lost. The length rules (two short
+ * sentences, 220 characters, twelve words) therefore live in
+ * `authoredBlockProblem` below, where breaking one costs that position a
+ * repair, not the batch. The caps here only stop a paragraph: a Spanish
+ * two-sentence scenario lands between 150 and 300 characters, and in
+ * production the 220 cap used to fail one call in three.
+ */
 export const authoredBlockSchema = z.object({
-  position: z.int().min(1).max(15),
-  scenario: z.string().min(10).max(220),
-  options: z
-    .array(
-      z.object({
-        key: z.enum(["a", "b", "c", "d"]),
-        // 90, not 60: twelve words of Spanish run to ~85 characters, and this
-        // schema is what the model's output is validated against -- an option
-        // one character over it fails the WHOLE call as "no object", not one
-        // position as a repair. The word cap below is the real rule.
-        text: z.string().min(2).max(90),
-        pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
-        keyed: z.enum(["positive", "reversed"]),
-      })
-    )
-    .length(4),
+  // No ranges, no lengths, no counts: the enums guide the model (they reach
+  // it as the JSON schema), but every size rule is checked per block by
+  // `normalizeAuthoredBlock` and `authoredBlockProblem` below, where a miss
+  // costs one position a repair. A size rule here costs the whole call.
+  position: z.int(),
+  scenario: z.string(),
+  options: z.array(
+    z.object({
+      key: z.enum(["a", "b", "c", "d"]),
+      text: z.string(),
+      pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
+      keyed: z.enum(["positive", "reversed"]),
+    })
+  ),
 });
 
 /** Sentences, counted the way a reader counts them: by full stops. */
@@ -64,27 +72,72 @@ function wordCount(text: string): number {
 }
 
 /**
- * Scenario: at most two short sentences. Option: the prompt asks for 4–7 words
- * and the judge frowns past 8, but the HARD cap is looser. The options render
- * as full-width rows since 2026-08-23 (style "B · Diálogo"), where a ten-word
- * line simply wraps; what the cap guards against is a paragraph, not a joke
- * that ran one word long. Rejecting at nine cost real forms: the model lands
- * 9–10 words often enough that whole batches failed after repair and the
- * final pass, and with the pool of whole forms one lost batch is a lost form.
+ * Scenario: at most two short sentences and 220 characters (the bubble on a
+ * 390px phone). Option: the prompt asks for 4–7 words and the judge frowns
+ * past 8, but the HARD cap is looser. The options render as full-width rows
+ * since 2026-08-23 (style "B · Diálogo"), where a ten-word line simply wraps;
+ * what the cap guards against is a paragraph, not a joke that ran one word
+ * long. Rejecting at nine cost real forms: the model lands 9–10 words often
+ * enough that whole batches failed after repair and the final pass, and with
+ * the pool of whole forms one lost batch is a lost form.
  */
 const MAX_SENTENCES = 2;
+const MAX_SCENARIO_CHARS = 220;
 const MAX_OPTION_WORDS = 12;
 
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
 
+const OPTION_KEYS = ["a", "b", "c", "d"] as const;
+
+/**
+ * The block as the loop will use it, or the reason it cannot be.
+ *
+ * Order is not a mistake: options come back as `a, b, d, c` often enough
+ * that rejecting the block for it lost real batches, so they are sorted.
+ * What remains is checked one block at a time — exactly the four keys, no
+ * empty text, a scenario at all — so a miss is that position's repair.
+ */
+export function normalizeAuthoredBlock(
+  raw: AuthoredBlock
+): { block: AuthoredBlock } | { problem: string } {
+  const where = `position ${raw.position}`;
+  const options = raw.options
+    .map((option) => ({ ...option, text: option.text.trim() }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const keys = options.map((option) => option.key);
+  if (keys.join(",") !== OPTION_KEYS.join(",")) {
+    return {
+      problem: `${where}: the options must be exactly a, b, c and d, got ${keys.join(", ") || "none"}`,
+    };
+  }
+  const empty = options.find((option) => option.text.length === 0);
+  if (empty) {
+    return { problem: `${where}: option "${empty.key}" has no text` };
+  }
+  const scenario = raw.scenario.trim();
+  if (scenario.length < 10) {
+    return { problem: `${where}: the scenario is missing` };
+  }
+  return { block: { position: raw.position, scenario, options } };
+}
+
 /** The length complaint about a scenario, worded for the repair prompt. */
 function scenarioProblem(block: AuthoredBlock): string | null {
   const sentences = sentenceCount(block.scenario);
-  if (sentences <= MAX_SENTENCES) return null;
-  return (
-    `position ${block.position}: the scenario has ${sentences} ` +
-    `sentences; the limit is ${MAX_SENTENCES} short sentences`
-  );
+  if (sentences > MAX_SENTENCES) {
+    return (
+      `position ${block.position}: the scenario has ${sentences} ` +
+      `sentences; the limit is ${MAX_SENTENCES} short sentences`
+    );
+  }
+  const chars = block.scenario.trim().length;
+  if (chars > MAX_SCENARIO_CHARS) {
+    return (
+      `position ${block.position}: the scenario has ${chars} ` +
+      `characters; the limit is ${MAX_SCENARIO_CHARS}`
+    );
+  }
+  return null;
 }
 
 /** The length complaint about one option, worded for the repair prompt. */
@@ -119,13 +172,13 @@ export function authoredBlockProblem(block: AuthoredBlock): string | null {
 }
 
 /**
- * What one author call returns: between one and five blocks. The first call
- * asks for five; a repair or top-up asks only for the positions still missing,
- * so the count is the call's, not the batch's. A miscounted answer costs the
- * missing positions another call rather than the whole response.
+ * What one author call returns: some blocks. The first call asks for five; a
+ * repair asks only for the positions still missing, so the count is the
+ * call's, not the batch's -- and it is not enforced here: a sixth block or a
+ * missing one costs the affected positions another call, never the response.
  */
 export const authoredBlocksSchema = z.object({
-  blocks: z.array(authoredBlockSchema).min(1).max(5),
+  blocks: z.array(authoredBlockSchema),
 });
 
 export type AuthoredBlocks = z.infer<typeof authoredBlocksSchema>;

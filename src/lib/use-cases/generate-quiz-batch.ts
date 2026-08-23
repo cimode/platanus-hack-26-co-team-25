@@ -40,6 +40,7 @@
 import {
   type Assignment,
   assignmentsForBatch,
+  replanSetting,
 } from "../domain/quiz/assignments.ts";
 import {
   type AuthoredBlock,
@@ -48,6 +49,7 @@ import {
   authoredBlocksSchema,
   authorPrompt,
   judgePrompt,
+  normalizeAuthoredBlock,
   verdictsSchema,
 } from "../domain/quiz/authoring.ts";
 import { type Block, validateBlock } from "../domain/quiz/instrument.ts";
@@ -114,6 +116,8 @@ export class QuizAuthoringError extends Error {
 
 /** How many times the first author call is retried when the model itself fails. */
 const AUTHOR_ATTEMPTS = 3;
+/** Targeted calls after the repair pass, for what is still missing. */
+const FINAL_PASSES = 2;
 
 /**
  * Assemble a domain `Block` from what the model wrote plus what we planned.
@@ -197,6 +201,9 @@ async function judgeTone(
   return rejected;
 }
 
+/** The complaint `candidatesIn` writes for a retold premise; `replanRepeats` keys on it. */
+const REPEATS = "repeats the premise of";
+
 export async function generateQuizBatch(
   input: GenerateQuizBatchInput,
   deps: { llm: LlmPort }
@@ -217,7 +224,10 @@ export async function generateQuizBatch(
   const repairedAt: number[] = [];
   const problems = new Map<number, string>();
 
-  const missing = () => plan.filter((a) => !accepted.has(a.position));
+  // Read from `planAt`, not `plan`: a position re-planned into a fresh
+  // setting (below) must be asked for in that setting.
+  const missing = () =>
+    [...planAt.values()].filter((a) => !accepted.has(a.position));
   const acceptedScenarios = () => [...accepted.values()].map((b) => b.scenario);
 
   /** One author call for `targets`; null when the model itself failed. */
@@ -266,7 +276,12 @@ export async function generateQuizBatch(
       // rather than letting it overwrite a block from another batch.
       if (!assignment || accepted.has(raw.position)) continue;
 
-      const block = toBlock(raw, assignment);
+      const normalized = normalizeAuthoredBlock(raw);
+      if ("problem" in normalized) {
+        problems.set(raw.position, normalized.problem);
+        continue;
+      }
+      const block = toBlock(normalized.block, assignment);
       const seen = [
         ...previousScenarios,
         ...acceptedScenarios(),
@@ -276,11 +291,11 @@ export async function generateQuizBatch(
       // Length rules first — they are worded for the repair prompt — then the
       // structural contract every returned block must honour, then novelty.
       const problem =
-        authoredBlockProblem(raw) ??
+        authoredBlockProblem(normalized.block) ??
         problemWith(block) ??
         (repeated === null
           ? null
-          : `position ${raw.position}: repeats the premise of: "${repeated}"`);
+          : `position ${raw.position}: ${REPEATS}: "${repeated}"`);
       if (problem) {
         problems.set(raw.position, problem);
         continue;
@@ -288,6 +303,30 @@ export async function generateQuizBatch(
       candidates.set(raw.position, block);
     }
     return candidates;
+  }
+
+  /**
+   * A position the model retold — its complaint is a repeat — gets a fresh
+   * setting before it is asked for again. The note still quotes the premise
+   * it repeated; the table row now names another domain and twist, so the
+   * model has somewhere new to go instead of the same joke worded harder.
+   */
+  function replanRepeats(attempt: number): void {
+    for (const assignment of missing()) {
+      const problem = problems.get(assignment.position);
+      if (!problem?.includes(REPEATS)) continue;
+      const taken = [
+        ...(input.storedDomains ?? []),
+        ...[...planAt.values()].map((a) => a.domain),
+        ...[...accepted.values()].map((b) => b.domain),
+      ];
+      const fresh = replanSetting(participantId, assignment, taken, attempt);
+      planAt.set(assignment.position, fresh);
+      problems.set(
+        assignment.position,
+        `${problem} — write it in a new setting: ${fresh.domain}`
+      );
+    }
   }
 
   function accept(candidates: Map<number, Block>, repaired: boolean): void {
@@ -330,6 +369,7 @@ export async function generateQuizBatch(
 
   // --- stage 4: repair only what failed, quoting the complaints ------------
   if (missing().length > 0) {
+    replanRepeats(1);
     const repaired = await author(
       `quiz.author.batch-${batch}.repair`,
       missing(),
@@ -338,10 +378,14 @@ export async function generateQuizBatch(
     if (repaired) accept(candidatesIn(repaired), true);
   }
 
-  // --- stage 5: one last call for whatever is still missing ----------------
-  if (missing().length > 0) {
+  // --- stage 5: last calls for whatever is still missing -------------------
+  // Two, not one: a position that survives a repair and a final pass is rare,
+  // but with the pool of whole forms one such position is a lost form, and a
+  // third targeted call is ten seconds against three minutes of authoring.
+  for (let pass = 1; pass <= FINAL_PASSES && missing().length > 0; pass++) {
+    replanRepeats(1 + pass);
     const final = await author(
-      `quiz.author.batch-${batch}.final`,
+      `quiz.author.batch-${batch}.final${pass > 1 ? `-${pass}` : ""}`,
       missing(),
       true
     );

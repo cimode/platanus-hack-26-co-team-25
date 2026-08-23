@@ -19,11 +19,22 @@ describe("tooSimilar", () => {
     ).toBe(true);
   });
 
-  it("catches the same joke with a different object in front of it", () => {
+  it("lets the same motif with a different object through — motifs are the prompt's job", () => {
+    // One shared phrase ("idéntico tuyo") and two shared words: a coincidence
+    // at the scale of a room's forty newest scenarios, not a retelling.
     expect(
       tooSimilar(
         "Un perro callejero idéntico al tuyo te sigue a casa",
         "Un carrito idéntico al tuyo aparece en tu puesto"
+      )
+    ).toBe(false);
+  });
+
+  it("catches two shared phrases even with few shared words", () => {
+    expect(
+      tooSimilar(
+        "Tu vecino saca un flamenco de plástico de tamaño real al balcón",
+        "En el apagón la linterna revela un flamenco de plástico de tamaño real en la sala"
       )
     ).toBe(true);
   });
@@ -81,7 +92,10 @@ describe("repeatedBy", () => {
       "Un perro callejero idéntico al tuyo te sigue a casa",
     ];
     expect(
-      repeatedBy("Un gato idéntico al tuyo te espera en la puerta", seen)
+      repeatedBy(
+        "Un perro callejero idéntico al tuyo te sigue hasta la casa",
+        seen
+      )
     ).toBe(seen[1]);
     expect(
       repeatedBy("La cajera canta cada precio en ópera.", seen)

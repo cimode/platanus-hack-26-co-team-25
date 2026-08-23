@@ -131,6 +131,54 @@ describe("generateQuizBatch", () => {
     expect(result.blocks[0].scenario).toBe(SCENARIOS[0]);
   });
 
+  it("sorts options that came back out of key order instead of rejecting the block", async () => {
+    const { llm, state } = authorStub(() => {
+      const batch = goodBatch("p-order", 1);
+      const [a, b, c, d] = batch.blocks[1].options;
+      batch.blocks[1].options = [a, b, d, c];
+      return batch;
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-order", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(1);
+    expect(result.repairedAt).toEqual([]);
+    expect(result.blocks[1].options.map((o) => o.key)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("an empty option text or a sixth block costs a position, never the call", async () => {
+    const { llm, state } = authorStub((call) => {
+      const batch = goodBatch("p-sixth", 1);
+      if (call === 1) {
+        batch.blocks[3].options[2].text = "";
+        return {
+          blocks: [
+            ...batch.blocks,
+            authoredFor(assignmentsForBatch("p-sixth", 3)[0]),
+          ],
+        };
+      }
+      return { blocks: [batch.blocks[3]] };
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-sixth", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([4]);
+    expect(result.blocks).toHaveLength(5);
+  });
+
   it("repairs a structurally invalid block by asking for that position alone", async () => {
     const { llm, state, sent } = authorStub((call) => {
       const batch = goodBatch("p-7", 1);
@@ -194,7 +242,7 @@ describe("generateQuizBatch", () => {
     expect((error as Error).message).toContain("batch 3");
   });
 
-  it("throws QuizAuthoringError naming the position that never validates, after repair and one final call", async () => {
+  it("throws QuizAuthoringError naming the position that never validates, after repair and two final calls", async () => {
     const { llm, state, sent } = authorStub(() => {
       const batch = goodBatch("p-9", 2);
       // Position 8 loses a pillar every time, so it can never validate.
@@ -213,12 +261,13 @@ describe("generateQuizBatch", () => {
     expect(error).toBeInstanceOf(QuizAuthoringError);
     expect((error as QuizAuthoringError).positions).toEqual([8]);
     expect((error as Error).message).toContain("position 8");
-    expect(state.authorCalls).toBe(3);
+    expect(state.authorCalls).toBe(4);
     expect(sent.map((s) => s.id)).toEqual([
       "quiz.author.batch-2",
       "quiz.judge",
       "quiz.author.batch-2.repair",
       "quiz.author.batch-2.final",
+      "quiz.author.batch-2.final-2",
     ]);
   });
 
@@ -241,6 +290,32 @@ describe("generateQuizBatch", () => {
     expect(state.authorCalls).toBe(2);
     expect(result.repairedAt).toEqual([2]);
     for (const block of result.blocks) {
+      expect(() => validateBlock(block)).not.toThrow();
+    }
+  });
+
+  it("repairs one over-long scenario instead of failing the whole call", async () => {
+    const { llm, state } = authorStub((call) => {
+      const batch = goodBatch("p-long-scene", 1);
+      if (call === 1) {
+        // 260 characters, two sentences: past the bubble's 220 but well
+        // inside the shape schema, so the call lands and only this position
+        // goes to repair. In production the old 220 cap in the schema made
+        // this fail the call outright, three times, and lost the batch.
+        batch.blocks[2].scenario = `Llegas a la cena y ${"tu tía cuenta la misma anécdota del viaje a Cartagena mientras el perro del vecino se come el postre ".repeat(2)}y nadie dice nada.`;
+      }
+      return batch;
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-long-scene", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([3]);
+    for (const block of result.blocks) {
+      expect(block.scenario.length).toBeLessThanOrEqual(220);
       expect(() => validateBlock(block)).not.toThrow();
     }
   });
@@ -375,6 +450,50 @@ describe("generateQuizBatch", () => {
     expect(repair?.prompt).toContain(`repeats the premise of: "${shown}"`);
     expect(repair?.prompt).toContain("already been shown");
     expect(repair?.prompt).toContain(shown);
+  });
+
+  it("re-plans a retold position into a fresh domain and twist before asking again", async () => {
+    // The production failure of 2026-08-23: two pool forms drew the same
+    // setting, the second could only find the first's premise, and repair
+    // and final asked for the same setting again. Now the row changes.
+    const shown = "Un gato desconocido se queda dormido en tu maleta hecha.";
+    const fresh = "El portero del edificio colecciona tus paraguas perdidos.";
+    const plan = assignmentsForBatch("p-replan", 1);
+    const { llm, state, sent } = authorStub((call) => {
+      const batch = goodBatch("p-replan", 1);
+      if (call === 1) {
+        batch.blocks[2].scenario = shown;
+        return batch;
+      }
+      return { blocks: [authoredFor(plan[2], fresh)] };
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-replan", batch: 1, previousScenarios: [shown] },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([3]);
+
+    const repair = sent.find((s) => s.id === "quiz.author.batch-1.repair");
+    const row = /- position 3:[^\n]*domain=([^,\n]+), twist=([^\n]+)/.exec(
+      repair?.prompt ?? ""
+    );
+    expect(row).not.toBeNull();
+    expect(row?.[1]).not.toBe(plan[2].domain);
+    expect(row?.[2]).not.toBe(plan[2].twistKind);
+    expect(repair?.prompt).toContain("write it in a new setting");
+    // The fresh setting must not collide with a sibling's.
+    const siblings = plan.filter((a) => a.position !== 3).map((a) => a.domain);
+    expect(siblings).not.toContain(row?.[1]);
+
+    // The block carries the setting it was written in, and still validates.
+    expect(result.blocks[2].domain).toBe(row?.[1]);
+    expect(result.blocks[2].scenario).toBe(fresh);
+    for (const block of result.blocks) {
+      expect(() => validateBlock(block)).not.toThrow();
+    }
   });
 
   it("rejects a block that retells an accepted sibling of the same batch", async () => {
