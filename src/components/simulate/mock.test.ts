@@ -52,6 +52,25 @@ const room = (lens: Lens): RankedRoom =>
 const life = (otherId: string, lens: Lens) =>
   mockSimulatedLife(otherId, room(lens), CANDIDATES);
 
+/**
+ * The same lookup, but it THROWS instead of returning null.
+ *
+ * Every property below used to read `life(id, lens)?.events ?? []` and loop.
+ * Against a Fake-It `return null` that loops over nothing and PASSES -- six of
+ * the twelve properties here survived the stub, five of them vacuously, and the
+ * worst was the safety assertion: `JSON.stringify(null)` is the string "null",
+ * which matches no offspring word and no score key. The unit-layer evidence for
+ * AC-PORT-8 and AC-PORT-3 was passing on no data at all.
+ *
+ * A test that cannot tell "correct" from "absent" is not evidence. This makes
+ * absence a failure everywhere, by construction.
+ */
+function mustLive(otherId: string, lens: Lens) {
+  const found = life(otherId, lens);
+  if (!found) throw new Error(`no simulation for ${lens}/${otherId}`);
+  return found;
+}
+
 /** Every id that is actually rankable under a lens. */
 function ranked(lens: Lens): readonly string[] {
   const current = room(lens);
@@ -73,9 +92,9 @@ describe("mockSimulatedLife", () => {
   it("names both people, and never a third", () => {
     for (const lens of LENSES) {
       for (const id of ranked(lens)) {
-        const found = life(id, lens);
-        expect(found?.subject.id, `${lens}/${id}`).toBe(VIEWER.id);
-        expect(found?.other.id).toBe(id);
+        const found = mustLive(id, lens);
+        expect(found.subject.id, `${lens}/${id}`).toBe(VIEWER.id);
+        expect(found.other.id).toBe(id);
       }
     }
   });
@@ -84,16 +103,17 @@ describe("mockSimulatedLife", () => {
     // Without this the chip mapping is 16 branches with 3 ever rendered, and
     // AC-SIM-5's "16 cards, each with exactly one chip" has nothing to count.
     for (const lens of LENSES) {
-      const found = life(ranked(lens)[0], lens);
-      const kinds = found?.events.map((event) => event.kind) ?? [];
+      const found = mustLive(ranked(lens)[0], lens);
+      const kinds = found.events.map((event) => event.kind);
       expect(new Set(kinds), lens).toEqual(new Set(EVENT_KINDS));
       expect(kinds.length, lens).toBe(EVENT_KINDS.length);
     }
   });
 
   it("resolves every event to exactly one of the seven tokens", () => {
-    const found = life(ranked("romantic")[0], "romantic");
-    for (const event of found?.events ?? []) {
+    const found = mustLive(ranked("romantic")[0], "romantic");
+    expect(found.events.length).toBe(EVENT_KINDS.length);
+    for (const event of found.events) {
       const tag = tagFor(event.kind);
       expect(TAG_TOKENS).toContain(tag.token);
       expect(tag.label.length).toBeGreaterThan(0);
@@ -103,7 +123,8 @@ describe("mockSimulatedLife", () => {
   it("sorts events ascending by year, always", () => {
     for (const lens of LENSES) {
       for (const id of ranked(lens)) {
-        const years = life(id, lens)?.events.map((e) => e.year) ?? [];
+        const years = mustLive(id, lens).events.map((e) => e.year);
+        expect(years.length, `${lens}/${id}`).toBe(EVENT_KINDS.length);
         expect([...years], `${lens}/${id}`).toEqual(
           [...years].sort((a, b) => a - b)
         );
@@ -114,8 +135,8 @@ describe("mockSimulatedLife", () => {
   it("keeps paired events inside the horizon it declared (AC-SIM-3)", () => {
     for (const lens of ["romantic", "business"] as const) {
       for (const id of ranked(lens)) {
-        const found = life(id, lens);
-        if (!found || found.lens === "friendship") throw new Error("paired");
+        const found = mustLive(id, lens);
+        if (found.lens === "friendship") throw new Error("paired");
         expect(found.horizonYears, `${lens}/${id}`).toBeGreaterThanOrEqual(
           lens === "romantic" ? 8 : 5
         );
@@ -134,10 +155,10 @@ describe("mockSimulatedLife", () => {
     // Structural, not nullable. `"horizonYears" in x` is false, so nothing can
     // render the word "null" and nothing can read a duration off it.
     for (const id of ranked("friendship")) {
-      const found = life(id, "friendship");
-      expect(found?.lens).toBe("friendship");
-      expect(Object.hasOwn(found ?? {}, "horizonYears"), id).toBe(false);
-      expect(Object.hasOwn(found ?? {}, "ending"), id).toBe(false);
+      const found = mustLive(id, "friendship");
+      expect(found.lens).toBe("friendship");
+      expect(Object.hasOwn(found, "horizonYears"), id).toBe(false);
+      expect(Object.hasOwn(found, "ending"), id).toBe(false);
     }
   });
 
@@ -148,8 +169,8 @@ describe("mockSimulatedLife", () => {
     const epilogues = new Set<boolean>();
     for (const lens of ["romantic", "business"] as const) {
       for (const id of ranked(lens)) {
-        const found = life(id, lens);
-        if (!found || found.lens === "friendship") throw new Error("paired");
+        const found = mustLive(id, lens);
+        if (found.lens === "friendship") throw new Error("paired");
         outcomes.add(found.ending.outcome);
         if (found.ending.outcome === "apart") {
           epilogues.add(found.ending.epilogue !== null);
@@ -164,7 +185,12 @@ describe("mockSimulatedLife", () => {
 
   it("carries nothing offspring-shaped and no score (AC-PORT-8, AC-PORT-3)", () => {
     for (const lens of LENSES) {
-      const serialised = JSON.stringify(life(ranked(lens)[0], lens));
+      const found = mustLive(ranked(lens)[0], lens);
+      // Asserted on a LIVE object: `JSON.stringify(null)` is the string
+      // "null", which matches none of these patterns, so the previous version
+      // of this safety check passed on no data at all.
+      expect(found.events.length, lens).toBe(EVENT_KINDS.length);
+      const serialised = JSON.stringify(found);
       expect(serialised, lens).not.toMatch(/beb[eé]|hijo|offspring/i);
       for (const key of ["rank", "sim", "score", "probability", "survival"]) {
         expect(serialised, `${lens} leaks ${key}`).not.toMatch(
@@ -180,7 +206,9 @@ describe("mockSimulatedLife", () => {
     // Same regression guard as the profile bio: generated prose is where the
     // assistant's Rioplatense persona leaks back into the product.
     for (const lens of LENSES) {
-      for (const event of life(ranked(lens)[0], lens)?.events ?? []) {
+      const narrated = mustLive(ranked(lens)[0], lens).events;
+      expect(narrated.length, lens).toBe(EVENT_KINDS.length);
+      for (const event of narrated) {
         expect(event.text.length, event.kind).toBeGreaterThan(10);
         expect(event.text, event.kind).not.toMatch(
           /\b(vos|sos|ten[eé]s|quer[eé]s|pod[eé]s)\b/i
@@ -192,14 +220,14 @@ describe("mockSimulatedLife", () => {
   it("is deterministic across calls", () => {
     for (const lens of LENSES) {
       const id = ranked(lens)[0];
-      expect(life(id, lens)).toEqual(life(id, lens));
+      expect(mustLive(id, lens)).toEqual(mustLive(id, lens));
     }
   });
 
   it("makes the lens change the life, or the whole flow is one story", () => {
     const id = ranked("romantic")[0];
     const stories = LENSES.map((lens) =>
-      JSON.stringify(life(id, lens)?.events.map((e) => e.text))
+      JSON.stringify(mustLive(id, lens).events.map((e) => e.text))
     );
     expect(new Set(stories).size).toBe(LENSES.length);
   });

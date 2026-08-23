@@ -85,16 +85,82 @@ test.describe("1f · the simulated life", () => {
     expect(horizon).toBeLessThanOrEqual(14);
   });
 
-  test("AC-SIM-3 · no component source hardcodes a horizon", async () => {
-    // Greps the sources, because a literal that happens to match the fixture
-    // today is invisible to every runtime assertion above.
-    const dir = "src/components/simulate";
+  test("AC-SIM-3 · two pairs show two different horizons", async ({ page }) => {
+    /*
+     * THIS is what makes "the horizon is data" testable, and the first version
+     * of this suite did not have it.
+     *
+     * `sdd-verify` replaced `de {life.horizonYears}` with a literal `de 11` and
+     * the whole green suite stayed green: the runtime check only asserted
+     * `8 <= horizon <= 14`, which is the entire romantic range, and the source
+     * grep was pinned to the literal `12`. A hardcode inside the range passed
+     * both.
+     *
+     * Two pairs whose horizons differ in the fixture cannot both match one
+     * literal. That is the property; the range check was a proxy for it.
+     */
+    const horizonFor = async (id: string) => {
+      await open(page, `/simulate/${id}`);
+      const pill = await page.getByText(/^Año \d+ de \d+$/).innerText();
+      return Number(pill.match(/de (\d+)/)?.[1]);
+    };
+
+    const a = await horizonFor("p-ana-ramirez");
+    const b = await horizonFor("p-diego-morales");
+    expect(a).toBeGreaterThan(0);
+    expect(b).toBeGreaterThan(0);
+    expect(a).not.toBe(b);
+  });
+
+  test("AC-SIM-3 · no timeline source hardcodes a horizon", async () => {
+    /*
+     * Complements the runtime check above; neither is sufficient alone.
+     *
+     * TWO repairs after review. The pattern was pinned to the literal `12` --
+     * so `de 11` sailed through -- and the file filter was `.tsx` only, which
+     * meant moving the offending string into a `.ts` file in the SAME directory
+     * bypassed it entirely. That second hole is the one that mattered: the
+     * verifier used it to paint every `roce` chip from a rank-band token with
+     * all six AC-SIM-5 tests green.
+     */
+    const dirs = [
+      "src/components/simulate",
+      "src/components/shared",
+      "src/app/simulate",
+    ];
     const offenders: string[] = [];
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith(".tsx")) continue;
-      const source = readFileSync(join(dir, file), "utf8");
-      if (/de\s*\{?\s*12\b|horizonYears\s*[=:]\s*\d+/.test(source)) {
-        offenders.push(file);
+    for (const dir of dirs) {
+      for (const file of readdirSync(dir, { recursive: true }) as string[]) {
+        if (!/\.tsx?$/.test(String(file))) continue;
+        const source = readFileSync(join(dir, String(file)), "utf8");
+        // Any digit after "de", not one specific one.
+        if (
+          /\bde\s*\d/.test(source) ||
+          /horizonYears\s*[=:]\s*\d/.test(source)
+        ) {
+          offenders.push(`${dir}/${file}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  test("AC-SIM-5 · no timeline source reaches for a band token", async () => {
+    // Same two repairs, same reason: `.ts` as well as `.tsx`, and the sibling
+    // directories a chip's classes could be composed from.
+    const dirs = [
+      "src/components/simulate",
+      "src/components/shared",
+      "src/app/simulate",
+    ];
+    const offenders: string[] = [];
+    for (const dir of dirs) {
+      for (const file of readdirSync(dir, { recursive: true }) as string[]) {
+        if (!/\.tsx?$/.test(String(file))) continue;
+        const source = readFileSync(join(dir, String(file)), "utf8");
+        if (/\b(?:bg|text|border|ring)-band-|var\(--band-/.test(source)) {
+          offenders.push(`${dir}/${file}`);
+        }
       }
     }
     expect(offenders).toEqual([]);
@@ -151,7 +217,9 @@ test.describe("1f · the simulated life", () => {
       probe.remove();
 
       return [...document.querySelectorAll("article")].map((card) => {
-        const chips = [...card.querySelectorAll("span")].filter(painted);
+        // Every descendant, not just spans: a chip rendered as a <div>
+        // slipped past a `querySelectorAll("span")` filter under review.
+        const chips = [...card.querySelectorAll("*")].filter(painted);
         return {
           count: chips.length,
           colour: chips[0] ? getComputedStyle(chips[0]).backgroundColor : "",
@@ -177,37 +245,6 @@ test.describe("1f · the simulated life", () => {
     expect(new Set(cardChips[0].sevenRgb).size).toBe(7);
   });
 
-  test("AC-SIM-5 · no timeline component reaches for a band token", async () => {
-    /*
-     * The colour assertion above CANNOT catch this, and the reason is worth
-     * writing down: `--band-high` and `--tag-ritual` are declared byte-identical
-     * (`globals.css`, both `#fbe3de`). So a chip painted from `--band-high`
-     * computes to exactly the value `--tag-ritual` computes to, and every
-     * runtime comparison in the DOM says it is fine.
-     *
-     * Proven, not assumed: swapping `roce`'s classes to `bg-band-high` left the
-     * token test GREEN. AC-SIM-5's scenario is about which TOKEN the chip
-     * resolves FROM, and that question only exists in the source.
-     *
-     * A rank band and a timeline event family mean different things; the shared
-     * hex is a coincidence of palette. This is the guard that keeps it one.
-     */
-    const dir = "src/components/simulate";
-    const offenders: string[] = [];
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith(".tsx")) continue;
-      // Class-shaped and var-shaped usages only. The first version matched
-      // `/band-/` anywhere and flagged the docblock in `event-card.tsx` that
-      // EXPLAINS this rule -- a guard that fires on its own documentation is a
-      // guard people delete.
-      const source = readFileSync(join(dir, file), "utf8");
-      if (/\b(?:bg|text|border|ring)-band-|var\(--band-/.test(source)) {
-        offenders.push(file);
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
-
   test("AC-SIM-5 · cards appear in ascending year order", async ({ page }) => {
     await open(page, `/simulate/${OTHER.id}`);
     const years = (await cards(page).allInnerTexts()).map((text) =>
@@ -227,6 +264,82 @@ test.describe("1f · the simulated life", () => {
     const text = await page.locator("main").innerText();
     expect(text).not.toMatch(/\d+([.,]\d+)?\s*%/);
     expect(text).not.toMatch(/probabilidad|supervivencia|chance/i);
+  });
+
+  test("AC-SIM-6 · a pair that ends apart names the year and its epilogue", async ({
+    page,
+  }) => {
+    /*
+     * `ending-card.tsx`'s `apart` branch had never rendered in any test.
+     *
+     * The only pair the suite visited ends TOGETHER, and the assertion
+     * `toContainText(/año \d+/i)` matches "Llegan juntos al año 12." exactly as
+     * well as it matches a dissolution -- so a whole branch of the component
+     * was green by coincidence. `mock.test.ts` proves both outcomes exist in the
+     * DATA; nothing proved the component could paint them.
+     *
+     * This pair ends apart WITH an epilogue, and the epilogue must follow the
+     * ending in document order, because that is where the type puts it.
+     */
+    await open(page, "/simulate/p-fernanda-lopez");
+    const ending = page.getByRole("region", { name: /cómo termina/i });
+    await expect(ending).toContainText(/se separan en el año \d+/i);
+    await expect(ending).not.toContainText(/llegan juntos/i);
+
+    const lines = (await ending.innerText()).split("\n").filter(Boolean);
+    const separation = lines.findIndex((line) => /se separan/i.test(line));
+    expect(separation).toBeGreaterThanOrEqual(0);
+    expect(lines.length).toBeGreaterThan(separation + 1);
+  });
+
+  test("AC-SIM-6 · a pair that ends apart with no epilogue still renders", async ({
+    page,
+  }) => {
+    // The other half of the same branch: `epilogue` is `string | null`, and the
+    // null case must not leave a hole where a sentence was.
+    await open(page, "/simulate/p-sofia-guzman");
+    const ending = page.getByRole("region", { name: /cómo termina/i });
+    await expect(ending).toContainText(/se separan en el año \d+/i);
+    await expect(ending).toBeVisible();
+  });
+
+  test("AC-PORT-8 · the render never reads consent, so it cannot vary with it", async ({
+    page,
+  }) => {
+    /*
+     * HONEST SCOPE, and the same shape U7 settled on -- filed here because U9
+     * shipped without it, which made this the SECOND time the project closed
+     * this defect class and then repeated it.
+     *
+     * The spec wants two people identical but for `consent.romantic` to render
+     * identical DOM. The fixture carries no consent at all, so that pair does
+     * not exist and this cannot be the AC's test. What IS assertable is the
+     * structural fact underneath: nothing on 1f's data path has a consent
+     * field, so consent is not in the render's input.
+     *
+     * When #10 and #33 supply real consent, this must be REPLACED by the spec's
+     * test, not extended.
+     */
+    /*
+     * Compares the CONTENT, not the DOM. The first version snapshotted
+     * `main.innerHTML` twice and failed -- on `Año 1` versus `Año 7` and on the
+     * walking pair's `left`. 1f has a client island whose state is driven by
+     * scroll position, so two loads legitimately differ in ways that have
+     * nothing to do with the data. On screen 1d, which is server-rendered
+     * throughout, the same test worked; here it was asserting hydration timing.
+     */
+    const contentOf = async () => {
+      await open(page, `/simulate/${OTHER.id}`);
+      const events = await page.getByRole("article").allInnerTexts();
+      const ending = await page
+        .getByRole("region", { name: /cómo termina/i })
+        .innerText();
+      return [...events, ending].join("|");
+    };
+
+    const first = await contentOf();
+    expect(await contentOf()).toBe(first);
+    expect(first).not.toMatch(/consent|consiente|permiso/i);
   });
 
   test("AC-SIM-7 · the walking pair advances as the rail moves", async ({

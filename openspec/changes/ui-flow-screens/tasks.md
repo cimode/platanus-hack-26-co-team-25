@@ -699,6 +699,54 @@ The grep's first version matched `/band-/` anywhere and flagged the docblock tha
 EXPLAINS the rule. A guard that fires on its own documentation is a guard people
 delete.
 
+### R20 — what U9's verify found, and the pattern across all three
+
+`sdd-verify` returned **FAIL** on U9: 4 CRITICAL, 10 WARNING. Every safety
+property held under attack — the flight payload carries nothing score-shaped, the
+404 is byte-identical with **zero residual diff lines**, the union has no runtime
+escape, and a real Server Action POST *is* caught by the inertness listener. It
+independently corroborated the flakiness claim: **five parallel runs, 550
+executions, zero flakes.**
+
+The four blockers were all holes in the TESTS, and three of the four are the same
+mistake in different clothes.
+
+| # | Finding | Close |
+|---|---|---|
+| C1 | **A hardcoded horizon passed the whole green suite.** `de {life.horizonYears}` → `de 11` gave 4 passed: the runtime check asserted only `8 <= horizon <= 14`, the entire romantic range, and the grep was pinned to the literal `12`. | Two pairs whose horizons differ in the fixture cannot both match one literal — that is the property the range check was proxying for. Grep widened to any digit. |
+| C2 | **The `apart` ending had never rendered.** The only pair the e2e visited ends `together`, and `toContainText(/año \d+/i)` matches "Llegan juntos al año 12." as happily as a dissolution. `mock.test.ts` proved both outcomes exist in the DATA; nothing proved the component could paint them. | Two pairs added: apart-with-epilogue and apart-without. |
+| C3 | Consent-invariance untested and unrecorded — **the same defect U7 filed and closed one unit earlier**, by the author who wrote R16. | Tested for what is true, with the test saying it must be REPLACED when real consent lands. |
+| C4 | **6 of 12 unit properties survived `return null`, 5 vacuously.** The worst was the safety assertion: `JSON.stringify(null)` is the string `"null"`, which matches no offspring word and no score key — so the unit-layer evidence for AC-PORT-8 and AC-PORT-3 was passing on no data at all. | A `mustLive` helper that throws on absence. Against the stub, **11 of 12 now fail**; the twelfth is the test that asserts `null` and must pass. |
+
+**The guard holes it opened by hand, which is the part worth keeping:**
+
+- The band-token grep filtered `.tsx` only. Moving the offending class into
+  `event-tag.ts` — a `.ts` file **in the same directory**, the one that owns the
+  token vocabulary — left all six AC-SIM-5 tests green while every `roce` chip
+  was painted from a rank band. Fixed: `.ts` too, and the sibling directories a
+  chip's classes can be composed from.
+- The chip filter was `querySelectorAll("span")`. A chip rendered as a `<div>`
+  passed. Fixed to all descendants.
+
+**The near-miss worth writing down**: `horizonYears` is seeded from
+`hash("life:…")` and the ranking from `hash("{lens}:…")`. Unify those two seeds
+by accident and **the horizon becomes a rank oracle at the top of the screen**.
+
+### The pattern across three verifies
+
+Every CRITICAL any of the three returned was a test that could not fail:
+
+| Unit | The test that could not fail |
+|---|---|
+| U6/U7 | a count both branches satisfy; a guard shadowed twice over |
+| U7 | a placeholder branch with no subject in the data |
+| U9 | a range check standing in for an equality; a loop over nothing |
+
+Not one was a bug in a screen. **The screens were right and the evidence was
+theatre**, and no amount of re-reading my own tests found it — an adversary
+mutating the product did, every time. That is the argument for the phase, and it
+is why the two units that skipped it (U3, U6) were the ones carrying the debt.
+
 ### R18 — what U7's verify found
 
 `sdd-verify` returned **FAIL** on U7: 4 CRITICAL, 9 WARNING. **Every safety
