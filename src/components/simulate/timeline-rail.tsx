@@ -1,80 +1,64 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useDragScroll } from "@/components/shared/use-drag-scroll";
 import { EndingCard } from "@/components/simulate/ending-card";
-import { EventCard } from "@/components/simulate/event-card";
 import { TimelinePath } from "@/components/simulate/timeline-path";
 import type { SimulatedLife } from "@/lib/domain/reveal/timeline";
-import { cn } from "@/lib/utils";
 
+/**
+ * The board, dragged sideways: the only client island on screen 1f.
+ *
+ * It holds one number -- which tile the viewer is standing on -- and the year
+ * pill in the page header reads the same number through `onYear`. One source,
+ * so the pill and the walking pair can never disagree about where you are.
+ *
+ * `initial: "start"` here, not `"center"`: a life starts at year one, and the
+ * design opens on the first beat with the pair already on it.
+ */
 export function TimelineRail({
   life,
-  className,
+  onYear,
 }: {
-  readonly life: SimulatedLife;
-  readonly className?: string;
+  life: SimulatedLife;
+  onYear?: (year: number) => void;
 }) {
   const { ref, handlers } = useDragScroll({ initial: "start" });
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [active, setActive] = useState(0);
 
-  const onScroll = useCallback(
-    (event: React.UIEvent<HTMLDivElement>) => {
-      const node = event.currentTarget;
-      if (life.events.length === 0) return;
-      const cards = node.querySelectorAll<HTMLElement>("[data-event-card]");
-      if (cards.length === 0) return;
-      const mid = node.scrollLeft + node.clientWidth / 2;
-      let best = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      cards.forEach((card, index) => {
-        const center = card.offsetLeft + card.offsetWidth / 2;
-        const dist = Math.abs(center - mid);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = index;
-        }
-      });
-      setActiveIndex(best);
-    },
-    [life.events.length]
-  );
-
-  const horizonYears =
-    life.lens === "friendship" ? undefined : life.horizonYears;
+  const events = life.events;
 
   return (
-    <div className={cn("flex flex-col gap-6", className)}>
-      <header className="px-6">
-        <p className="font-mono text-ink-faint text-xs lowercase">
-          {life.subject.name} · {life.other.name}
-        </p>
-        <h1 className="font-display font-extrabold text-3xl text-ink">
-          Vida simulada
-        </h1>
-      </header>
+    <section
+      aria-label="La vida simulada. Desplaza horizontalmente para recorrerla."
+      className="relative flex min-h-0 flex-1 cursor-grab items-center gap-6 overflow-x-auto overflow-y-hidden overscroll-x-contain px-2 active:cursor-grabbing"
+      onScroll={(event) => {
+        // The tile under the viewport's left third, from the scroller's own
+        // geometry. Measured HERE rather than inside `TimelinePath`, because no
+        // sibling of that component may read layout -- it is the constraint
+        // that kept its props contract to two (AC-SIM-7).
+        const el = event.currentTarget;
+        const index = Math.round(el.scrollLeft / 96);
+        const next = Math.min(events.length - 1, Math.max(0, index));
+        setActive(next);
+        onYear?.(events[next]?.year ?? 1);
+      }}
+      ref={ref}
+      /* Focusable so the arrow keys reach it: WCAG 2.1.1 wants a scrollable
+         region keyboard-operable, and Safari still does not do it for us. */
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: see above
+      tabIndex={0}
+      {...handlers}
+    >
+      <TimelinePath events={events} progress={active} />
 
-      <TimelinePath events={life.events} progress={activeIndex} />
-
-      <div
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        onScroll={onScroll}
-        ref={ref}
-        {...handlers}
-      >
-        {life.events.map((event) => (
-          <div data-event-card key={`${event.year}-${event.kind}`}>
-            <EventCard
-              horizonYears={horizonYears}
-              kind={event.kind}
-              text={event.text}
-              year={event.year}
-            />
-          </div>
-        ))}
-      </div>
-
-      {life.lens !== "friendship" ? <EndingCard life={life} /> : null}
-    </div>
+      {life.lens === "friendship" ? null : (
+        <EndingCard
+          ending={life.ending}
+          horizonYears={life.horizonYears}
+          otherName={life.other.name}
+        />
+      )}
+    </section>
   );
 }
