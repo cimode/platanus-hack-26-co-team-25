@@ -38,7 +38,7 @@ export type Slide =
   | {
       kind: "scenario";
       id: string;
-      /** Runs into the figure: "Imaginá que estás en un evento con" */
+      /** Runs into the figure: "Imagina que estás en un evento con" */
       setup: string;
       /** The scale. Display face, accent, very large. */
       figure: string;
@@ -133,15 +133,15 @@ export const SLIDES: Slide[] = [
   {
     kind: "scenario",
     id: "escenario",
-    setup: "Imaginá que estás en un evento con",
+    setup: "Imagina que estás en un evento con",
     figure: "15.000 personas",
-    question: "Querés conocer a alguien. ¿Cómo sabés a quién?",
+    question: "Quieres conocer a alguien. ¿Cómo sabes a quién?",
     seconds: 9,
   },
 
   // The loop. Four steps in the app, one outside it.
   //
-  // The exit step is the whole diagram: "cruzás la sala" is the only thing here
+  // The exit step is the whole diagram: "cruzas la sala" is the only thing here
   // that dipia does not do, and the product succeeds exactly when it stops
   // being used. The earlier version of this graphic buried that as small caps
   // on box 6 of 6; here it is the payoff, set apart and in the accent.
@@ -154,12 +154,12 @@ export const SLIDES: Slide[] = [
     id: "loop",
     title: "De una sala llena de extraños a una conversación.",
     steps: [
-      "Respondés 12 preguntas",
-      "Elegís un lente",
+      "Respondes 12 preguntas",
+      "Eliges un lente",
       "La sala se ordena",
       "Ves la vida que compartirían",
     ],
-    exit: { label: "Cruzás la sala", note: "fuera de la pantalla" },
+    exit: { label: "Cruzas la sala", note: "fuera de la pantalla" },
     seconds: 13,
   },
 

@@ -40,7 +40,7 @@ Cae *ministerios*. Es el argumento más prescindible: "otros países se preocupa
 apoya, pero no es tuyo. Sobreviven la pregunta, la cifra y la epidemia.
 
 **C · Dejarlo en 73s.** Legítimo si creés que el problema vende más que el demo.
-Sabé lo que estás pagando: ~100s de demo en vez de 130.
+Ten claro lo que estás pagando: ~100s de demo en vez de 130.
 
 ⚠️ La versión original de esta narrativa medía **~70s antes del demo**. El presupuesto
 son 40-50s. Lo que sobraba salía del demo — que es donde se juegan ejecución, aspecto
@@ -60,7 +60,7 @@ fragmento; la última diapositiva lo completa: *"Nos apasionan las conexiones re
 **no un número más en un feed**."* Dejar la frase a medias durante tres minutos es lo
 que hace que el cierre suene a remate y no a repetición.
 
-**No lo leas en voz alta acá.** Si lo decís en el segundo 3, ya está gastado en el 2:55.
+**No lo leas en voz alta acá.** Si lo dices en el segundo 3, ya está gastado en el 2:55.
 
 ---
 
@@ -69,7 +69,7 @@ que hace que el cierre suene a remate y no a repetición.
 > ¿Quién de acá recuerda haberse sentido solo en alguna etapa de su vida?
 > No físicamente. **Emocionalmente.**
 
-**(pausa — dejá que levanten la mano. Mirá la sala, no la pantalla.)**
+**(pausa — deja que levanten la mano. Mira la sala, no la pantalla.)**
 
 ---
 
@@ -79,7 +79,7 @@ que hace que el cierre suene a remate y no a repetición.
 
 **(pausa)**
 
-> ⚠️ Decí **"jóvenes"**, no "personas". La OMS mide **1 de cada 6** en la población
+> ⚠️ Di **"jóvenes"**, no "personas". La OMS mide **1 de cada 6** en la población
 > general; 1 de cada 5 es la cifra de **adolescentes y adultos jóvenes**. Es más preciso
 > *y* habla de la sala en la que estás parado. No digas "20% de la población mundial":
 > es el mismo número dos veces y es el dato equivocado.
@@ -104,7 +104,7 @@ que hace que el cierre suene a remate y no a repetición.
 **(pausa)**
 
 > El número no es retórico: 100/hora × 3 min = 5,0 exacto, y el organizador corta a 3:01.
-> Decí "asociadas a", no "por": es lo que dice la OMS y es lo que aguanta una pregunta.
+> Di "asociadas a", no "por": es lo que dice la OMS y es lo que aguanta una pregunta.
 
 ---
 
@@ -123,30 +123,30 @@ que hace que el cierre suene a remate y no a repetición.
 
 ### [SLIDE 6 · escenario] — 9s
 
-> Imaginá que estás en un evento con **quince mil personas**.
-> Querés conocer a alguien. **¿Cómo sabés a quién?**
+> Imagina que estás en un evento con **quince mil personas**.
+> Quieres conocer a alguien. **¿Cómo sabes a quién?**
 
 > La escala es el argumento. Con 15.000 la pregunta deja de ser *"¿me animo?"* y
 > pasa a ser *"¿a quién?"* — y eso ya es un problema de búsqueda, que sí tiene
 > respuesta de ingeniería. Es la bisagra hacia el demo.
 >
-> Si querés anclarlo a algo local, cambiá "un evento" por un lugar que la sala
+> Si quieres anclarlo a algo local, cambia "un evento" por un lugar que la sala
 > reconozca. Cuanto más concreto, mejor.
 
 ---
 
 ### [SLIDE 7 · el loop] — 13s
 
-> Respondés doce preguntas, elegís un lente, la sala se ordena,
+> Respondes doce preguntas, eliges un lente, la sala se ordena,
 > y ves la vida que compartirían.
-> Y entonces — **cruzás la sala.**
+> Y entonces — **cruzas la sala.**
 
 > **No leas las cuatro cajas en voz alta**: se leen solas y te cuesta 6 segundos.
-> Decí la secuencia de corrido y frená en la quinta.
+> Di la secuencia de corrido y frena en la quinta.
 >
 > El diagrama tiene un solo punto: la última caja es **lo único que dipia no hace**.
 > Está aparte, en coral, marcada *fuera de la pantalla*. El producto gana cuando
-> dejás de usarlo. En la versión vieja eso era letra chica en la caja 6 de 6.
+> dejas de usarlo. En la versión vieja eso era letra chica en la caja 6 de 6.
 
 ---
 
@@ -155,7 +155,7 @@ que hace que el cierre suene a remate y no a repetición.
 La app real, embebida. Sin cambiar de ventana.
 
 > Así que vamos a hacer un pequeño demo. Vamos a elegir un voluntario forzado.
-> **José, ¿te podés poner de pie?** ¿Tenés pareja?
+> **José, ¿te puedes poner de pie?** ¿Tienes pareja?
 > Bueno, vamos a asumir que no. Tranquilo, esto se corta del stream.
 > Vamos a conseguirte pareja.
 >
