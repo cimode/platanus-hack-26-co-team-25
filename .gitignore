@@ -70,3 +70,6 @@ ds-bundle/
 timeline/.env
 timeline/node_modules/
 node_modules/
+
+# emote pipeline scratch (clips, frames); the packed sheets live in public/sprites/emotes
+.emotes-work/

@@ -1,5 +1,9 @@
+"use client";
+
+import { AvatarSprite } from "@/components/emotes/avatar-sprite";
+import { useParticipantEmotes } from "@/components/emotes/use-emote-player";
+import { avatarKey } from "@/lib/domain/emotes/emotes";
 import type { Placement } from "@/lib/domain/room/layout";
-import { SPRITE_ASPECT } from "@/lib/domain/room/layout";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,6 +24,11 @@ import { cn } from "@/lib/utils";
  * the same floorboards, with no breakpoints.
  */
 export function ParticipantSprite({ spot }: { spot: Placement }) {
+  // The drawing is the emotes library's `AvatarSprite`: the idle plate, and a
+  // reaction whenever `reactToEvent(participant.id, …)` names this person.
+  const avatar = avatarKey(spot.sprite) ?? "avatar1";
+  const player = useParticipantEmotes(spot.participant.id, avatar);
+
   return (
     <figure
       /* -translate-y-full anchors the sprite's FEET at its depth, not its head.
@@ -39,6 +48,7 @@ export function ParticipantSprite({ spot }: { spot: Placement }) {
         // whole figure over everyone.
         "z-[var(--depth)] hover:z-[200]"
       )}
+      data-participant={spot.participant.id}
       style={
         {
           left: `${spot.x * 100}%`,
@@ -61,13 +71,12 @@ export function ParticipantSprite({ spot }: { spot: Placement }) {
             animationDelay: `${spot.idleDelay}s`,
           }}
         >
-          <div
-            className={cn("sprite", "bg-contain bg-bottom bg-no-repeat")}
-            style={{
-              height: `${spot.height * 100}cqh`,
-              width: `${spot.height * 100 * SPRITE_ASPECT}cqh`,
-              backgroundImage: `url(${spot.sprite})`,
-            }}
+          <AvatarSprite
+            avatar={avatar}
+            height={`${spot.height * 100}cqh`}
+            label={spot.participant.name}
+            onEnd={player.stop}
+            playing={player.playing}
           />
         </div>
       </div>
