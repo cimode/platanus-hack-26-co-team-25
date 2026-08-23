@@ -3,6 +3,7 @@
 import { ParticipantSprite } from "@/components/room/participant-sprite";
 import { useDragScroll } from "@/components/shared/use-drag-scroll";
 import {
+  LENS_CARD_CLEARANCE_PX,
   type Placement,
   VENUE_ASPECT,
   VENUE_VOID,
@@ -37,12 +38,15 @@ export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
          With h-full the scroller measured 0px, so every sprite's fractional
          `top` collapsed to 0 and the whole crowd was clipped out of view. The
          parent is already `relative`, so filling it absolutely is exact. */
-      /* `flex items-center` is the letterbox: the plate no longer fills the
-         band's height (see VENUE_ZOOM), so something has to decide where the
-         spare height goes, and centring keeps the room off both rims. The
-         background is the plate's OWN void colour, which is what makes the
-         letterbox read as more room rather than as a gap. */
-      className="absolute inset-0 flex cursor-grab items-center overflow-x-auto overflow-y-hidden overscroll-x-contain active:cursor-grabbing"
+      /* `flex items-end` is the letterbox: the plate no longer fills the band's
+         height (see VENUE_ZOOM), so something has to decide where the spare
+         height goes, and it goes ABOVE. Centred, half of it sat at the bottom
+         and the room's ceiling ran up behind the lens card -- the one thing
+         permanently parked at the top of this screen. Hanging the plate from
+         the floor of the band puts all the slack where the card already is.
+         Safe in both directions: row 0 of the plate is 100% void, so the top
+         edge has no art to cut, and the fill is that same colour. */
+      className="absolute inset-0 flex cursor-grab items-end overflow-x-auto overflow-y-hidden overscroll-x-contain active:cursor-grabbing"
       ref={ref}
       style={{ backgroundColor: VENUE_VOID }}
       /* Focusable so the arrow keys reach it. WCAG 2.1.1 requires a scrollable
@@ -73,7 +77,11 @@ export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
            else. */
         className="venue-drift pixelated relative shrink-0 select-none bg-center bg-no-repeat"
         style={{
-          height: `${VENUE_ZOOM * 100}%`,
+          /* Whichever is smaller: the zoom we want, or the tallest plate that
+             still starts below the lens card. On a phone the card wins and the
+             zoom is only a ceiling -- which is the right way round, because a
+             hidden ceiling is a bug and a slightly smaller room is a taste. */
+          height: `min(${VENUE_ZOOM * 100}%, calc(100% - ${LENS_CARD_CLEARANCE_PX}px))`,
           aspectRatio: `${VENUE_ASPECT}`,
           containerType: "size",
           backgroundImage: "url(/venue.jpg)",

@@ -41,10 +41,28 @@ export const SPRITE_ASPECT = 0.46;
  * The leftover height is a letterbox, and it is invisible on purpose: the art
  * already floats on a flat void (VENUE_VOID, sampled from its own corners), so
  * painting the band that colour makes the plate's edge and the fill the same
- * pixel. Centred rather than anchored, because the plate's top and bottom
- * margins are both that void.
+ * pixel. It all goes ABOVE the plate rather than being split, because the lens
+ * card is parked at the top of this screen and the room's ceiling was running
+ * up behind it.
  */
 export const VENUE_ZOOM = 0.78;
+
+/**
+ * How much of the band's top the lens card owns, in PIXELS.
+ *
+ * The card is parked at `top-16` (64px) and measures 144px tall, so it covers
+ * the first 208px of the band; this is that plus a little air. The plate hangs
+ * from the floor of the band, so the top of the room is the edge that runs
+ * under it -- and it did, which is what this is here to stop.
+ *
+ * Pixels, deliberately, and this is the whole reason it exists as its own
+ * number. VENUE_ZOOM is a FRACTION of the band and the card is a FIXED height,
+ * so a zoom that clears the card on a 844px phone hides the ceiling again on a
+ * 667px one -- the plate shrinks with the band, the card does not. Clearance
+ * has to be expressed in the card's own units or it only holds on the phone it
+ * was eyeballed against.
+ */
+export const LENS_CARD_CLEARANCE_PX = 216;
 
 /** The flat colour the plate's art floats on -- sampled off its own corners. */
 export const VENUE_VOID = "#1e1f21";
