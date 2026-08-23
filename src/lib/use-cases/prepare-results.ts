@@ -311,6 +311,7 @@ export async function rankSubjectRoom(
       id: ranked.id,
       name: ranked.name,
       photoUrl: row.participant.photoUrl,
+      avatar: row.participant.avatar,
       // Contiguous 1..n over what SURVIVED, not the pre-drop index: a gap in
       // the numbering discloses exactly what dropping the row prevented.
       position: entries.length + 1,

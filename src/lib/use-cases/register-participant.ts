@@ -7,6 +7,7 @@ import {
   type SessionToken,
 } from "../domain/participant";
 import { avatarFor } from "../domain/participant/avatar";
+import { validateTags } from "../domain/participant/tags";
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { PhotoStore } from "../ports/photo-store";
 import type { RoomRepository } from "../ports/room-repository";
@@ -92,6 +93,13 @@ export interface RegisterParticipantInput {
    * moment is the use case's to mint, so a client cannot backdate it.
    */
   dataConsent: boolean;
+  /**
+   * Common Ground (PILLARS.md §2), asked on the registration screen since the
+   * declared round went away (D20). Optional so a caller that has no picker --
+   * a fixture, an older client -- still registers; the engine reads an empty
+   * list the same way it read a null band, as unmeasured.
+   */
+  tags?: string[];
   /** Injected so the age rules are testable on any day of the year (AC-3). */
   today?: Date;
 }
@@ -186,6 +194,12 @@ export async function registerParticipant(
   const room = await deps.rooms.bySlug(input.roomSlug);
   if (!room) throw new RegisterParticipantError("room-not-found");
 
+  // Known slugs only, at most twelve. The picker already refuses the
+  // thirteenth tap, but the action is a public endpoint, so the vocabulary is
+  // checked again here rather than trusted from the wire.
+  const tags = input.tags ?? [];
+  validateTags(tags);
+
   const created = await deps.participants.create({
     roomId: room.id,
     name,
@@ -215,6 +229,22 @@ export async function registerParticipant(
   }
 
   await deps.participants.setPhoto(created.participant.id, url);
+
+  // Tags ride the declared path they always did: `saveDeclared` sets
+  // `declared_at` only when all six bands are present, and none are, so this
+  // writes the vocabulary and leaves the floor exactly where it was.
+  if (tags.length > 0) {
+    await deps.participants.saveDeclared(created.participant.id, {
+      moneyPosture: null,
+      rootedness: null,
+      familyGravity: null,
+      capacityHoursBand: null,
+      distanceBand: null,
+      chronotype: null,
+      tags,
+      acquaintances: [],
+    });
+  }
 
   return {
     participant: { ...created.participant, photoUrl: url },

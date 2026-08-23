@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FacedAvatar } from "@/components/faces/faced-avatar";
 import { BandPill } from "@/components/rank/band-pill";
 import type { RankEntry } from "@/lib/domain/reveal/rank";
 import { cn } from "@/lib/utils";
@@ -120,7 +121,10 @@ export function RankCard({
  * the same trick `participant-sprite.tsx` uses in the room.
  */
 function Avatar({ entry }: { entry: RankEntry }) {
-  if (!entry.photoUrl) {
+  // No plate at all (a row older than the avatar column) is the only case with
+  // nothing to draw. A missing PHOTO is not: the plate's face is blank by
+  // design, so the person still stands there, just without a face yet.
+  if (!entry.avatar) {
     return (
       <span
         aria-label={`${entry.name}, sin foto todavía`}
@@ -139,10 +143,14 @@ function Avatar({ entry }: { entry: RankEntry }) {
   }
 
   return (
-    <span aria-hidden="true" className="relative block h-[112px] w-[62px]">
-      <span
-        className="pixelated absolute inset-0 bg-bottom bg-contain bg-no-repeat"
-        style={{ backgroundImage: `url(${entry.photoUrl})` }}
+    <span className="relative block h-[112px] w-[62px]">
+      <FacedAvatar
+        avatar={entry.avatar}
+        className="mx-auto"
+        height="112px"
+        label={entry.name}
+        photoUrl={entry.photoUrl}
+        preload={false}
       />
       <span className="-translate-x-1/2 absolute bottom-0.5 left-1/2 h-[7px] w-[34px] rounded-[50%] bg-dark/20 blur-[1.5px]" />
     </span>

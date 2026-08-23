@@ -25,6 +25,7 @@ function entry(
     id,
     name,
     photoUrl: null,
+    avatar: null,
     position,
     band,
     bond: { term: "commonGround", label: "Gustos en común" },
