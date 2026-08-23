@@ -18,6 +18,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "design:capture": "tsx scripts/capture-design.ts",
+    "faces:pack": "node scripts/faces/pack.mjs",
     "verify": "pnpm run typecheck && pnpm run check && pnpm run test",
     "prepare": "lefthook install",
     "db:generate": "drizzle-kit generate",

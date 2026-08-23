@@ -73,3 +73,6 @@ node_modules/
 
 # emote pipeline scratch (clips, frames); the packed sheets live in public/sprites/emotes
 .emotes-work/
+
+# face-fit review artefacts (the shipped assets live in public/sprites/faces)
+scripts/face/out/
