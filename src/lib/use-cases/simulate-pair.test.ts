@@ -27,6 +27,11 @@ import type {
   StoredLatent,
 } from "../ports/latent-repository";
 import type { LlmPort } from "../ports/llm";
+import type {
+  PairSimulationRepository,
+  PairSimulationSave,
+  StoredPairSimulation,
+} from "../ports/pair-simulation-repository";
 import type { Room } from "../ports/room-repository";
 import type {
   ScoreParticipantInput,
@@ -72,14 +77,16 @@ const BANDS = {
   chronotype: 1,
 } as const;
 
-const NO_BANDS = {
+const NO_BANDS: DeclaredProfile = {
   moneyPosture: null,
   rootedness: null,
   familyGravity: null,
   capacityHoursBand: null,
   distanceBand: null,
   chronotype: null,
-} as const;
+  tags: [],
+  acquaintances: [],
+};
 
 const SUBJECT_ROMANTIC: RomanticGate = {
   gender: "F",
@@ -411,11 +418,32 @@ function fixedSentenceLlm(): LlmPort {
   return stubLlm(() => ({ text: FIXED_SENTENCE }));
 }
 
+function pairSimulationsFake(): PairSimulationRepository & {
+  rows: Map<string, StoredPairSimulation>;
+} {
+  const rows = new Map<string, StoredPairSimulation>();
+  const key = (lens: Lens, lo: string, hi: string) => `${lens}:${lo}:${hi}`;
+  return {
+    rows,
+    byPair(lens, lo, hi) {
+      return Promise.resolve(rows.get(key(lens, lo, hi)) ?? null);
+    },
+    save(row: PairSimulationSave) {
+      rows.set(key(row.lens, row.participantLo, row.participantHi), {
+        ...row,
+        createdAt: new Date(),
+      });
+      return Promise.resolve();
+    },
+  };
+}
+
 function depsFor(
   rows: RankableParticipant[],
   seed: Record<string, LatentPosteriors>,
   responders: ParticipantId[],
-  llm: LlmPort
+  llm: LlmPort,
+  pairSimulations: PairSimulationRepository = pairSimulationsFake()
 ): SimulatePairDeps {
   const latents = latentsFake(seed);
   const answered: Record<string, BlockResponse[]> = {};
@@ -429,6 +457,7 @@ function depsFor(
     },
     scoreParticipant: scorerFake(latents).scoreParticipant,
     narrator: createTimelineNarrator(llm),
+    pairSimulations,
   };
 }
 
@@ -665,6 +694,144 @@ describe("simulatePair", () => {
       expect(scanBanned(event.text)).toEqual([]);
       expect(scanSurvivalClaims(event.text)).toEqual([]);
     }
+  });
+
+  it("AC-1 (#34) · the second viewer is served from cache with per-viewer projection", async () => {
+    const llm = countingLlm(fixedSentenceLlm());
+    const cache = pairSimulationsFake();
+    const deps = depsFor(AC1_ROOM, LATENTS, [ANA, BRUNO], llm, cache);
+
+    const first = await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+    const callsAfterFirst = llm.generateCalls.length;
+    expect(first).not.toBeNull();
+
+    const second = await simulatePair(
+      { subjectId: BRUNO, otherId: ANA, lens: "romantic" },
+      deps
+    );
+    expect(llm.generateCalls.length).toBe(callsAfterFirst);
+    expect(cache.rows.size).toBe(1);
+    const row = [...cache.rows.values()][0];
+    expect(row.participantLo).toBe(ANA);
+    expect(row.participantHi).toBe(BRUNO);
+    expect(second).not.toBeNull();
+    if (first === null || second === null || first.lens === "friendship") {
+      throw new Error("expected paired timelines");
+    }
+    if (second.lens === "friendship") {
+      throw new Error("expected paired timelines");
+    }
+    expect(second.events).toEqual(first.events);
+    expect(second.horizonYears).toBe(first.horizonYears);
+    expect(second.ending).toEqual(first.ending);
+    expect(first.subject.id).toBe(ANA);
+    expect(first.other.id).toBe(BRUNO);
+    expect(second.subject.id).toBe(BRUNO);
+    expect(second.other.id).toBe(ANA);
+  });
+
+  it("AC-2 (#34) · superseded posteriors invalidate the cache and replace the row", async () => {
+    const llm = countingLlm(fixedSentenceLlm());
+    const cache = pairSimulationsFake();
+    const latents = latentsFake(LATENTS);
+    const deps: SimulatePairDeps = {
+      ...depsFor(AC1_ROOM, LATENTS, [ANA, BRUNO], llm, cache),
+      latents,
+    };
+
+    await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+    const callsAfterFirst = llm.generateCalls.length;
+
+    await latents.replaceForParticipant(
+      ANA,
+      PILLARS.map((pillar) => ({
+        pillar,
+        mean: 0.61,
+        se: 0.11,
+        scorerVersion: "map-luce-v1",
+        computedAt: new Date(SCORED_AT.getTime() + 60_000),
+      }))
+    );
+
+    await simulatePair(
+      { subjectId: BRUNO, otherId: ANA, lens: "romantic" },
+      deps
+    );
+    expect(llm.generateCalls.length).toBeGreaterThan(callsAfterFirst);
+    expect(cache.rows.size).toBe(1);
+    const row = [...cache.rows.values()][0];
+    expect(row.loComputedAt.getTime()).toBeGreaterThan(SCORED_AT.getTime());
+  });
+
+  it("AC-3 (#34) · withdrawn consent returns null and never regenerates", async () => {
+    const llm = countingLlm(fixedSentenceLlm());
+    const cache = pairSimulationsFake();
+    const rows = AC1_ROOM.map((row) => ({ ...row }));
+    const deps = depsFor(rows, LATENTS, [ANA, BRUNO], llm, cache);
+
+    await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+    const callsAfterWarm = llm.generateCalls.length;
+
+    const anaIndex = rows.findIndex((r) => r.participant.id === ANA);
+    rows[anaIndex] = {
+      ...rows[anaIndex],
+      participant: {
+        ...rows[anaIndex].participant,
+        consent: { ...ALL_LENSES, romantic: false },
+      },
+    };
+
+    const withdrawn = await simulatePair(
+      { subjectId: BRUNO, otherId: ANA, lens: "romantic" },
+      depsFor(rows, LATENTS, [BRUNO], llm, cache)
+    );
+    expect(withdrawn).toBeNull();
+    expect(llm.generateCalls.length).toBe(callsAfterWarm);
+
+    rows[anaIndex] = {
+      ...rows[anaIndex],
+      participant: {
+        ...rows[anaIndex].participant,
+        consent: ALL_LENSES,
+        declaredAt: null,
+        declared: NO_BANDS,
+      },
+    };
+    expect(
+      await simulatePair(
+        { subjectId: BRUNO, otherId: ANA, lens: "romantic" },
+        depsFor(rows, LATENTS, [BRUNO], llm, cache)
+      )
+    ).toBeNull();
+    expect(llm.generateCalls.length).toBe(callsAfterWarm);
+  });
+
+  it("AC-4 (#34) · a third viewer cannot read a cached pair life", async () => {
+    const llm = countingLlm(fixedSentenceLlm());
+    const cache = pairSimulationsFake();
+    const deps = depsFor(AC1_ROOM, LATENTS, [ANA, BRUNO, CARLA], llm, cache);
+
+    await simulatePair(
+      { subjectId: ANA, otherId: BRUNO, lens: "romantic" },
+      deps
+    );
+    const callsAfterWarm = llm.generateCalls.length;
+
+    const blocked = await simulatePair(
+      { subjectId: CARLA, otherId: ANA, lens: "romantic" },
+      deps
+    );
+    expect(blocked).toBeNull();
+    expect(llm.generateCalls.length).toBe(callsAfterWarm);
   });
 });
 

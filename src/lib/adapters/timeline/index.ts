@@ -5,6 +5,7 @@ import { simulatePair } from "../../use-cases/simulate-pair";
 import type { Db } from "../db/client";
 import { createGeneratedBlockRepository } from "../db/generated-block-repository";
 import { createLatentRepository } from "../db/latent-repository";
+import { createPairSimulationRepository } from "../db/pair-simulation-repository";
 import { createParticipantRepository } from "../db/participant-repository";
 import { createResponseRepository } from "../db/response-repository";
 import { createRoomRepository } from "../db/room-repository";
@@ -19,6 +20,7 @@ export function createDbTimelines(db: Db, llm: LlmPort): TimelinePort {
   const responses = createResponseRepository(db);
   const generatedBlocks = createGeneratedBlockRepository(db);
   const narrator = createTimelineNarrator(llm);
+  const pairSimulations = createPairSimulationRepository(db);
 
   const deps = {
     participants: createParticipantRepository(db),
@@ -33,6 +35,7 @@ export function createDbTimelines(db: Db, llm: LlmPort): TimelinePort {
         now: () => new Date(),
       }),
     narrator,
+    pairSimulations,
   };
 
   return {
