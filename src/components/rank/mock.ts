@@ -1,3 +1,4 @@
+import { AVATARS } from "@/lib/domain/participant/avatar";
 import type { RankEntry, RankedRoom, ViewerId } from "@/lib/domain/reveal/rank";
 import type { Lens } from "@/lib/domain/room/layout";
 
@@ -112,6 +113,7 @@ export function mockRankedRoom(
       // so exactly one person carries it. Deleted with the rest of this file
       // when #10 lands and `photoUrl` is real.
       photoUrl: position === 4 ? null : person.photoUrl,
+      avatar: AVATARS[index % AVATARS.length],
       position,
       band: index < highCount ? ("high" as const) : ("mid" as const),
       bond: BONDS[affinity(lens, viewer.id, person.id) % BONDS.length],

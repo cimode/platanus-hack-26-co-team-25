@@ -51,6 +51,7 @@ function mapEvents(timeline: Timeline): LifeEvent[] {
       year: event.year,
       kind: event.kind,
       text: event.text,
+      emote: event.emote,
     }))
     .sort((a, b) => a.year - b.year);
 }
@@ -75,11 +76,18 @@ function toCanonicalLife(
   hiRow: RankableParticipant
 ): SimulatedLife {
   const base = {
-    subject: { id: loRow.participant.id, name: loRow.participant.name },
+    subject: {
+      id: loRow.participant.id,
+      name: loRow.participant.name,
+      avatar: loRow.participant.avatar,
+      // Set per viewer by `projectForViewer`, never served from the cache.
+      photoUrl: null,
+    },
     other: {
       id: hiRow.participant.id,
       name: hiRow.participant.name,
       photoUrl: hiRow.participant.photoUrl,
+      avatar: hiRow.participant.avatar,
     },
     events: mapEvents(timeline),
   };
@@ -101,11 +109,13 @@ function toCanonicalLife(
 function projectForViewer(
   canonical: SimulatedLife,
   viewerId: string,
-  otherPhotoUrl: string | null
+  otherPhotoUrl: string | null,
+  subjectPhotoUrl: string | null
 ): SimulatedLife {
   if (viewerId === canonical.subject.id) {
     return {
       ...canonical,
+      subject: { ...canonical.subject, photoUrl: subjectPhotoUrl },
       other: { ...canonical.other, photoUrl: otherPhotoUrl },
     };
   }
@@ -113,11 +123,20 @@ function projectForViewer(
   if (canonical.lens === "friendship") {
     return {
       lens: "friendship",
-      subject: { id: canonical.other.id, name: canonical.other.name },
+      subject: {
+        id: canonical.other.id,
+        name: canonical.other.name,
+        photoUrl: subjectPhotoUrl,
+        // The plate travels WITH the person, not with the slot. Leaving this
+        // reading `canonical.subject.avatar` is how each viewer ends up
+        // watching their own story acted out in the other person's body.
+        avatar: canonical.other.avatar,
+      },
       other: {
         id: canonical.subject.id,
         name: canonical.subject.name,
         photoUrl: otherPhotoUrl,
+        avatar: canonical.subject.avatar,
       },
       events: canonical.events,
     };
@@ -125,11 +144,17 @@ function projectForViewer(
 
   return {
     lens: canonical.lens,
-    subject: { id: canonical.other.id, name: canonical.other.name },
+    subject: {
+      id: canonical.other.id,
+      name: canonical.other.name,
+      avatar: canonical.other.avatar,
+      photoUrl: subjectPhotoUrl,
+    },
     other: {
       id: canonical.subject.id,
       name: canonical.subject.name,
       photoUrl: otherPhotoUrl,
+      avatar: canonical.subject.avatar,
     },
     events: canonical.events,
     horizonYears: canonical.horizonYears,
@@ -193,6 +218,9 @@ export async function simulatePair(
   const entry = room.entries.find((ranked) => ranked.id === otherId);
   if (entry === undefined) return null;
 
+  // The viewer's own photo, for the face on their own avatar in the reveal.
+  const mePhoto = rows.get(subjectId)?.participant.photoUrl ?? null;
+
   const [lo, hi] = [subjectId, otherId].sort();
   const loRow = rows.get(lo);
   const hiRow = rows.get(hi);
@@ -226,7 +254,7 @@ export async function simulatePair(
     if (!stillOk) return null;
 
     if (freshnessMatches(cached, loComputedAt, hiComputedAt)) {
-      return projectForViewer(cached.life, subjectId, entry.photoUrl);
+      return projectForViewer(cached.life, subjectId, entry.photoUrl, mePhoto);
     }
   }
 
@@ -244,6 +272,10 @@ export async function simulatePair(
       seed: pairSeed(lo, hi, lens),
       offspringConsentA: true,
       offspringConsentB: true,
+      // Verification input only: an emote the pair cannot both play falls back
+      // to the deterministic map inside the narrator.
+      avatarA: loRow.participant.avatar,
+      avatarB: hiRow.participant.avatar,
     },
     deps.narrator
   );
@@ -263,5 +295,5 @@ export async function simulatePair(
     hiComputedAt,
   });
 
-  return projectForViewer(canonical, subjectId, entry.photoUrl);
+  return projectForViewer(canonical, subjectId, entry.photoUrl, mePhoto);
 }

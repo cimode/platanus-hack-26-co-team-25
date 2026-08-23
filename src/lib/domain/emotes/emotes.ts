@@ -41,6 +41,61 @@ export function isEmote(value: unknown): value is Emote {
 }
 
 /**
+ * The emotes a story beat may trigger: the one-shots, and ONLY those.
+ *
+ * The five locomotion sheets are excluded on purpose, and the reason is
+ * positional rather than aesthetic. They are `loop: true`, so they never fire
+ * `animationend`; `AvatarSprite` therefore never calls `onEnd` and the avatar
+ * never returns to its idle plate. By construction they also end with the
+ * character turned away or walked off. A reaction attached to a life event has
+ * to finish standing exactly where it started -- which is what a one-shot does
+ * and a walk cycle cannot.
+ *
+ * Written as a literal (not derived at runtime) because `z.enum` in the
+ * narrator adapter needs a tuple type, and because the LLM's vocabulary should
+ * be readable in one glance. `emotes.test.ts` asserts this list IS exactly the
+ * set of non-looping sheets every avatar has packed, so packing a new one-shot
+ * and forgetting it here fails the suite rather than silently narrowing what
+ * the model may choose.
+ */
+export const REACTION_EMOTES = [
+  "celebrate",
+  "wave",
+  "cry",
+  "walk",
+  "angry",
+  "fight",
+  "defeat",
+  "love",
+] as const;
+
+export type ReactionEmote = (typeof REACTION_EMOTES)[number];
+
+export function isReactionEmote(value: unknown): value is ReactionEmote {
+  return (
+    typeof value === "string" &&
+    (REACTION_EMOTES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * True when EVERY one of these avatars has this emote packed.
+ *
+ * The verification step behind the model's choice: a pair simulation animates
+ * two avatars with one emote, so a sheet missing on either side means the
+ * choice has to fall back. Unknown avatars (a null column on an old row) do not
+ * veto -- they simply have no sprite to play.
+ */
+export function playableByAll(
+  avatars: readonly (string | null | undefined)[],
+  emote: Emote
+): boolean {
+  const known = avatars.filter((a): a is string => typeof a === "string");
+  if (known.length === 0) return false;
+  return known.every((avatar) => emoteSheet(avatar, emote) !== null);
+}
+
+/**
  * Who wears what is the participant domain's call (`participant/avatar.ts`:
  * decided at registration, stored on the row). The emotes catalogue is keyed
  * by that same `Avatar`, re-exported under the names the library uses.

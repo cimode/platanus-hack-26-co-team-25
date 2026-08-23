@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { type RegisterState, registerAction } from "@/app/intake/actions";
 import { PhotoField } from "@/components/intake/photo-field";
+import { TagPicker } from "@/components/intake/tags/tag-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -167,6 +168,12 @@ export function RegisterForm({ roomSlug }: { roomSlug: string }) {
           <FieldError message={state.birthdateError} />
         </div>
       </div>
+
+      {/* Common Ground (PILLARS.md §2). It came back to this screen when the
+          declared round went away (D20): without it the engine's commonGround
+          and structural terms have no input at all, and a term with no input
+          is a constant that ranks nobody above anybody. */}
+      <TagPicker defaultValue={[]} />
 
       <div className="space-y-2">
         {/* A NATIVE checkbox, not the shadcn one: Radix renders a button and

@@ -74,6 +74,97 @@ test.describe("1a · impersonate", () => {
     await expect(cta(page)).toBeEnabled();
   });
 
+  test("dragging the list scrolls it instead of picking whoever you touched", async ({
+    page,
+    isMobile,
+  }) => {
+    // REGRESSION GUARD, and one only a finger can see. The options committed
+    // on `pointerdown` with a `preventDefault()` -- which is also where the
+    // browser decides whether a touch may scroll, so the list was picking the
+    // name under your finger the instant it landed and there was nothing left
+    // to drag with. A mouse never noticed: it presses and releases in the same
+    // spot, so both the broken version and the fixed one pick.
+    test.skip(!isMobile, "There is no drag-to-scroll gesture without a touch.");
+
+    await combobox(page).click();
+    await expect(page.getByRole("option").first()).toBeVisible();
+
+    const list = page.getByRole("listbox");
+    const box = await list.boundingBox();
+    if (!box) throw new Error("the list has no box to drag");
+
+    // Playwright has no touch drag, so the gesture is dispatched directly.
+    // Straight up the middle of the list, well past the slop.
+    await page.evaluate(
+      ({ x, from, to }) => {
+        const target = document.elementFromPoint(x, from);
+        if (!target) throw new Error("nothing under the finger");
+        const at = (type: string, y: number) =>
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          });
+        target.dispatchEvent(at("pointerdown", from));
+        for (let i = 1; i <= 8; i++) {
+          target.dispatchEvent(at("pointermove", from + ((to - from) * i) / 8));
+        }
+        target.dispatchEvent(at("pointerup", to));
+      },
+      {
+        x: box.x + box.width / 2,
+        from: box.y + box.height - 20,
+        to: box.y + 20,
+      }
+    );
+
+    await expect(combobox(page)).toHaveValue("");
+    await expect(cta(page)).toBeDisabled();
+    await expect(list).toBeVisible();
+  });
+
+  test("a tap still picks the option under it", async ({ page, isMobile }) => {
+    // The other half of the guard above: a slop that swallowed taps would
+    // pass that test and leave the picker unusable on the only device the
+    // demo runs on.
+    test.skip(!isMobile, "Covered by the mouse tests on desktop.");
+
+    await combobox(page).click();
+    const first = page.getByRole("option").first();
+    await expect(first).toBeVisible();
+    const box = await first.boundingBox();
+    if (!box) throw new Error("the option has no box to tap");
+
+    await page.evaluate(
+      ({ x, y }) => {
+        const target = document.elementFromPoint(x, y);
+        if (!target) throw new Error("nothing under the finger");
+        const at = (type: string, cy: number) =>
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 1,
+            pointerType: "touch",
+            clientX: x,
+            clientY: cy,
+            isPrimary: true,
+          });
+        target.dispatchEvent(at("pointerdown", y));
+        // A real finger is never perfectly still; 2px must stay a tap.
+        target.dispatchEvent(at("pointermove", y + 2));
+        target.dispatchEvent(at("pointerup", y + 2));
+      },
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    );
+
+    await expect(combobox(page)).not.toHaveValue("");
+    await expect(cta(page)).toBeEnabled();
+  });
+
   test("editing after a choice re-disables the CTA", async ({ page }) => {
     // Guards a stale-id submit: the field would still LOOK chosen while the
     // hidden id pointed at whoever was picked before the edit.
@@ -278,7 +369,20 @@ test.describe("1b · the room", () => {
     // rather than working around a flake.
     await page.emulateMedia({ reducedMotion: "reduce" });
     await enterAs(page, "diego");
-    const sprite = page.locator("figure").nth(6);
+
+    // Whoever stands closest to the camera, rather than whoever the DOM
+    // happens to list seventh. `--depth` IS the floor position, so the
+    // greatest one has nobody in front of it -- and a sprite with somebody in
+    // front of it cannot be hovered by a pointer at all, in the test or in the
+    // product. Picking by index meant the subject was whoever the roster put
+    // there, and a room that placed a nearer neighbour over them swallowed
+    // every hover until the test timed out.
+    const figures = page.locator("figure[data-participant]");
+    await expect(figures.first()).toBeVisible();
+    const depths = await figures.evaluateAll((els) =>
+      els.map((el) => Number(getComputedStyle(el).getPropertyValue("--depth")))
+    );
+    const sprite = figures.nth(depths.indexOf(Math.max(...depths)));
     const caption = sprite.locator("figcaption");
 
     const before = await sprite.evaluate((el) => getComputedStyle(el).zIndex);

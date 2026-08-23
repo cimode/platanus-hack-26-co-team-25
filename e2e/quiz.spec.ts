@@ -268,14 +268,22 @@ test.describe("quiz", () => {
     }
 
     /*
-     * The last block hands off to /room, not to the old dead-end /results.
+     * The last block hands off to /results — the thank-you — and NOT to /room.
      *
-     * Asserted as a SHAPE -- `/room`, or `/` -- rather than as an exact URL,
-     * because this fixture's participant lives in its own `e2e-<run>-q<n>`
-     * room by design, never `HOOKAI_ROOM_SLUG`. `/room` reads the venue
-     * roster, cannot place someone who is not on it, and bounces to `/`. Both
-     * endpoints are the hand-off working; `/quiz` and `/results` are the two
-     * this must never be, and the pattern excludes both.
+     * This assertion was inverted on purpose. It used to require `/room` and
+     * exclude `/results` as "the old dead-end"; the site gate (issue #50) made
+     * `/room` the dead end instead. `src/lib/site-gate/gate.ts` opens `/qr`,
+     * `/intake`, `/quiz` and `/results` and nothing else, so while
+     * `SITE_GATE_PASSWORD` is set every participant who finished the twelve
+     * blocks was redirected onto a password form. `/results` is the one screen
+     * past the quiz that answers without the cookie, which is why it is now
+     * the hand-off and why it is a terminal with no link onward.
+     *
+     * An EXACT URL is right here, unlike before: the old shape allowed `/`
+     * because `/room` bounces a participant it cannot place on the venue
+     * roster, and this fixture lives in its own `e2e-<run>-q<n>` room.
+     * `/results` is static and bounces nobody, so there is one correct
+     * destination and no reason to loosen the pattern.
      *
      * There is no Location-header assertion here, and there cannot be:
      * `/quiz` has a `loading.tsx`, so Next commits `200 OK` and paints the
@@ -284,7 +292,7 @@ test.describe("quiz", () => {
      * 404. An earlier draft of this test asserted the header and failed in CI
      * for exactly that reason.
      */
-    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(page).toHaveURL(/\/results$/);
     await expect(counter(page, BLOCKS)).toHaveCount(0);
 
     expect(await participant.responses()).toHaveLength(BLOCKS);
@@ -293,7 +301,7 @@ test.describe("quiz", () => {
 
     // Completed means completed: /quiz never serves a block again.
     await page.goto("/quiz");
-    await expect(page).toHaveURL(/\/(room)?$/);
+    await expect(page).toHaveURL(/\/results$/);
     await expect(counter(page, BLOCKS)).toHaveCount(0);
   });
 
@@ -453,10 +461,14 @@ test.describe("safety invariants", () => {
       await tap(page, participant, position);
     }
 
-    // Off the quiz and onto the hand-off, wherever the roster puts this
-    // fixture's participant (see AC-4). Only the landmark for "all twelve are
-    // answered"; the leak scan below is what this criterion is about.
-    await expect(page).toHaveURL(/\/(room)?$/);
+    // Off the quiz and onto the hand-off, which is `/results` (see AC-4). The
+    // old shape allowed `/` as well, because the hand-off was `/room` and
+    // `/room` bounces a participant it cannot place on the venue roster —
+    // which this fixture's participant never is. `/results` is static and
+    // bounces nobody, so there is one destination. Only the landmark for "all
+    // twelve are answered"; the leak scan below is what this criterion is
+    // about.
+    await expect(page).toHaveURL(/\/results$/);
     // 1 opening + 1 served opening + 12 blocks + 3 served blocks.
     expect(captured.length).toBeGreaterThanOrEqual(17);
     for (const { where, html } of captured) {

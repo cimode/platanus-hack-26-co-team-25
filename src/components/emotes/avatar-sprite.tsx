@@ -14,6 +14,15 @@ import {
 import { fallbackMs, frameBox, playback } from "@/lib/domain/emotes/geometry";
 import { cn } from "@/lib/utils";
 
+/**
+ * Where the images for this sprite come from, when they are not the plain
+ * artwork. Called with `"plate"` for the idle still and with an emote's name
+ * for a reaction; returning undefined means "draw the artwork", which is what
+ * makes an override that is still being prepared -- or that failed -- fall
+ * back instead of blanking the sprite. `useFacedSprite` returns one of these.
+ */
+export type SpriteSource = (clip: string) => string | undefined;
+
 export interface AvatarSpriteProps {
   readonly avatar: AvatarKey;
   /**
@@ -30,6 +39,8 @@ export interface AvatarSpriteProps {
   readonly label?: string;
   /** Preload every sheet of this avatar on mount, so the first play has no blank frame. */
   readonly preload?: boolean;
+  /** Swaps the drawn image per clip -- the participant's face, composited in. */
+  readonly source?: SpriteSource;
   readonly className?: string;
 }
 
@@ -51,6 +62,7 @@ export function AvatarSprite({
   onEnd,
   label,
   preload: shouldPreload = true,
+  source,
   className,
 }: AvatarSpriteProps) {
   useEffect(() => {
@@ -60,6 +72,7 @@ export function AvatarSprite({
   }, [avatar, shouldPreload]);
 
   const sheet = playing ? emoteSheet(avatar, playing.emote) : null;
+  const plate = source?.(PLATE_CLIP) ?? plateUrl(avatar);
 
   return (
     <span
@@ -77,12 +90,13 @@ export function AvatarSprite({
           onEnd={onEnd}
           plateHeight={height}
           sheet={sheet}
+          src={source?.(playing.emote) ?? sheet.src}
         />
       ) : (
         <span
           className="sprite absolute inset-0 bg-contain bg-bottom bg-no-repeat"
           data-anim="idle"
-          style={{ backgroundImage: `url(${plateUrl(avatar)})` }}
+          style={{ backgroundImage: `url(${plate})` }}
         />
       )}
     </span>
@@ -91,12 +105,15 @@ export function AvatarSprite({
 
 function Frame({
   sheet,
+  src,
   emote,
   loop,
   plateHeight,
   onEnd,
 }: {
   sheet: EmoteSheet;
+  /** The strip to draw. Same geometry as `sheet`, possibly with a face in it. */
+  src: string;
   emote: string;
   loop: boolean | undefined;
   plateHeight: string;
@@ -124,7 +141,7 @@ function Frame({
         height: box.height,
         aspectRatio: box.aspectRatio,
         transform: `translate(-50%, ${box.translateY})`,
-        backgroundImage: `url(${sheet.src})`,
+        backgroundImage: `url(${src})`,
         backgroundSize: box.backgroundSize,
         // `--frames` feeds the `emote` keyframe's end position.
         ["--frames" as string]: sheet.frames,
@@ -133,3 +150,9 @@ function Frame({
     />
   );
 }
+
+/**
+ * The clip name the idle plate answers to. It is `FACE_PLATE` in the faces
+ * domain; spelled here so this file keeps depending only on the emotes domain.
+ */
+const PLATE_CLIP = "plate";

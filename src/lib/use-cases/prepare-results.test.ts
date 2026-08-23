@@ -764,8 +764,12 @@ describe("prepareResults", () => {
         expect(typeof entry.friction.label).toBe("string");
       }
 
-      // Positively: these are ALL the fields an entry has.
+      // Positively: these are ALL the fields an entry has. `avatar` joined
+      // them so the card can draw the body and put the photo in its face; it
+      // discloses nothing the room does not already show everyone, and it
+      // carries no consent flag, gate, band or latent.
       expect(Object.keys(entry).sort()).toEqual([
+        "avatar",
         "band",
         "bond",
         "friction",

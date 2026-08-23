@@ -22,6 +22,51 @@ export function isLens(value: unknown): value is Lens {
  */
 export const VENUE_ASPECT = 1536 / 1024;
 
+/**
+ * Width of a sprite relative to its height, measured off the avatar plates.
+ *
+ * Declared up here with the other plate measurements because WALL_INSET is
+ * derived from it, and a `const` read before its own declaration throws.
+ */
+export const SPRITE_ASPECT = 0.46;
+
+/**
+ * How much of the room band the plate fills, vertically.
+ *
+ * The plate is landscape and the band is a phone, so rendering it at the band's
+ * full height blows it up to ~1.5x the band's height in width -- a keyhole view
+ * where you see one wall and have to drag for everything else. Backing off to
+ * VENUE_ZOOM shows that much more of the room in the same viewport.
+ *
+ * The leftover height is a letterbox, and it is invisible on purpose: the art
+ * already floats on a flat void (VENUE_VOID, sampled from its own corners), so
+ * painting the band that colour makes the plate's edge and the fill the same
+ * pixel. It all goes ABOVE the plate rather than being split, because the lens
+ * card is parked at the top of this screen and the room's ceiling was running
+ * up behind it.
+ */
+export const VENUE_ZOOM = 0.78;
+
+/**
+ * How much of the band's top the lens card owns, in PIXELS.
+ *
+ * The card is parked at `top-16` (64px) and measures 144px tall, so it covers
+ * the first 208px of the band; this is that plus a little air. The plate hangs
+ * from the floor of the band, so the top of the room is the edge that runs
+ * under it -- and it did, which is what this is here to stop.
+ *
+ * Pixels, deliberately, and this is the whole reason it exists as its own
+ * number. VENUE_ZOOM is a FRACTION of the band and the card is a FIXED height,
+ * so a zoom that clears the card on a 844px phone hides the ceiling again on a
+ * 667px one -- the plate shrinks with the band, the card does not. Clearance
+ * has to be expressed in the card's own units or it only holds on the phone it
+ * was eyeballed against.
+ */
+export const LENS_CARD_CLEARANCE_PX = 216;
+
+/** The flat colour the plate's art floats on -- sampled off its own corners. */
+export const VENUE_VOID = "#1e1f21";
+
 /* -------------------------------------------------------------------------- */
 /*  The floor                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -61,8 +106,22 @@ const FLOOR_BACK = STANDING_BAND.back;
 const FLOOR_FRONT = STANDING_BAND.front;
 const DEPTH_ROWS = 4;
 
-/** How far in from the wall a sprite must stay, as a fraction of plate width. */
-const WALL_INSET = 0.02;
+/**
+ * How far in from the wall a sprite's CENTRE must stay, as a fraction of plate
+ * width.
+ *
+ * DERIVED, and that is the point. It used to read 0.02, which was not a taste
+ * call -- it was exactly half the widest sprite of the day, so the nearest,
+ * biggest person still put both feet on the floor. Nothing said so, so when the
+ * sprites doubled the number stayed put and the front row started standing with
+ * one foot through the near rim. Tying it to the sprite that actually sets it
+ * means the next resize carries it along.
+ *
+ * Height is a fraction of the plate's HEIGHT and this is a fraction of its
+ * WIDTH, hence the divide by VENUE_ASPECT.
+ */
+const WALL_INSET =
+  (spriteHeightFraction(FLOOR_FRONT) * SPRITE_ASPECT) / VENUE_ASPECT / 2;
 
 /** The horizontal extent of the standing floor at a given depth. */
 export function floorSpan(y: number): { left: number; right: number } {
@@ -78,18 +137,23 @@ export function floorSpan(y: number): { left: number; right: number } {
 /**
  * Sprite height as a fraction of the plate's height.
  *
- * Calibrated against the plate itself, not invented: the bar stools by the
- * window measure ~0.076 of the plate's height, so a standing person lands
- * around 0.075..0.125. Sized any larger the crowd reads as giants in a doll's
- * house -- which is exactly what the first pass looked like.
+ * MEASURED against the plate, and re-measured after the crowd shipped looking
+ * like dolls in a doll's house. A yellow bar stool by the window runs from
+ * y=455 (cushion top) to y=586 (feet) -- 131px of 1024, so 0.128 of the plate's
+ * height. The previous pass recorded that same stool as 0.076, which is the
+ * cushion alone with its legs cut off, and every sprite inherited the error:
+ * people came out barely taller than the seat they were standing next to.
  *
- * The 1.67x spread across the band keeps the handoff's depth cue (its
- * 46px..82px is 1.78x). Expressed as a fraction so sprites track the art at any
- * rendered size instead of drifting off it.
+ * A bar stool with a back is about a metre; an adult is about 1.7 of one. That
+ * puts a person around 0.2 of the plate, which is where the middle of this band
+ * lands. Re-measure both numbers together if the art is ever redrawn.
+ *
+ * The 1.67x spread across the band is unchanged -- it is the depth cue (the
+ * handoff's 46px..82px is 1.78x), and only the base moved.
  */
 export function spriteHeightFraction(y: number): number {
   const t = (y - FLOOR_BACK) / (FLOOR_FRONT - FLOOR_BACK);
-  return 0.075 + t * 0.05;
+  return 0.15 + t * 0.1;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -110,9 +174,6 @@ export const AVATAR_SPRITES = [
   "/sprites/avatar3.png",
   "/sprites/avatar4.png",
 ] as const;
-
-/** Width of a sprite relative to its height, measured off the avatar plates. */
-export const SPRITE_ASPECT = 0.46;
 
 /** Where one sprite stands, in fractions of the venue plate. */
 export interface Placement {

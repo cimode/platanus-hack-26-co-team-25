@@ -96,7 +96,15 @@ export async function answerBlockAction(formData: FormData): Promise<void> {
   revalidatePath("/quiz");
   if (result.completed) {
     scoreInBackground(result.participantId, result.roomId, now);
-    redirect("/room");
+    // `/results`, NOT `/room` -- because of the gate.
+    //
+    // `src/lib/site-gate/gate.ts` opens `/qr`, `/intake`, `/quiz` and
+    // `/results`, and nothing else. While `SITE_GATE_PASSWORD` is set -- which
+    // is exactly the pre-reveal window, the one during which people actually
+    // fill the form -- `/room` answers a redirect to a password form the
+    // participant does not have. Sending them there made the last thing a
+    // finished participant saw a wall.
+    redirect("/results");
   }
   if (result.advanced) redirect("/quiz");
   redirect("/quiz?start=1");

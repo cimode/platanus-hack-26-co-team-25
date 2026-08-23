@@ -28,8 +28,18 @@ const EVENTS: readonly LifeEvent[] = [
 
 const PAIRED: PairedTimeline = {
   lens: "romantic",
-  subject: { id: "ana", name: "Ana Ramírez" },
-  other: { id: "sofia", name: "Sofía Guzmán", photoUrl: null },
+  subject: {
+    id: "ana",
+    name: "Ana Ramírez",
+    avatar: "avatar3",
+    photoUrl: null,
+  },
+  other: {
+    id: "sofia",
+    name: "Sofía Guzmán",
+    photoUrl: null,
+    avatar: "avatar4",
+  },
   horizonYears: 9,
   events: EVENTS,
   ending: { outcome: "apart", year: 6, epilogue: "Se siguen saludando." },
@@ -37,8 +47,18 @@ const PAIRED: PairedTimeline = {
 
 const FRIENDS: FriendshipTimeline = {
   lens: "friendship",
-  subject: { id: "ana", name: "Ana Ramírez" },
-  other: { id: "bruno", name: "Bruno Cortés", photoUrl: null },
+  subject: {
+    id: "ana",
+    name: "Ana Ramírez",
+    avatar: "avatar3",
+    photoUrl: null,
+  },
+  other: {
+    id: "bruno",
+    name: "Bruno Cortés",
+    photoUrl: null,
+    avatar: "avatar1",
+  },
   events: EVENTS,
 };
 

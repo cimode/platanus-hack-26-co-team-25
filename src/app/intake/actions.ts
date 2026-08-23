@@ -152,6 +152,10 @@ export async function registerAction(
         birthdate,
         // The parse above already refused anything but the ticked literal.
         dataConsent: true,
+        // Checkboxes: `getAll` is the whole array, and none ticked is [].
+        tags: formData
+          .getAll("tags")
+          .filter((v): v is string => typeof v === "string"),
         photo: {
           bytes: new Uint8Array(await file.arrayBuffer()),
           contentType: file.type,

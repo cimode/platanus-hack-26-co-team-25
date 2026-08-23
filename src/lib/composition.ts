@@ -7,12 +7,16 @@ import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
 import { createDbRoster } from "./adapters/db/roster";
 import { createGatewayLlm } from "./adapters/llm/gateway";
+import { createFakeOffspringStudio } from "./adapters/offspring/fake";
+import { createOpenAiOffspringStudio } from "./adapters/offspring/openai";
+
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
 import { createDbTimelines } from "./adapters/timeline";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
+import type { OffspringStudio } from "./ports/offspring";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
 import type { PhotoStore } from "./ports/photo-store";
@@ -69,6 +73,8 @@ export interface Deps {
   profiles: ProfilePort;
   /** `simulatePair`, likewise (issue #33). */
   timelines: TimelinePort;
+  /** The AI-offspring studio for the `/match` reveal (CONTEXT.md §3 step 6). */
+  offspring: OffspringStudio;
   /**
    * `scoreParticipant`, repositories already bound (issue #30).
    *
@@ -95,6 +101,7 @@ export type ServerDeps = Pick<
   | "ranking"
   | "profiles"
   | "timelines"
+  | "offspring"
   | "scoreParticipant"
 >;
 
@@ -227,6 +234,16 @@ export function serverDeps(): ServerDeps {
       return process.env.AWS_ENDPOINT_URL_S3
         ? createNeonObjectStoragePhotoStore()
         : createFakePhotoStore();
+    },
+    // The AI-offspring studio (CONTEXT.md §3 step 6). Chosen by the presence of
+    // `OPENAI_API_KEY`, the same way `photos` keys on the storage endpoint: the
+    // real image model when it is set, a committed placeholder when it is not,
+    // so `/match` renders with or without a credential. Building either opens
+    // no socket, so this stays a getter like the members above.
+    get offspring() {
+      return process.env.OPENAI_API_KEY
+        ? createOpenAiOffspringStudio()
+        : createFakeOffspringStudio();
     },
   };
 }

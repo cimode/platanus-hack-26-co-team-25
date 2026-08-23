@@ -100,8 +100,20 @@ export interface PairSpec {
 function lifeFor(spec: PairSpec): SimulatedLife {
   const [lo, hi] = canonical(spec.a, spec.b);
   const base = {
-    subject: { id: lo.id, name: lo.name },
-    other: { id: hi.id, name: hi.name, photoUrl: null },
+    // Different plates on purpose: a swap bug that puts one person's body on
+    // the other is invisible when both wear the same one.
+    subject: {
+      id: lo.id,
+      name: lo.name,
+      avatar: "avatar3" as const,
+      photoUrl: null,
+    },
+    other: {
+      id: hi.id,
+      name: hi.name,
+      photoUrl: null,
+      avatar: "avatar1" as const,
+    },
   };
 
   if (spec.lens === "friendship") {

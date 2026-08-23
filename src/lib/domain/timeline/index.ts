@@ -25,6 +25,7 @@
  *      via the shared gateway client, or the deterministic mock).
  */
 
+import { emoteForLifeEvent } from "../emotes/actions.ts";
 import { TERM_LABELS } from "../matching/engine.ts";
 import type { OutcomeName, PatternName, StepName } from "./grammar.ts";
 import {
@@ -255,9 +256,23 @@ export const generateTimeline: GenerateTimeline = async (
 
   // Kid arc — romantic only; hard gate + survival-conditioned window (S11, §5.2).
   if (lens === "romantic" && kidEventAllowed(a, b, lens, opts, true)) {
-    const maxKid = Math.min(8, dYear !== null ? dYear - 1 : horizon - 1);
-    if (maxKid >= 3) {
-      const kidYear = randInt(rng, 3, maxKid);
+    // ─── DEMO ONLY · revert after the event ──────────────────────────────
+    // The window used to be `maxKid >= 3`, so a pair that split before year 4
+    // never got the arc and the `babyOnBoard` reveal never played. For the
+    // demo every romantic pair gets one: the year is clamped into whatever
+    // window exists instead of the arc being dropped.
+    //
+    // The GATE is untouched -- `kidEventAllowed` still requires wantsKids and
+    // offspring consent on both sides. What is suspended is only the
+    // survival condition, which is a story rule, not a consent rule.
+    //
+    // To revert: restore `if (maxKid >= 3)` around the block and delete this
+    // comment. See openspec/changes/demo-baby-always/.
+    const window = Math.min(8, dYear !== null ? dYear - 1 : horizon - 1);
+    const maxKid = Math.max(1, window);
+    {
+      const kidYear = randInt(rng, Math.min(3, maxKid), maxKid);
+      // ─── end DEMO ONLY ───────────────────────────────────────────────────
       extras.push({
         id: "arc-kid",
         role: "texture",
@@ -501,6 +516,9 @@ export const generateTimeline: GenerateTimeline = async (
     kind: beat.kind,
     domain: beat.domain,
     text: narrated.texts[i],
+    // Defensive `??` even though both narrators fill the array: a beat with no
+    // reaction would be an avatar frozen mid-timeline, and the map is free.
+    emote: narrated.emotes[i] ?? emoteForLifeEvent(beat.kind),
   }));
 
   const arcs: Arc[] = kept.map((p) => ({
@@ -523,6 +541,9 @@ export const generateTimeline: GenerateTimeline = async (
       : {}),
     ...(narrated.mockFallbacks !== undefined
       ? { mockFallbacks: narrated.mockFallbacks }
+      : {}),
+    ...(narrated.emoteFallbacks !== undefined
+      ? { emoteFallbacks: narrated.emoteFallbacks }
       : {}),
   };
   const personA = { id: a.id, name: a.name };

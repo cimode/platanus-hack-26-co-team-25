@@ -28,6 +28,17 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "4mb",
     },
   },
+
+  /**
+   * The `/match` server action reads the demo pair from `public/match/*.jpg`
+   * with `fs`. Next's tracer cannot see a `process.cwd()` read, so the files
+   * would be missing from the deployed function without this. Keys are route
+   * globs; values resolve from the project root
+   * (`node_modules/next/dist/docs/.../output.md`).
+   */
+  outputFileTracingIncludes: {
+    "/match": ["./public/match/**"],
+  },
 };
 
 export default nextConfig;

@@ -1,49 +1,92 @@
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-
 /**
- * `/results` — no longer the hand-off target of the last block, and no longer
- * a dead end either.
+ * `/results` — where the twelfth block hands off, and the end of the
+ * participant's flow.
  *
- * The completing write and `/quiz`'s own completed branch both send people to
- * `/room` now: with `resolveViewerId` bridging `dipia_session` and
- * `dipia_impersonating`, someone who registered and finished arrives there
- * identified and can pick a lens. This page used to be where they landed
- * instead, with no link anywhere — the demo simply stopped.
+ * IT IS THE HAND-OFF BECAUSE OF THE GATE. `src/lib/site-gate/gate.ts` opens
+ * `/qr`, `/intake`, `/quiz` and `/results`, and nothing else. While
+ * `SITE_GATE_PASSWORD` is set — which is exactly the pre-reveal window, the one
+ * during which people actually fill the form — `/room` answers a redirect to a
+ * password form the participant does not have. Both `actions.ts` and `/quiz`'s
+ * own completed branch used to send them there, so the last thing a finished
+ * participant saw was a wall.
  *
- * It is KEPT rather than deleted, for one reason that is not sentiment:
- * `src/lib/site-gate/gate.ts` lists `/results` in `OPEN_PAGES`, and
- * `e2e/site-gate.spec.ts` AC-5 asserts it answers without bouncing to the gate.
- * While `SITE_GATE_PASSWORD` is set, `/room` is behind the password and this
- * page is not — so this stays the one completion-adjacent screen a participant
- * can always reach, and the way out of it has to exist.
+ * So this page is deliberately a TERMINAL: there is no link onward, because
+ * every screen past the quiz is gated until the reveal. A CTA that lands on a
+ * password form is worse than no CTA. What the screen owes them instead is a
+ * reason to come back — the reveal happens live, and saying so is the
+ * difference between "the form ended" and "you are in".
  *
- * It carries no number: `e2e/quiz.spec.ts` asserts that no counter is visible
- * once the quiz is done, so "12/12 respuestas" here would read as a block.
+ * It carries NO counter: `e2e/quiz.spec.ts` asserts none is visible once the
+ * quiz is done (the locator matches `N/12`), so a progress number here would
+ * read as a block and fail that assertion.
+ *
+ * Fully static — no `cookies()`, no data source. That is what keeps it
+ * answerable without the gate cookie, which `e2e/site-gate.spec.ts` AC-5
+ * asserts.
  */
 export default function ResultsPage() {
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 px-6 py-16">
-      <p className="font-mono text-xs tracking-[0.06em] text-ink-faint lowercase">
-        dipia · quiz
+    <main className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 overflow-hidden px-6 py-16">
+      <VenueFloor />
+
+      <p className="relative font-mono text-xs tracking-[0.06em] text-ink-faint lowercase">
+        dipia · listo
       </p>
 
-      <h1 className="font-display font-extrabold text-4xl text-ink">Listo</h1>
+      <h1 className="relative font-display font-extrabold text-[42px] text-ink leading-[0.95]">
+        Gracias<span className="text-primary">.</span>
+        <br />
+        Ya estás dentro.
+      </h1>
 
-      <p className="text-base text-ink-muted">
-        Terminaste las doce. Entra a la sala y elige cómo quieres conectar.
+      <p className="relative text-base text-ink-soft">
+        Tus respuestas quedaron guardadas. Eso era todo lo que necesitábamos de
+        ti.
       </p>
 
-      <Link
-        className={cn(
-          "mt-2 w-fit rounded-[14px] bg-primary px-5 py-2.5",
-          "font-display font-bold text-[15px] text-primary-foreground shadow-toy",
-          "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
-        )}
-        href="/room"
-      >
-        Entrar a la sala
-      </Link>
+      <p className="relative text-base text-ink-muted">
+        Lo que hicimos con ellas te lo mostramos en vivo, en la demo. Un
+        adelanto: en esta sala hay gente con la que encajas más de lo que crees,
+        y ninguno de ustedes lo sabe todavía.
+      </p>
+
+      <p className="relative mt-3 font-mono text-[11px] text-ink-faint leading-relaxed lowercase">
+        no cierres la pestaña · nos vemos en la demo
+        <br />
+        simula la vida que aún no ha pasado
+      </p>
     </main>
+  );
+}
+
+/**
+ * The room they are about to be shown, already behind them.
+ *
+ * The veil is the one `/profile` uses, and deliberately: that screen's own
+ * comment records why an opaque top third is required — "a paragraph read over
+ * a sponsor wall is not atmospheric, it is unreadable". This screen is four
+ * paragraphs, so it takes the proven treatment rather than the lighter wash
+ * `/rank` can afford.
+ */
+function VenueFloor() {
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="pixelated pointer-events-none absolute inset-0 bg-cover opacity-[0.2]"
+        style={{
+          backgroundImage: "url(/venue.jpg)",
+          backgroundPosition: "center 74%",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, var(--background) 0%, var(--background) 22%, color-mix(in oklab, var(--background) 84%, transparent) 46%, color-mix(in oklab, var(--background) 55%, transparent) 100%)",
+        }}
+      />
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { EventBubble } from "@/components/simulate/event-bubble";
 import { WalkingPair } from "@/components/simulate/walking-pair";
+import type { AvatarKey } from "@/lib/domain/emotes/emotes";
 import type { LifeEvent } from "@/lib/domain/reveal/timeline";
 import { cn } from "@/lib/utils";
 
@@ -7,11 +8,13 @@ import { cn } from "@/lib/utils";
  * Variant 1e: the board path. One tile per beat, snaking across the canvas,
  * with the narrated bubble hanging off its own tile.
  *
- * The props contract is STILL exactly `{ events, progress }`, which is the
- * happy part of this swap: `LifeEvent` already carries `year`, `kind` and
- * `text`, so a board that shows the story needs nothing the dashed path did not
- * already receive. A third prop remains a `tsc` failure at every call site
- * (AC-SIM-7).
+ * The props contract was `{ events, progress }` and is now
+ * `{ events, progress, avatars }`. `LifeEvent` carries `year`, `kind`, `text`
+ * and the narrator's `emote`, so the STORY still needs nothing extra -- what
+ * forced the third prop is identity: the pair on the tile is two real
+ * participants, and their plates live on `SimulatedLife`, not on an event.
+ * AC-SIM-7 held for everything it was written to protect (this component still
+ * reads no layout); it did not survive the pair becoming the users themselves.
  *
  * What the swap DID cost is worth writing down, because the plan promised
  * otherwise: 1e was scoped as "replaces this one file". It replaced this file
@@ -56,9 +59,28 @@ function offsetAt(index: number): number {
 export function TimelinePath({
   events,
   progress,
+  avatars,
 }: {
   events: readonly LifeEvent[];
   progress: number;
+  /**
+   * The two people's plates, subject first.
+   *
+   * THE THIRD PROP the contract above said would never come, so here is the
+   * reason it did. The pair standing on the tile started as decoration -- two
+   * hardcoded plates with a bob -- and once it became the two PARTICIPANTS,
+   * drawing `avatar1` and `avatar3` meant every couple on the board was one
+   * masculine and one feminine figure whoever they actually were.
+   *
+   * The emote needed no prop because it rides inside `LifeEvent`. An identity
+   * has no such seat, and duplicating both plates onto all N events to keep the
+   * count at two would be worse. Optional, so nothing is forced to pass it and
+   * a plate-less row (registrations older than the column) still renders.
+   */
+  avatars?: {
+    readonly a: AvatarKey | null;
+    readonly b: AvatarKey | null;
+  };
 }) {
   const active = Math.min(events.length - 1, Math.max(0, Math.round(progress)));
 
@@ -106,7 +128,13 @@ export function TimelinePath({
                 board rather than under the next tile's shadow. */}
             {index === active ? (
               <span className="-translate-x-1/2 absolute bottom-[16px] left-0 z-10">
-                <WalkingPair />
+                {/* The beat comes off `events`; the plates come off
+                    `avatars`. See the prop's own note for why that one exists. */}
+                <WalkingPair
+                  avatarA={avatars?.a}
+                  avatarB={avatars?.b}
+                  beat={event}
+                />
               </span>
             ) : null}
           </div>

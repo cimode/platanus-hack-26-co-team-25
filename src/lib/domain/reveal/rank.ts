@@ -1,3 +1,4 @@
+import type { Avatar } from "../participant/avatar";
 /**
  * The rank read model: what a viewer is allowed to see of their own room.
  *
@@ -32,6 +33,12 @@ export interface RankEntry {
   readonly id: string;
   readonly name: string;
   readonly photoUrl: string | null;
+  /**
+   * The plate this person wears. The card draws the body and puts `photoUrl`
+   * in its face, so a row with no photo is still a person on screen rather
+   * than a dashed box -- and the body is the same one they wore in the room.
+   */
+  readonly avatar: Avatar | null;
   /** 1-based place in THIS viewer's rank. Discloses no score. */
   readonly position: number;
   readonly band: RankBand;

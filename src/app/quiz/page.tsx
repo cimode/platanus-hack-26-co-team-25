@@ -60,10 +60,11 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
 
   // An unknown token is a stranger, not an error: send them to register.
   if (!view) redirect("/intake");
-  // Where the completing write sends you too (`actions.ts`): `/room` is the
-  // one screen a finished participant can act on, and `resolveViewerId` now
-  // recognises them there from `dipia_session` alone.
-  if (view.completed) redirect("/room");
+  // Where the completing write sends you too (`actions.ts`): `/results` is the
+  // one screen past the quiz the site gate leaves open, so a participant who
+  // reloads `/quiz` after finishing lands on the thank-you rather than on the
+  // password form `/room` becomes while `SITE_GATE_PASSWORD` is set.
+  if (view.completed) redirect("/results");
 
   // The opening moment sets the rules before block 1. It is skipped when
   // `?block=` asked for a specific block (the back affordance never shows a
@@ -75,7 +76,7 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
   const dismissed = firstValue(searchParams.start) !== undefined;
   const asked = firstValue(searchParams.block) !== undefined;
   if ((view.nextPosition === 1 && !dismissed && !asked) || !view.block) {
-    return <OpeningBeat avatar={view.avatar} />;
+    return <OpeningBeat avatar={view.avatar} photoUrl={view.photoUrl} />;
   }
 
   return (
@@ -84,6 +85,7 @@ export default async function QuizPage(props: PageProps<"/quiz">) {
       // would otherwise carry them across a navigation into the next one.
       key={view.nextPosition}
       avatar={view.avatar}
+      photoUrl={view.photoUrl}
       backTo={
         view.nextPosition > 1 ? `/quiz?block=${view.nextPosition - 1}` : null
       }
