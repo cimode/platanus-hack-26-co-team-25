@@ -90,6 +90,7 @@ function makeWorld(options: { instrumentVersion?: string } = {}) {
     name: "Beto Díaz",
     gender: "F",
     birthdate: "1996-05-04",
+    avatar: null,
     photoUrl: null,
     team: null,
     track: null,

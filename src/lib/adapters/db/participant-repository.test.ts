@@ -107,6 +107,7 @@ describe("createParticipantRepository", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana Ramírez",
       team: "t-7",
@@ -140,6 +141,7 @@ describe("createParticipantRepository", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Beto",
     });
@@ -147,6 +149,7 @@ describe("createParticipantRepository", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Carla",
     });
@@ -210,6 +213,7 @@ describe("createParticipantRepository", () => {
       roomId: room.id,
       gender: "F",
       birthdate: "1996-05-04",
+      avatar: "avatar3",
       consent: { romantic: true, business: true, friendship: true },
       name: "Dani",
     });
@@ -252,6 +256,7 @@ describe("createParticipantRepository", () => {
         roomId: room.id,
         gender: "F",
         birthdate: "1996-05-04",
+        avatar: "avatar3",
         consent: { romantic: false, business: false, friendship: false },
         name,
       });

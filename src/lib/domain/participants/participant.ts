@@ -1,3 +1,4 @@
+import type { Avatar } from "../participant/avatar";
 /**
  * A person on the demo roster: the id, name and team the impersonation
  * chooser needs, and nothing else.
@@ -28,6 +29,12 @@ export interface Participant {
   readonly name: string;
   /** Shown as secondary text so two people called Ana are still tellable apart. */
   readonly team: string;
+  /**
+   * The plate stored at registration (`participants.avatar`). Optional because
+   * the hard-coded demo roster predates it; `placeInRoom` falls back to its
+   * index rotation when it is missing.
+   */
+  readonly avatar?: Avatar | null;
 }
 
 /**

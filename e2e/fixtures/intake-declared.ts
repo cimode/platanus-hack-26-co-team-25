@@ -8,6 +8,7 @@ import type {
   Gender,
   SessionToken,
 } from "../../src/lib/domain/participant";
+import { avatarFor } from "../../src/lib/domain/participant/avatar";
 
 /**
  * Seeds a participant straight into the `e2e-<run>` room (issue #8).
@@ -127,6 +128,7 @@ export async function seedParticipant(
     name,
     gender: options.gender ?? "F",
     birthdate: options.birthdate ?? "1996-05-04",
+    avatar: avatarFor(options.gender ?? "F", name),
     // D18: registering is consenting, so this is what the real screen writes.
     consent: {
       romantic: options.consent?.romantic ?? true,

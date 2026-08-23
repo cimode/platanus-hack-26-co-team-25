@@ -6,6 +6,7 @@ import {
   type Participant,
   type SessionToken,
 } from "../domain/participant";
+import { avatarFor } from "../domain/participant/avatar";
 import type { ParticipantRepository } from "../ports/participant-repository";
 import type { PhotoStore } from "../ports/photo-store";
 import type { RoomRepository } from "../ports/room-repository";
@@ -190,6 +191,8 @@ export async function registerParticipant(
     name,
     gender,
     birthdate: input.birthdate,
+    // The body is decided here, once, and stored: every screen reads the row.
+    avatar: avatarFor(gender, `${name}|${input.birthdate}`),
     consent: { ...IMPLIED_CONSENT },
     // The moment, not just the fact (issue #49): habeas data asks when the
     // authorisation was given, and `today` keeps it testable.

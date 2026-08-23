@@ -67,6 +67,7 @@ function inMemoryParticipants(saved: DeclaredProfile = NO_BANDS): {
     name: "Ana Ramírez",
     gender: "F",
     birthdate: "1996-05-04",
+    avatar: null,
     photoUrl: "https://store.test/photos/p1.jpg",
     team: "hookai",
     track: "AI",

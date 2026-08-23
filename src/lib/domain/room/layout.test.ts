@@ -63,6 +63,18 @@ describe("spriteHeightFraction", () => {
 });
 
 describe("placeInRoom", () => {
+  it("wears the stored avatar when the row has one, and rotates only for the demo roster", () => {
+    const dressed = placeInRoom([
+      { ...person("a"), avatar: "avatar3" },
+      { ...person("b"), avatar: "avatar3" },
+      person("c"),
+    ]);
+    const byId = new Map(dressed.map((spot) => [spot.participant.id, spot]));
+    expect(byId.get("a")?.sprite).toBe("/sprites/avatar3.png");
+    expect(byId.get("b")?.sprite).toBe("/sprites/avatar3.png");
+    expect(byId.get("c")?.sprite).toMatch(/^\/sprites\/avatar[1-4]\.png$/);
+  });
+
   it("handles an empty room without crashing", () => {
     expect(placeInRoom([])).toEqual([]);
   });
