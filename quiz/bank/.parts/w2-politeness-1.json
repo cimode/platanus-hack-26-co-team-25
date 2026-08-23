@@ -1,0 +1,779 @@
+{
+  "blocks": [
+    {
+      "focusPillar": "politeness",
+      "domain": "surprise-parties",
+      "scenario": "Organizas una fiesta sorpresa para tu amiga y al abrir el clóset aparece un cocodrilo inflable gigante que nadie trajo. Todos se quedan mirándolo en silencio.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de quien lo dejó ahí",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y sigo con la fiesta",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Sigo montando la decoración sin parar",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido usarlo como pista central",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "autocorrect",
+      "scenario": "Le escribes a tu vecino sobre el ruido y en la ventana ves a su gato abriendo la puerta del refrigerador con la pata. Sigues escribiendo como si nada.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me quedo pasmado y luego me río",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le saco en cara su descuido",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Termino el mensaje y lo mando",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Cierro la ventana y decido ignorar",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "cooking",
+      "scenario": "Preparas el mismo plato exacto que tu compañero de apartamento, con la misma receta encontrada por separado. Los dos llegan a la cocina con el mismo delantal amarillo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me da risa la casualidad y sigo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Termino mi plato como lo planee",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le digo que copió mi idea",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Propongo que cocinemos juntos el plato",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "laundry",
+      "scenario": "Metes un solo calcetín rojo a la lavadora y toda la ropa del edificio sale rosada, hasta las sábanas del vecino del tercero. El pasillo entero huele a suavizante.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del desastre y lavo otra vez",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Reemplazo cada prenda rosada esta semana",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido teñir todo a juego",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le recuerdo su descuido con la ropa",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "park-walks",
+      "scenario": "Sales a caminar y un desconocido te abraza convencido de que eres su instructor de yoga. Te sigue llamando maestro tres cuadras.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de su confusión con él",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y sigo caminando tranquilo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Lo acompaño hasta encontrar su instructor",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido aclarar el error de inmediato",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "queues",
+      "scenario": "Haces fila en la panadería y notas que todos dan un salto pequeño antes de pedir, sin que nadie lo explique. Tú también terminas saltando.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del ritual y sigo la fila",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me burlo del que empezó el salto",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Espero mi turno sin salirme de la fila",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido romper la regla y no salto",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "heatwave",
+      "scenario": "Con el calor agarras la botella equivocada y le echas protector solar al café en vez de leche. Te das cuenta al primer sorbo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río y me sirvo otro café",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Preparo el café de nuevo enseguida",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le echo la culpa a mi compañero",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Decido tomarlo con hielo de todos modos",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "travel",
+      "scenario": "Estás abrazando a tu amigo en el aeropuerto para despedirte cuando el altavoz anuncia tu nombre por dejar las llaves en seguridad. Todos voltean a mirarte.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del anuncio y sigo caminando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Voy corriendo a recoger mis llaves",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido ignorar el anuncio y sigo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le reclamo la vergüenza a mi amigo",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "taxis",
+      "scenario": "Subes a un taxi y en el asiento del copiloto hay una pecera con un pez dorado nadando tranquilo. El conductor no dice ni una palabra sobre eso.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo del conductor por el pez",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y disfruto el viaje",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Sigo el viaje hasta mi destino",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido preguntarle la historia del pez",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "beach-day",
+      "scenario": "Estás tomando el sol cuando un cangrejo sale del mar cargando tus gafas puestas, caminando derecho hacia tu toalla. Tus amigos ya lo están grabando.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del cangrejo y sigo asoleándome",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le grito bobadas al que grababa",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Recupero mis gafas con calma",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido perseguir al cangrejo por diversión",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "groceries",
+      "scenario": "En el supermercado llenas el carrito y al llegar a la caja notas que la señora de adelante compró exactamente los mismos doce productos que tú. Los dos se ríen sin decir nada.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la casualidad y pago",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Termino de pagar toda mi compra",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le digo que me copió la lista",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Propongo que comparemos nuestras listas",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "sports-casual",
+      "scenario": "Juegas un partido informal de fútbol en el parque y una apuesta de mentiras por un helado termina con todo el barrio jugando por el título. Ya hasta hay un trofeo improvisado.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del alboroto y sigo jugando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Termino el partido hasta el final",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido organizar el torneo del barrio",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le saco en cara cada gol fallado",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "building-elevator",
+      "scenario": "Entras al ascensor y tu vecina te saluda como si fueras su primo que no ve hace años, con abrazo incluido. No te suelta hasta el piso ocho.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de su confusión enfrente de todos",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y sigo el abrazo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "La acompaño hasta su piso correcto",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido aclararle el error de una vez",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "recipes",
+      "scenario": "En una cena con amigos notas que todos prueban la sopa con los ojos cerrados antes de opinar, sin que nadie lo haya propuesto nunca. Tú también cierras los ojos.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la costumbre y sigo comiendo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le hago burla al que empezó eso",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Termino mi plato sin decir nada",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido preguntar de dónde salió la costumbre",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "plants",
+      "scenario": "Riegas tus matas con lo que crees que es agua y resulta ser el jugo de naranja que dejaste en la nevera. Las hojas quedan pegajosas y brillantes.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del error y limpio las hojas",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Lavo cada mata con agua limpia",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le echo la culpa a mi pareja",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Decido dejarlas así por experimento",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "movies-series",
+      "scenario": "Estás viendo el final de la temporada con tus amigos justo cuando llega una notificación que revela el spoiler completo en la pantalla compartida. Nadie alcanza a taparla a tiempo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del spoiler y sigo viendo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Termino de ver el capítulo completo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido pausar y buscar otra serie",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le reclamo a quien dejó el celular ahí",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "parties",
+      "scenario": "En medio de la fiesta alguien enciende las luces y en la mitad de la sala hay una canoa de madera llena de globos. Nadie sabe quién la trajo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de quien trajo la canoa",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y sigo bailando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Sigo organizando la fiesta sin parar",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido usarla como barra de tragos",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "blackout-storm",
+      "scenario": "Se va la luz durante la tormenta y a la luz de las velas ves a la iguana del vecino tocando el timbre con la cola, una y otra vez. Nadie más lo nota.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la iguana y sigo esperando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le hago burla al vecino despistado",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Reviso las velas y sigo mi rutina",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido dejarla entrar a mi apartamento",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "street-food",
+      "scenario": "Pides una arepa en la calle y el vendedor resulta ser tu compañero de curso de hace diez años, con el mismo delantal que usaba entonces. Ninguno lo esperaba.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la sorpresa y como",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me quedo a terminar mi arepa",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le recuerdo cada cosa vieja suya",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Decido invitarlo a tomar algo después",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "car-trips",
+      "scenario": "Prendes la calefacción del carro en un viaje corto y termina siendo un debate de horas entre todos los pasajeros sobre la temperatura ideal. Ya llevan tres paradas solo por eso.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del debate y sigo manejando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Sigo el viaje sin desviarme del plan",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido la temperatura y listo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le saco en cara su terquedad",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "swimming-pools",
+      "scenario": "En la piscina del conjunto alguien te confunde con el salvavidas y te pide que vigiles a sus hijos toda la tarde. Ya te trajeron hasta la silla alta.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de su confusión con otros",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y me siento en la silla",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Vigilo a los niños toda la tarde",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido aclarar que no soy el salvavidas",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "supermarket-lines",
+      "scenario": "En la fila de la caja notas que todos dejan su carrito exactamente a un paso de distancia del anterior, como si fuera obligatorio. Tú también dejas ese espacio.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la regla y espero",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le hago burla a quien la inventó",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Espero mi turno sin quejarme",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido romper la distancia y avanzar",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "rain",
+      "scenario": "Sales corriendo bajo la lluvia y descubres que agarraste el paraguas de tu vecino en vez del tuyo, idéntico pero con su nombre bordado. Ya estás a mitad de cuadra.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del cambio y sigo caminando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Regreso a devolver el paraguas correcto",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le echo en cara su descuido",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Decido quedarme con el paraguas ajeno",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "shared-bills",
+      "scenario": "Estás repartiendo la cuenta del asado con tus amigos cuando llega un mensaje grupal anunciando que alguien ya pagó todo por error. Todos se quedan mirando el celular.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del lío y sigo comiendo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Organizo cómo devolverle la plata completa",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Decido repartir la cuenta de nuevo",
+          "pillar": "agency",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le recuerdo cada deuda vieja suya",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "politeness",
+      "domain": "public-transport",
+      "scenario": "Subes al bus y en el asiento de atrás hay una silla de oficina completa, con ruedas y todo, amarrada con lazos. Nadie parece extrañado.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me burlo de quien la subió ahí",
+          "pillar": "politeness",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y sigo mi camino",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Sigo mi ruta sin distraerme",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Decido preguntar de dónde salió la silla",
+          "pillar": "agency",
+          "keyed": "positive"
+        }
+      ]
+    }
+  ]
+}

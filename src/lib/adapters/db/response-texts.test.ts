@@ -4,7 +4,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { describe, expect, it, onTestFinished, type TestContext } from "vitest";
 import type { Deps } from "@/lib/composition";
 import type { Block, BlockResponse, OptionKey } from "@/lib/domain/quiz";
-import { INSTRUMENT, validateBlock } from "@/lib/domain/quiz";
+import { BLOCK_COUNT, INSTRUMENT, validateBlock } from "@/lib/domain/quiz";
 import type { StoredBlock } from "@/lib/ports/generated-block-repository";
 import type { Room } from "@/lib/ports/room-repository";
 import type { Db } from "./client";
@@ -96,14 +96,20 @@ function generatedBlock(tag: string, position: number): Block {
   return block;
 }
 
-/** The five blocks of `batch`, in the shape `saveBatch` takes. */
-function generatedBatch(tag: string, batch: number): StoredBlock[] {
-  return [1, 2, 3, 4, 5]
-    .map((offset) => (batch - 1) * 5 + offset)
-    .map((position) => ({
-      block: generatedBlock(tag, position),
-      source: "generated" as const,
-    }));
+/** Blocks at the given positions, in the shape `saveBatch` takes. */
+function generatedBlocksAt(tag: string, positions: number[]): StoredBlock[] {
+  return positions.map((position) => ({
+    block: generatedBlock(tag, position),
+    source: "bank" as const,
+  }));
+}
+
+/** This participant's whole form -- what `assignQuizForm` writes, in one go. */
+function generatedForm(tag: string): StoredBlock[] {
+  return generatedBlocksAt(
+    tag,
+    Array.from({ length: BLOCK_COUNT }, (_, index) => index + 1)
+  );
 }
 
 function optionText(tag: string, position: number, key: OptionKey): string {
@@ -186,10 +192,7 @@ describe("createResponseRepository (resolved texts)", () => {
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
-    await repos.generatedBlocks.saveBatch(
-      participant.id,
-      generatedBatch(tag, 1)
-    );
+    await repos.generatedBlocks.saveBatch(participant.id, generatedForm(tag));
 
     await repos.responses.save(
       answer(participant.id, {
@@ -238,11 +241,11 @@ describe("createResponseRepository (resolved texts)", () => {
       consent: { romantic: true, business: true, friendship: true },
       name: "Ana",
     });
-    // Batch 2 covers positions 6..10, so this participant has blocks -- just
+    // Batch 2 covers positions 5..8, so this participant has blocks -- just
     // none at position 4. An answer to a block nobody was shown is a bug.
     await repos.generatedBlocks.saveBatch(
       participant.id,
-      generatedBatch("ana", 2)
+      generatedBlocksAt("ana", [5, 6, 7, 8])
     );
 
     const failure = await repos.responses
@@ -276,10 +279,7 @@ describe("createResponseRepository (resolved texts)", () => {
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
-    await repos.generatedBlocks.saveBatch(
-      participant.id,
-      generatedBatch(tag, 2)
-    );
+    await repos.generatedBlocks.saveBatch(participant.id, generatedForm(tag));
 
     await repos.responses.save(
       answer(participant.id, {
@@ -310,10 +310,7 @@ describe("createResponseRepository (resolved texts)", () => {
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
-    await repos.generatedBlocks.saveBatch(
-      participant.id,
-      generatedBatch(tag, 1)
-    );
+    await repos.generatedBlocks.saveBatch(participant.id, generatedForm(tag));
 
     await repos.responses.save(
       answer(participant.id, {
@@ -374,11 +371,11 @@ describe("createResponseRepository (resolved texts)", () => {
     );
     await repos.generatedBlocks.saveBatch(
       ana.participant.id,
-      generatedBatch(anaTag, 1)
+      generatedForm(anaTag)
     );
     await repos.generatedBlocks.saveBatch(
       beto.participant.id,
-      generatedBatch(betoTag, 1)
+      generatedForm(betoTag)
     );
 
     for (const participantId of [ana.participant.id, beto.participant.id]) {
@@ -428,7 +425,7 @@ describe("createResponseRepository (resolved texts)", () => {
     expect(columns).not.toContain("keyed");
   });
 
-  it("AC-7 · the 15th save carries its texts and sets quiz_completed_at in the same db.batch()", async (ctx) => {
+  it("AC-7 · the last save carries its texts and sets quiz_completed_at in the same db.batch()", async (ctx) => {
     const db = requireDb(ctx);
     const repos = repositories(db);
     const room = await itRoom(db, repos);
@@ -441,19 +438,14 @@ describe("createResponseRepository (resolved texts)", () => {
       name: "Ana",
     });
     const tag = `ana-${randomUUID().slice(0, 8)}`;
-    for (const batch of [1, 2, 3]) {
-      await repos.generatedBlocks.saveBatch(
-        participant.id,
-        generatedBatch(tag, batch)
-      );
-    }
+    await repos.generatedBlocks.saveBatch(participant.id, generatedForm(tag));
 
-    for (let position = 1; position <= 14; position++) {
+    for (let position = 1; position < BLOCK_COUNT; position++) {
       await repos.responses.save(answer(participant.id, { position }));
     }
     await repos.responses.save(
       answer(participant.id, {
-        position: 15,
+        position: BLOCK_COUNT,
         mostKey: "b",
         leastKey: "c",
         shownOrder: "bcad",
@@ -461,11 +453,11 @@ describe("createResponseRepository (resolved texts)", () => {
       { completedAt: COMPLETED_AT }
     );
 
-    const [row] = await storedRows(db, participant.id, 15);
+    const [row] = await storedRows(db, participant.id, BLOCK_COUNT);
     expect(row.instrument_version).toBe(INSTRUMENT.version);
-    expect(row.scenario).toBe(generatedBlock(tag, 15).scenario);
-    expect(row.most_text).toBe(optionText(tag, 15, "b"));
-    expect(row.least_text).toBe(optionText(tag, 15, "c"));
+    expect(row.scenario).toBe(generatedBlock(tag, BLOCK_COUNT).scenario);
+    expect(row.most_text).toBe(optionText(tag, BLOCK_COUNT, "b"));
+    expect(row.least_text).toBe(optionText(tag, BLOCK_COUNT, "c"));
 
     const completed = await repos.participants.bySessionToken(sessionToken);
     expect(completed?.quizCompletedAt?.getTime()).toBe(COMPLETED_AT.getTime());

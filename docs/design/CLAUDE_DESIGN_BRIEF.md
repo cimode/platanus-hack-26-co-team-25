@@ -42,7 +42,7 @@ loses people at block 4 has failed.
 
 ## 2. The moment this exists for
 
-Someone taps a QR code, registers, answers fifteen quick funny questions about everyday
+Someone taps a QR code, registers, answers twelve quick funny questions about everyday
 chaos — burnt rice, a cat that shredded the couch, a friend who is late again — and then
 watches the room rearrange itself around them: here are the people you would have mattered
 to, and here is the life the two of you would have had.
@@ -144,13 +144,13 @@ between the two is the whole look; blur the boundary and it dies.
 
 ### Priority 1 — the quiz block (the screen that decides the demo)
 
-Fifteen blocks, each a short funny scenario with **four text options in a 2×2 grid**. This
+Twelve blocks, each a short funny scenario with **four text options in a 2×2 grid**. This
 used to be four illustrated cards; per-option images were cancelled, so the cards are now
 **type only** — and nobody has designed what that looks like.
 
 The problems, in order:
 
-1. Four cards plus the scenario must fit a 390px screen **without scrolling**, fifteen
+1. Four cards plus the scenario must fit a 390px screen **without scrolling**, twelve
    times in a row, without becoming monotonous.
 2. Option text is ≤8 words. The card is mostly empty. What fills it — scale, weight, a
    key letter, texture, nothing?
@@ -206,8 +206,9 @@ spinners.
 - **The 2×2 grid may be wrong for text.** Four stacked full-width rows might read faster
   on a phone and scale better with longer options. I kept the grid because it was
   art-directed for images; challenge it.
-- **Fifteen near-identical screens is a completion risk.** Something has to change as the
-  participant advances — progress, tone, batch transitions — without adding taps.
+- **Twelve near-identical screens is a completion risk.** Something has to change as the
+  participant advances — progress, tone — without adding taps. Note there are no
+  between-batch moments left to lean on: the only beat is the one before block 1.
 
 ## 9. What good output looks like
 

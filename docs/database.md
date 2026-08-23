@@ -165,10 +165,11 @@ order by position;
 
 `scenario`, `most_text` and `least_text` are written by `ResponseRepository.save`, resolved
 from **that participant's** `generated_blocks(participant_id, position)` row at write time —
-under D16 each person answers their own generated form, so the constant in
-`src/lib/domain/quiz/` is not what they saw. `instrument_version` on the row is
-`INSTRUMENT.version`, the *structural* version (15 positions, the 4/4/4/3 rotation), not the
-scenarios. `least_text` is null exactly when `least_key` is (the single-pick fallback), and
+under D16/D21 each person answers their own twelve blocks, dealt from the committed bank by
+`formFor(participantId)`, so the `INSTRUMENT` constant in `src/lib/domain/quiz/` is not what
+they saw. `instrument_version` on the row is `INSTRUMENT.version` — `"bank-1"` — the
+*structural* version (12 positions, three per pillar, four options one per pillar, exactly
+one reversed), not the scenarios. `least_text` is null exactly when `least_key` is (the single-pick fallback), and
 `pillar`/`keyed` are deliberately absent — they stay inside `generated_blocks.options`, so
 reading the answers never puts the scoring key in front of the reader.
 

@@ -1,6 +1,6 @@
 # The quiz block — design brief
 
-The screen a participant sees fifteen times. **Completion rate is the demo**, and this is
+The screen a participant sees twelve times. **Completion rate is the demo**, and this is
 where completion is won or lost.
 
 **Read `CLAUDE_DESIGN_BRIEF.md` first** for the Dipia system. Attach `design-tokens.json`
@@ -13,10 +13,11 @@ Two product decisions rewrote the problem:
 - **D14 — there are no option images.** The 2×2 grid was art-directed around four
   illustrated cards with the option text baked into the artwork. All of that is cancelled.
   Cards are **type only**.
-- **D16 — every participant gets different questions.** Blocks are authored live by a
-  model at entry, so the copy below is representative, not fixed. The *structure* is
-  identical for everyone: 15 positions, four options, one per pillar, exactly one written
-  in reverse.
+- **D16/D21 — every participant gets different questions.** Each person is dealt twelve
+  blocks from a committed bank of four hundred, so the copy below is representative, not
+  fixed. The *structure* is identical for everyone: 12 positions, four options, one per
+  pillar, exactly one written in reverse. Nothing is authored while anyone waits — D21
+  deleted live generation and the wait screen it needed.
 
 Design for copy you have not seen. Option text is capped at 8 words, scenarios at 220
 characters, but within those bounds the wording varies per person.
@@ -76,11 +77,12 @@ degrade to one selection cleanly.
 
 **The cards are mostly empty.** Eight words in a card sized for an illustration. What
 fills the space — type scale, weight, a key letter, texture, generous padding, nothing at
-all? Getting this wrong makes the screen feel unfinished fifteen times.
+all? Getting this wrong makes the screen feel unfinished twelve times.
 
-**Fifteen near-identical screens.** Something must change as the participant advances
-without adding taps. Blocks arrive in three batches of five; between-batch moments are
-*transitions*, not waits.
+**Twelve near-identical screens.** Something must change as the participant advances
+without adding taps — and the batch beats that used to break them up are gone with the
+generation they paced. The only moment before a block is the opening one. Whatever
+carries the participant from 1/12 to 12/12 has to live inside the block itself.
 
 **No option may look like the right answer.** Every option is written to be equally
 likeable — that is the measurement working. If the design makes one card look
@@ -107,7 +109,7 @@ default accent here.
 2. How is *most* marked? How is *least*? How do they coexist?
 3. What does an unselected card look like — flat, tinted, outlined?
 4. Where does the scenario sit, and at what scale relative to the options?
-5. Progress: visible, and if so how — 3/15, a bar, batch dots, or nothing?
+5. Progress: visible, and if so how — 3/12, a bar, batch dots, or nothing?
 6. What happens between batches?
 7. What fills the empty space in a card?
 8. Is there a back affordance, and does it cost layout?
@@ -151,16 +153,16 @@ questions of §5, answered in code (`src/components/quiz/`):
    `AvatarSprite` so it is the same body as in the room) stands on the left,
    feet on the baseline of a speech bubble (`bg-card border-2 border-border
    rounded-2xl shadow-card`, a CSS two-triangle tail, no image) that carries a
-   mono eyebrow "escena N de 15" and the scenario in Nunito Sans semibold.
+   mono eyebrow "escena N de 12" and the scenario in Nunito Sans semibold.
    Above 160 characters the text steps down one size; it is never truncated.
-5. **Progress:** the flow's one bar (`FlowProgress`, 16 steps: registration +
-   15 blocks, `aria-valuenow = 1 + position`) under a header with the mono
-   counter "N/15" and, from block 2, the ghost "Atrás" link.
-6. **Nothing happens between batches.** The "Tanda N de 3" beats are gone with
-   the inline generation they covered; only the opening moment survives, told
-   in the same bubble. A participant who outruns the writer meets
-   `GenerationWait` — the same stage, "Escribiendo tus preguntas…", refreshing
-   every 3s until the rows hold the block.
+5. **Progress:** the flow's one bar (`FlowProgress`, 13 steps: registration +
+   12 blocks, `aria-valuenow = 1 + position`) under a header with the mono
+   counter "N/12" and, from block 2, the ghost "Atrás" link.
+6. **Nothing happens between blocks.** The "Tanda N de 3" beats went with the
+   inline generation they covered, and the "Escribiendo tus preguntas…" wait
+   screen went with D21 — the twelve blocks are dealt from the committed bank
+   and stored at registration, so there is never anything to wait for. Only the
+   opening moment survives ("Doce escenas…"), told in the same bubble.
 7. **Nothing fills the rows but type**: there is no empty space to fill once a
    row is one line of text with a cursor.
 8. **Back** costs one header slot, no layout.

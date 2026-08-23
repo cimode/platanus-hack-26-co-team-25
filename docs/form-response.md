@@ -4,7 +4,7 @@
 > stored at the end. Derived from `docs/domain.md` §3/§7 and mirrored 1:1 by the types in
 > `src/lib/domain/participant/` and `src/lib/domain/quiz/` (issue #4). If this file and
 > those files disagree, the code wins.
-> Last updated: 2026-08-23 (D20).
+> Last updated: 2026-08-23 (D21).
 
 The form is **two kinds of submission** since **D20** (2026-08-23): one registration, then
 the quiz. Each block is its own Server Action with its own payload, saved as soon as it is
@@ -12,13 +12,18 @@ answered, so abandonment keeps everything before it. A participant is rankable t
 registration is complete (the *floor*); the quiz adds the measured traits.
 
 ```
-1 registration (photo · name · gender · birthdate) ─> 2 quiz ×15 ─> done
+1 registration (photo · name · gender · birthdate) ─> 2 quiz ×12 ─> done
    └──────────── the floor ────────────┘
 ```
 
+**Nobody waits for a question.** Since **D21** the twelve blocks are dealt from a committed
+bank of four hundred (`quiz/bank/*.json`) by `formFor(participantId)` and written as this
+person's rows by the registration action itself — no model runs while anyone is on screen,
+and there is no "writing your questions" state to meet.
+
 Nothing on any of these screens names a pillar, a lens, consent, a gate, a team, a track,
-the wordmark or a step number. One `Progress` bar spans the whole 16-step flow (1
-registration + 15 blocks) and is the only progress copy there is.
+the wordmark or a step number. One `Progress` bar spans the whole 13-step flow (1
+registration + 12 blocks) and is the only progress copy there is.
 
 ## 1. `register` — creates the participant, the session and the photo
 
@@ -38,7 +43,7 @@ interface RegisterInput {
 }
 // → participants row with gender, birthdate, photo_url, data_consent_at and the three consents `true`
 // → sets the httpOnly cookie `dipia_session`; the token never appears in any payload
-// → adopts one pre-written set of first questions from the room's pool (D20), then redirects to /quiz
+// → deals this participant their twelve blocks from the bank and stores them (D21), then redirects to /quiz
 ```
 
 `dataConsent` is the ONE authorisation this version asks for (issue #49): the box is
@@ -50,13 +55,12 @@ thing entirely and stay unasked.
 `birthdate` is asked because the engine wants an age band and nobody should have to pick
 one: `ageBandOf(birthdate, today)` maps 18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3.
 
-**What happens around the submit (D20).** Opening the form tops up a per-room pool of
-first batches in the background, so by the time the person taps *Empezar* there is usually
-a set of five questions waiting; the action moves it into their own `generated_blocks` as
-batch 1 and redirects. Whatever is still missing — batch 1 when the pool was empty, then
-batches 2 and 3 — is authored after the response under a database claim. The quiz never
-generates on a read: a block that is not stored yet shows a "writing your questions" state
-until the rows land.
+**What happens around the submit (D21).** `assignQuizForm({ participantId })` computes
+`formFor(participantId)` — twelve of the four hundred committed blocks, three per pillar,
+deterministic in the id — and writes all twelve into `generated_blocks` in ONE `saveBatch`,
+awaited before the redirect. That is the whole of it: no pool to top up, no background
+chain, no claim, no model. `saveBatch` upserts on `(participant_id, position)`, so a double
+submit writes the same twelve rows.
 
 ## 2. the per-lens consents — not asked (D18)
 
@@ -115,22 +119,24 @@ or ranking payload.
 true under D18). The gate-row clause went with the gate screens (D18); the `declared_at`
 clause went with the declared screens (D20). Registration *is* the floor.
 
-## 6. `quiz` — fifteen block responses, one submission each
+## 6. `quiz` — twelve block responses, one submission each
 
-Each participant answers **their own 15 blocks**, authored live at entry and stored in
-`generated_blocks(participant_id, position)` (`docs/domain.md` D16, D20). What is fixed for
-everyone is the structure — 15 positions, four text options per block, one per pillar,
-exactly one reversed-keyed on the focus pillar — and `INSTRUMENT` (version `v1`) is the
-structural contract. Since D20 the committed blocks are never served to a participant: a
-stored row with `source = 'fallback'` counts as not authored. The form submits **keys**,
-never text:
+Each participant answers **their own 12 blocks**, dealt from the committed bank at
+registration and stored in `generated_blocks(participant_id, position)` (`docs/domain.md`
+D16, D21). What is fixed for everyone is the structure — 12 positions, four text options
+per block, one per pillar, exactly one reversed-keyed on the focus pillar — and `INSTRUMENT`
+(version `bank-1`) is the structural contract. What varies is which twelve of the four
+hundred, and in what order: `formFor(participantId)`, three per pillar, with the focus
+pillars shuffled per participant so the same pillar is never in the same position for
+everyone. Rows are written with `source = "bank"`; `generated` and `fallback` survive as
+read-only history. The form submits **keys**, never text:
 
 ```ts
 type OptionKey = "a" | "b" | "c" | "d";
 
 interface BlockResponse {
   participantId: string;
-  position: number;         // 1..15 — which block of the instrument
+  position: number;         // 1..12 — which block of this participant's form
   mostKey: OptionKey;       // the one tap (single pick is the product default)
   leastKey: OptionKey | null; // "least like me"; only under HOOKAI_QUIZ_MOST_LEAST=1
   shownOrder: string;       // the shuffled display order, e.g. "cbad" — a permutation of "abcd"
@@ -139,16 +145,18 @@ interface BlockResponse {
 ```
 
 Rules: `mostKey ≠ leastKey`; one response per `(participant, position)` — re-answering
-updates the row; the 15th distinct position sets `quizCompletedAt` in the same write.
-Blocks 1–5, 6–10, 11–15 are delivered as three batches; the batch is derived, never stored.
+updates the row; the 12th distinct position sets `quizCompletedAt` in the same write.
+Blocks 1–4, 5–8, 9–12 group into three batches; the batch is derived, never stored, and
+since D21 it means nothing to the participant — there are no between-batch screens, and the
+grouping survives only as the shape of a `byBatch` query.
 
 **Stored with the answer (D15, issue #13)** — resolved by the server, never sent by the client:
-`instrumentVersion` (`v1`), `scenario`, `mostText`, `leastText`. So the row for the first
+`instrumentVersion` (`bank-1`), `scenario`, `mostText`, `leastText`. So the row for the first
 answer above reads, on its own:
 
 ```json
 { "position": 1, "mostKey": "c", "leastKey": null, "shownOrder": "cbad",
-  "instrumentVersion": "v1",
+  "instrumentVersion": "bank-1",
   "scenario": "Tu amigo movió la perilla del horno y el pollo lleva una hora crudo. Los invitados ya están tocando el timbre.",
   "mostText": "Tomo el mando: pedimos pizza y listo",
   "leastText": null }
@@ -178,7 +186,7 @@ interface Participant {
 }
 // + romanticGate?: RomanticGate  (own table; D18 stopped writing it — derived instead)
 // + businessGate?: BusinessGate  (own table; D18 stopped writing it — derived instead)
-// + responses: BlockResponse[]   (0..15)
+// + responses: BlockResponse[]   (0..12)
 // + latents (issue #7): { regulation, politeness, reliability, agency }: { mean, se }
 ```
 
@@ -231,10 +239,7 @@ interface RoomMember { id: string; name: string; photoUrl: string | null }
     { "position": 9,  "mostKey": "a", "leastKey": null, "shownOrder": "badc", "answeredAt": "2026-08-23T18:05:00.000Z" },
     { "position": 10, "mostKey": "c", "leastKey": null, "shownOrder": "cadb", "answeredAt": "2026-08-23T18:05:22.000Z" },
     { "position": 11, "mostKey": "b", "leastKey": null, "shownOrder": "abcd", "answeredAt": "2026-08-23T18:06:15.000Z" },
-    { "position": 12, "mostKey": "d", "leastKey": null, "shownOrder": "dbac", "answeredAt": "2026-08-23T18:06:33.000Z" },
-    { "position": 13, "mostKey": "a", "leastKey": null, "shownOrder": "bacd", "answeredAt": "2026-08-23T18:07:01.000Z" },
-    { "position": 14, "mostKey": "c", "leastKey": null, "shownOrder": "cdba", "answeredAt": "2026-08-23T18:07:24.000Z" },
-    { "position": 15, "mostKey": "b", "leastKey": null, "shownOrder": "adbc", "answeredAt": "2026-08-23T18:07:40.000Z" }
+    { "position": 12, "mostKey": "d", "leastKey": null, "shownOrder": "dbac", "answeredAt": "2026-08-23T18:07:40.000Z" }
   ]
 }
 ```
@@ -250,7 +255,7 @@ whose `key` matches) to the pillar and keying that the scorer (issue #7) reads.
 | `birthdate` | a real `YYYY-MM-DD`, 18 ≤ age ≤ 100 | `birthdateProblem` in the use case |
 | `dataConsent` | present | zod literal + `reason: "data-consent"` before any write |
 | every band (dormant) | integer 0..3 when present; `declared_at` only with all six | check + `isDeclaredComplete` |
-| `position` | 1..15, unique per participant | check + unique |
+| `position` | 1..12, unique per participant | check + unique |
 | `mostKey` / `leastKey` | `a..d`, different | check + `validateResponse` |
 | `shownOrder` | permutation of `abcd` | `validateResponse` |
 | session token | never a field of `Participant` | own table; type-level test |
@@ -286,11 +291,11 @@ export const RegisterInput = z.object({
 // declared round — no payload at all (D20): not asked; the columns stay null.
 // gates — no payload (D18): not asked; `mvp-defaults.ts` derives what the engine wants.
 
-// 2 · one block answer — ×15. `leastKey` is read only under HOOKAI_QUIZ_MOST_LEAST=1,
+// 2 · one block answer — ×12. `leastKey` is read only under HOOKAI_QUIZ_MOST_LEAST=1,
 // and the flag is read on the server, never from the form.
 export const AnswerBlockInput = z
   .object({
-    position: z.number().int().min(1).max(15),
+    position: z.number().int().min(1).max(12),
     mostKey: optionKey,
     leastKey: optionKey.nullable(),
     shownOrder: z.string().regex(/^[abcd]{4}$/),
@@ -304,7 +309,7 @@ What the server derives and stores per answer — none of it comes from the clie
 ```ts
 {
   participantId: fromCookie("dipia_session"),
-  instrumentVersion: INSTRUMENT.version,                  // "v1"
+  instrumentVersion: INSTRUMENT.version,                  // "bank-1"
   position, mostKey, leastKey, shownOrder,                // as received
   scenario: block.scenario,                               // block = generated_blocks row for (participantId, position)
   mostText: block.options.find((o) => o.key === mostKey).text,
@@ -314,14 +319,14 @@ What the server derives and stores per answer — none of it comes from the clie
 ```
 
 The composite, for reading the whole thing as one object (it is never submitted as one —
-the form is sixteen submissions, and the database fills step by step):
+the form is thirteen submissions, and the database fills step by step):
 
 ```ts
 export const IntakeSubmission = z.object({
   register: RegisterInput,
   answers: z
     .array(AnswerBlockInput)
-    .max(15)
+    .max(12)
     .refine((a) => new Set(a.map((x) => x.position)).size === a.length, {
       message: "one answer per block",
     }),

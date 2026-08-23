@@ -7,11 +7,11 @@ import { SceneStage, SceneText } from "./scene-stage";
  * The opening moment (issue #9, `CLAUDE_DESIGN_QUIZ_BLOCK.md` §3).
  *
  * Once this file held the two between-batch beats as well ("Tanda 2 de 3").
- * They are gone: generation runs as a claim-guarded chain behind the screen
- * (`continueQuizGeneration`), the page never authors inline, and a participant
- * who outruns it meets `GenerationWait` -- so there is no pacing left for a
- * beat to buy. What survives is the one line that sets the rules before block
- * 1, told by the participant's own avatar.
+ * They are gone, and so is the wait screen that replaced them: the twelve
+ * blocks are dealt from the committed bank and stored at registration
+ * (docs/domain.md D21), so nothing is ever being written while somebody reads
+ * -- there is no pacing left for a beat to buy. What survives is the one line
+ * that sets the rules before block 1, told by the participant's own avatar.
  *
  * Presentational and server-rendered: it holds no state, so it stays off the
  * client bundle. `?start=1` dismisses it. Progress is read from the rows, so
@@ -26,7 +26,7 @@ export function OpeningBeat({ avatar }: { avatar: Avatar | null }) {
       </p>
 
       <SceneStage avatar={avatar}>
-        <SceneText text="Quince escenas. En cada una, toca la opción que más se parece a ti. No hay respuestas correctas." />
+        <SceneText text="Doce escenas. En cada una, toca la opción que más se parece a ti. No hay respuestas correctas." />
       </SceneStage>
 
       <Button

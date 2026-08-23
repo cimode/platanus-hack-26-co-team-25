@@ -1,17 +1,28 @@
 /**
- * The instrument (docs/domain.md D1, D2): ONE fixed balanced form for the whole
- * room -- the 15 blocks committed in `quiz/batch-{1,2,3}.json` -- built at
- * import, validated block by block so the app cannot boot on an invalid form,
- * and frozen by `instrumentHash()` over its content PLUS `INSTRUMENT.version`.
+ * instrument.ts — the structural contract of a block, and the version marker.
  *
- * `INSTRUMENT.version` is the one place the version lives; there is deliberately
- * no `INSTRUMENT_VERSION` constant. Editing a block means bumping the version,
- * and a bumped version can only be administered in a room created for it
- * (AUDIT.md F1 "irreversible once the form ships").
+ * WHAT THIS IS NOT, ANY MORE. `INSTRUMENT` was once the form: the fifteen blocks
+ * in `quiz/batch-{1,2,3}.json` that every participant answered. Nobody answers
+ * them now. Live authoring was deleted because it made people wait on a model
+ * (see `bank.ts`), and what replaced it is the committed question bank — four
+ * hundred blocks under `quiz/bank/`, twelve of them dealt to each participant by
+ * `formFor()`. The three batch files survive here as the corpus behind
+ * `INSTRUMENT`, and `INSTRUMENT` survives for exactly two jobs:
+ *
+ *   · `INSTRUMENT.version` — the STRUCTURAL version marker a room records and
+ *     scoring refuses to cross. It is "bank-1" now: what changed is not a
+ *     scenario but the shape of a form (twelve positions, three per pillar,
+ *     dealt from a bank), and responses gathered under the old shape cannot be
+ *     re-scored onto the new one.
+ *   · a fixed, hash-pinned, structurally valid form for tests and tooling that
+ *     need one without inventing it.
+ *
+ * `validateBlock()` is the part that still governs everything: it is applied to
+ * every bank block at import and to anything on its way into storage. It, not
+ * `INSTRUMENT`, is what makes two people's different questions one measurement.
  *
  * The three JSON files are the only thing this module imports: no SDK, no
- * framework, no clock, no randomness. The quiz screen reads a constant, so a
- * block costs zero database reads on venue wifi (D2).
+ * framework, no clock, no randomness.
  */
 import rawBatch1 from "../../../../quiz/batch-1.json" with { type: "json" };
 import rawBatch2 from "../../../../quiz/batch-2.json" with { type: "json" };
@@ -29,7 +40,7 @@ export interface Option {
 }
 
 export interface Block {
-  /** 1..15, global across the three batches. */
+  /** 1..12 within a participant's form. */
   position: number;
   /** 1..3 -- `batchOf(position)`. */
   batch: number;
@@ -55,11 +66,19 @@ export const PILLARS: readonly Pillar[] = [
 /** Every block carries exactly these four option keys, in this order. */
 export const OPTION_KEYS: readonly OptionKey[] = ["a", "b", "c", "d"];
 
-/** Three delivered batches of five (D3). */
-export const BLOCKS_PER_BATCH = 5;
+/**
+ * How many blocks share a `batch` number.
+ *
+ * "Batch" no longer means anything to a participant: there is nothing to
+ * generate, so there is nothing to deliver in instalments and no between-batch
+ * beat. It survives as an INTERNAL grouping — `batchOf()` still yields 1..3 over
+ * twelve positions, so every `byBatch` query and the `generated_blocks.batch`
+ * column keep working unchanged. Do not put it on a screen.
+ */
+export const BLOCKS_PER_BATCH = 4;
 
-/** The fixed balanced form is 15 blocks (PILLARS.md §7.2). */
-export const BLOCK_COUNT = 15;
+/** A form is 12 blocks — three per pillar, dealt by `formFor()` (bank.ts). */
+export const BLOCK_COUNT = 12;
 
 /**
  * The shape the generation pipeline writes. Deliberately NOT the domain shape:
@@ -105,7 +124,7 @@ function toBlock(batch: number, raw: RawBlock): Block {
   };
 }
 
-/** `ceil(position / 5)` -- which of the three batches a block is delivered in. */
+/** `ceil(position / 4)` -- the internal batch a position is grouped into. */
 export function batchOf(position: number): number {
   return Math.ceil(position / BLOCKS_PER_BATCH);
 }
@@ -173,10 +192,23 @@ export function validateBlock(block: Block): void {
   }
 }
 
+/**
+ * Builds a form out of the committed corpus: the blocks in position order,
+ * truncated to `BLOCK_COUNT`, with `batch` re-derived rather than trusted.
+ *
+ * Both of those are new. The corpus is fifteen blocks and a form is twelve now,
+ * and the batch number written into the JSON was the batch the block was
+ * *authored* in, which the current grouping no longer agrees with. Truncating
+ * keeps `INSTRUMENT` a structurally valid form of the shape the app actually
+ * uses -- three reversed slots per pillar over positions 1..12 -- so anything
+ * that needs a form without inventing one still gets a legal one.
+ */
 function buildInstrument(version: string, batches: RawBatch[]): Instrument {
   const blocks = batches
     .flatMap((batch) => batch.blocks.map((raw) => toBlock(batch.batch, raw)))
-    .sort((left, right) => left.position - right.position);
+    .sort((left, right) => left.position - right.position)
+    .slice(0, BLOCK_COUNT)
+    .map((block) => ({ ...block, batch: batchOf(block.position) }));
 
   if (blocks.length !== BLOCK_COUNT) {
     throw new Error(
@@ -189,11 +221,6 @@ function buildInstrument(version: string, batches: RawBatch[]): Instrument {
         `instrument: blocks must run 1..${BLOCK_COUNT} with no gaps, found ${block.position} at index ${index}`
       );
     }
-    if (block.batch !== batchOf(block.position)) {
-      throw new Error(
-        `block ${block.position}: delivered in batch ${block.batch}, but batchOf(${block.position}) is ${batchOf(block.position)}`
-      );
-    }
     validateBlock(block);
   });
 
@@ -201,10 +228,11 @@ function buildInstrument(version: string, batches: RawBatch[]): Instrument {
 }
 
 /**
- * The 15 committed blocks at version "v1", built and validated at import: an
- * invalid instrument is a boot failure, never a bad ranking.
+ * The committed batch files, built and validated at import at version
+ * "bank-1" -- the structural marker described in the file header. Its blocks
+ * are no longer served to anybody; its version is what a room records.
  */
-export const INSTRUMENT: Instrument = buildInstrument("v1", RAW_BATCHES);
+export const INSTRUMENT: Instrument = buildInstrument("bank-1", RAW_BATCHES);
 
 /**
  * The canonical JSON D2 freezes: content plus version, blocks in position

@@ -50,6 +50,13 @@ how it gets assigned its mathematical role. The criteria matter more than the li
 
 ### Measured — 4 latents, 15 blocks
 
+> **Shipped as 12 blocks since 2026-08-23.** §8's cut order below names "15 blocks down to
+> 12" as a sanctioned lever, and `docs/domain.md` **D21** pulled it. Nothing else in this
+> section moves: the form is still fixed-structure, still four options loading all four
+> latents, still exactly one reversed. The figures below were argued at 15; treat them as
+> the ceiling, not as what the app administers.
+
+
 | Pillar | Term type | What it is |
 |---|---|---|
 | **Regulation** | level (soft-min) | How much distress a person generates and carries in, and how fast they return to baseline. Absorbs attachment anxiety **and** conflict flooding. Measured in **non-work life domains only**. |
@@ -191,7 +198,17 @@ no positive evidence exists.
 
 **7.2 — Adaptive item selection is dropped from the pitch.** Fifteen authored blocks
 administered as fifteen blocks is a **fixed balanced form**; there is nothing to select
-from. Real adaptivity needs a bank of 40–60 blocks — 160–240 authored, rated, validated
+from.
+
+> **Still true after D21, and this is the trap.** The app now ships a committed bank of
+> 400 blocks and deals each participant twelve of them. That is **not** adaptive selection
+> and must never be pitched as it: `formFor(participantId)` is a deterministic shuffle
+> seeded by the participant id, blind to every answer the person gives. The form stays
+> fixed in *structure* — which is the only thing the linking argument ever rested on,
+> because the estimator uses authored, not calibrated, item parameters. Nothing selects an
+> item in response to a response.
+
+ Real adaptivity needs a bank of 40–60 blocks — 160–240 authored, rated, validated
 options, three to four times the critical path — and it would destroy the balanced design
 whose linking properties the precision claim rests on. We ship the fixed form, we say so,
 and we defend it on the combinatorics, which are genuinely elegant: with D = 4 latents and
