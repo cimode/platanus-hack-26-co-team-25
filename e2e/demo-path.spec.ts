@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { rosterSeeded } from "./fixtures/roster";
+import { CAST_NAMES, rosterSeeded } from "./fixtures/roster";
 
 /**
  * The demo path -- the one flow that cannot break on stage.
@@ -133,8 +133,10 @@ test.describe("1b · the room", () => {
 
   test("you are not standing in your own room", async ({ page }) => {
     await enterAs(page, "diego");
-    // 18 on the roster, so 17 others.
-    await expect(page.locator("figure")).toHaveCount(17);
+    // Derived, not counted by hand: the cast is a fixture and its size is
+    // free to change. `17` was the old hardcoded roster minus yourself, and
+    // it survived only because that module could never grow.
+    await expect(page.locator("figure")).toHaveCount(CAST_NAMES.length - 1);
     await expect(page.getByText("Diego Morales")).toHaveCount(1); // the header pill only
   });
 

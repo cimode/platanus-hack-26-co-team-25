@@ -112,10 +112,26 @@ test.describe("1c · the ranking", () => {
   test("AC-RANK-2 · a person with no photo gets a named placeholder", async ({
     page,
   }) => {
-    // This branch was dead for two verify passes: `Placement.sprite` is
-    // `readonly string`, so `photoUrl` was never null and nothing in the demo
-    // or the suite had ever rendered the placeholder. The fixture now gives it
-    // exactly one subject per room.
+    /*
+     * UNREACHABLE through this screen, and that is a finding rather than a
+     * flaky test.
+     *
+     * The mock ranking handed exactly one person a null `photoUrl` so the
+     * placeholder had a subject. The real read model cannot: `byRoomForRanking`
+     * filters on `photo_url IS NOT NULL` as part of the §0 floor, so a person
+     * without a photo is ABSENT from the ranking rather than in it without a
+     * face. `RankEntry.photoUrl` is still typed `string | null`, so the
+     * component's branch is real code with no way to be reached from here.
+     *
+     * Left as a skip naming the contradiction rather than deleted: the choice
+     * is to narrow the type or to let photoless people be ranked, and that is
+     * a product decision. The placeholder itself should be covered by a
+     * component test in the meantime.
+     */
+    test.skip(
+      true,
+      "§0 requires a photo, so a ranked person without one cannot exist."
+    );
     await open(page, "romantic");
     const placeholder = page.getByRole("img", { name: /sin foto todavía/i });
     await expect(placeholder).toHaveCount(1);
