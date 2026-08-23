@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
-import { mockRankedRoom, type RankCandidate } from "@/components/rank/mock";
 import { RankBoard } from "@/components/rank/rank-board";
 import { serverDeps } from "@/lib/composition";
 import type { RankedRoom } from "@/lib/domain/reveal/rank";
@@ -21,9 +20,9 @@ import { cn } from "@/lib/utils";
  * that could look (AC-RANK-1).
  *
  * Identity is resolved the way `/room` resolves it -- the impersonation cookie
- * through `enterRoom` and the real `ParticipantsPort`. Only the ranking itself
- * is fabricated, by `mockRankedRoom`, which issue #10's `prepareResults`
- * deletes.
+ * through `enterRoom` and the real `ParticipantsPort`. The ranking itself is
+ * now real too: `RankingPort.forSubject` is `prepareResults` with its
+ * repositories already bound, so nothing on this screen is fabricated.
  *
  * The whole screen is one flex column that fills the viewport: a tight header,
  * a hairline, the rank row centred in everything that is left, and one line of
@@ -39,23 +38,21 @@ export default async function RankPage() {
   // question that was never asked.
   if (!isLens(raw)) return <NoLens />;
 
-  const { me, others } = await enterRoom(
-    store.get(IMPERSONATION_COOKIE)?.value,
-    serverDeps()
-  );
+  const deps = serverDeps();
+  const { me } = await enterRoom(store.get(IMPERSONATION_COOKIE)?.value, deps);
 
   // Same rule as `/room`: no `me` is a broken session, not an empty state.
   if (!me) redirect("/");
 
-  const candidates: readonly RankCandidate[] = others.map((spot) => ({
-    id: spot.participant.id,
-    name: spot.participant.name,
-    // The sprite is already stable per person, so a face never changes between
-    // the room and the ranking. Real photos replace this at intake.
-    photoUrl: spot.sprite,
-  }));
-
-  const room = mockRankedRoom(raw, me, candidates);
+  /*
+   * The real ranking, scored from the room's own responses.
+   *
+   * `forSubject` takes the VIEWER and nothing else that could name a subject,
+   * so `/rank?subject=x` is not merely ignored here -- it is unrepresentable
+   * at the port (AC-RANK-1). The entries carry their own `photoUrl`, so the
+   * board no longer needs the room's sprites threaded through it.
+   */
+  const room = await deps.ranking.forSubject(me.id, raw);
 
   return (
     <main
