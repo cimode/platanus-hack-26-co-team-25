@@ -137,12 +137,22 @@ que hace que el cierre suene a remate y no a repetición.
 
 ### [SLIDE 7 · el loop] — 13s
 
-> Respondes doce preguntas, eliges un lente, la sala se ordena,
-> y ves la vida que compartirían.
-> Y entonces — **cruzas la sala.**
+> Contestas doce preguntas raras, dices qué estás buscando,
+> descubres con quién encajas, y simulan la vida que tendrían juntos
+> —medio en broma—.
+> Y entonces… **cruzas la sala.**
 
 > **No leas las cuatro cajas en voz alta**: se leen solas y te cuesta 6 segundos.
 > Di la secuencia de corrido y frena en la quinta.
+>
+> Las cuatro primeras cajas están escritas desde **lo que la persona vive**, no
+> desde lo que hace la app. "La sala se ordena" era el sistema describiéndose a sí
+> mismo: nadie en la sala percibe un ordenamiento, percibe *enterarse de con quién
+> encaja*. Y "lente" es nuestra palabra, no la de ellos — por eso la caja 02 dice
+> qué buscas, y las tres opciones van abajo en letra chica.
+>
+> "Medio en broma" es carga útil, no adorno: simular una vida compartida es absurdo
+> y decirlo primero es lo que hace seguro mostrarle a dos personas reales la suya.
 >
 > El diagrama tiene un solo punto: la última caja es **lo único que dipia no hace**.
 > Está aparte, en coral, marcada *fuera de la pantalla*. El producto gana cuando

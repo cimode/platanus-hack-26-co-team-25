@@ -50,8 +50,12 @@ export type Slide =
       kind: "loop";
       id: string;
       title: string;
-      /** Steps that happen INSIDE the app. */
-      steps: string[];
+      /**
+       * The loop as the PERSON experiences it, not as the app executes it.
+       * "La sala se ordena" was the system describing itself; nobody in the
+       * audience perceives a sort. They perceive finding out who fits.
+       */
+      steps: { label: string; note?: string }[];
       /** The step that happens outside it -- the point of the whole diagram. */
       exit: { label: string; note: string };
       seconds: number;
@@ -154,10 +158,16 @@ export const SLIDES: Slide[] = [
     id: "loop",
     title: "De una sala llena de extraños a una conversación.",
     steps: [
-      "Respondes 12 preguntas",
-      "Eliges un lente",
-      "La sala se ordena",
-      "Ves la vida que compartirían",
+      { label: "Contestas 12 preguntas raras" },
+      // "Lente" is our word, not theirs -- it means nothing cold. What the
+      // person actually does is state an intention, so the note carries the
+      // three lenses in plain language instead of the term.
+      { label: "Dices qué estás buscando", note: "pareja · socio · amigo" },
+      { label: "Descubres con quién encajas" },
+      // The joke is load-bearing: a simulated shared life is absurd on its
+      // face, and saying so first is what makes it safe to show two real
+      // people in the room theirs.
+      { label: "Simulan la vida que tendrían juntos", note: "medio en broma" },
     ],
     exit: { label: "Cruzas la sala", note: "fuera de la pantalla" },
     seconds: 13,

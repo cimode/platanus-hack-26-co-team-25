@@ -157,9 +157,13 @@ function SlideBody({ slide }: { slide: Slide }) {
           {/* Row one: everything that happens inside the app. */}
           <div className="flex w-full max-w-7xl items-stretch justify-center gap-3">
             {slide.steps.map((step, position) => (
-              <Fragment key={step}>
+              <Fragment key={step.label}>
                 {position > 0 ? <LoopArrow /> : null}
-                <LoopStep index={position + 1} label={step} />
+                <LoopStep
+                  index={position + 1}
+                  label={step.label}
+                  note={step.note}
+                />
               </Fragment>
             ))}
           </div>
@@ -201,15 +205,30 @@ function SlideBody({ slide }: { slide: Slide }) {
   }
 }
 
-function LoopStep({ index, label }: { index: number; label: string }) {
+function LoopStep({
+  index,
+  label,
+  note,
+}: {
+  index: number;
+  label: string;
+  note?: string;
+}) {
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-5 text-left">
       <span className="font-mono text-ink-faint text-[clamp(0.6rem,0.85vw,0.8rem)] tracking-widest">
         0{index}
       </span>
-      <span className="text-balance font-display font-bold text-[clamp(1.1rem,1.9vw,1.75rem)] leading-tight">
-        {label}
-      </span>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-balance font-display font-bold text-[clamp(1.1rem,1.9vw,1.75rem)] leading-tight">
+          {label}
+        </span>
+        {note ? (
+          <span className="font-mono text-[clamp(0.6rem,0.85vw,0.8rem)] text-primary uppercase tracking-widest">
+            {note}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
