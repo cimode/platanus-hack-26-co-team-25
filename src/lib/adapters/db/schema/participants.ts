@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   pgTable,
   primaryKey,
@@ -11,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { gender } from "./enums.ts";
 import { rooms } from "./rooms.ts";
 
 /**
@@ -30,6 +32,13 @@ export const participants = pgTable(
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /**
+     * Identity, asked on the one registration screen (D18). Nullable because
+     * rows registered before D18 have neither; the check below keeps them a
+     * pair, and the §0 floor keeps such a row out of every ranking.
+     */
+    gender: gender("gender"),
+    birthdate: date("birthdate"),
     /** Null until uploaded; part of the §0 floor. */
     photoUrl: text("photo_url"),
     team: text("team"),
@@ -44,6 +53,14 @@ export const participants = pgTable(
     distanceBand: smallint("distance_band"),
     chronotype: smallint("chronotype"),
     tags: text("tags").array().notNull().default([]),
+    /**
+     * WHEN the person authorised the treatment of their personal data on the
+     * registration screen (issue #49, Ley 1581 de 2012). Nullable because rows
+     * written before the box existed have no moment to record; a null means
+     * "never asked", never "said no" -- the registration use case refuses
+     * before any row is written when the box is unticked.
+     */
+    dataConsentAt: timestamp("data_consent_at", { withTimezone: true }),
     /** Set when the declared round is complete; part of the §0 floor. */
     declaredAt: timestamp("declared_at", { withTimezone: true }),
     /** Set on block 15; also the arrival-cohort timestamp (PILLARS.md §2). */
@@ -78,6 +95,10 @@ export const participants = pgTable(
     check(
       "participants_chronotype_band",
       sql`${t.chronotype} is null or ${t.chronotype} between 0 and 3`
+    ),
+    check(
+      "participants_identity_pair",
+      sql`(${t.gender} is null) = (${t.birthdate} is null)`
     ),
     check("participants_tags_cap", sql`cardinality(${t.tags}) <= 12`),
     check(

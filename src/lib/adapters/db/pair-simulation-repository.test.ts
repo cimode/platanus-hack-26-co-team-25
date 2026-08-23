@@ -29,10 +29,24 @@ describe("pair-simulation-repository", () => {
       instrumentVersion: "map-luce-v1",
     });
 
-    const lo = (await participantsRepo.create({ roomId: room.id, name: "Lo" }))
-      .participant;
-    const hi = (await participantsRepo.create({ roomId: room.id, name: "Hi" }))
-      .participant;
+    const lo = (
+      await participantsRepo.create({
+        roomId: room.id,
+        name: "Lo",
+        gender: "F",
+        birthdate: "1996-05-04",
+        consent: { romantic: true, business: true, friendship: true },
+      })
+    ).participant;
+    const hi = (
+      await participantsRepo.create({
+        roomId: room.id,
+        name: "Hi",
+        gender: "M",
+        birthdate: "1994-03-12",
+        consent: { romantic: true, business: true, friendship: true },
+      })
+    ).participant;
     const [loId, hiId] = [lo.id, hi.id].sort();
     const now = new Date();
 

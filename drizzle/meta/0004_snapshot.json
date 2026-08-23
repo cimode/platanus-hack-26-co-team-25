@@ -1,5 +1,5 @@
 {
-  "id": "fbf1c80b-6e70-4c24-90f6-16a8222aee10",
+  "id": "71bbc778-b54a-4800-a30b-18767738aadf",
   "prevId": "16930f96-94fd-4893-9a75-aee9be9a9ea8",
   "version": "7",
   "dialect": "postgresql",
@@ -236,109 +236,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.pair_simulations": {
-      "name": "pair_simulations",
-      "schema": "",
-      "columns": {
-        "lens": {
-          "name": "lens",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "participant_lo": {
-          "name": "participant_lo",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "participant_hi": {
-          "name": "participant_hi",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "life": {
-          "name": "life",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scorer_version": {
-          "name": "scorer_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lo_computed_at": {
-          "name": "lo_computed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hi_computed_at": {
-          "name": "hi_computed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "pair_simulations_participant_lo_participants_id_fk": {
-          "name": "pair_simulations_participant_lo_participants_id_fk",
-          "tableFrom": "pair_simulations",
-          "tableTo": "participants",
-          "columnsFrom": [
-            "participant_lo"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "pair_simulations_participant_hi_participants_id_fk": {
-          "name": "pair_simulations_participant_hi_participants_id_fk",
-          "tableFrom": "pair_simulations",
-          "tableTo": "participants",
-          "columnsFrom": [
-            "participant_hi"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "pair_simulations_lens_participant_lo_participant_hi_pk": {
-          "name": "pair_simulations_lens_participant_lo_participant_hi_pk",
-          "columns": [
-            "lens",
-            "participant_lo",
-            "participant_hi"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "pair_simulations_order": {
-          "name": "pair_simulations_order",
-          "value": "\"pair_simulations\".\"participant_lo\" < \"pair_simulations\".\"participant_hi\""
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.acquaintances": {
       "name": "acquaintances",
       "schema": "",
@@ -481,6 +378,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "gender": {
+          "name": "gender",
+          "type": "gender",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birthdate": {
+          "name": "birthdate",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "photo_url": {
           "name": "photo_url",
@@ -647,6 +557,10 @@
         "participants_chronotype_band": {
           "name": "participants_chronotype_band",
           "value": "\"participants\".\"chronotype\" is null or \"participants\".\"chronotype\" between 0 and 3"
+        },
+        "participants_identity_pair": {
+          "name": "participants_identity_pair",
+          "value": "(\"participants\".\"gender\" is null) = (\"participants\".\"birthdate\" is null)"
         },
         "participants_tags_cap": {
           "name": "participants_tags_cap",

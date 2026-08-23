@@ -8,18 +8,22 @@
 >
 > Reviewed adversarially from five lenses (engine fidelity, data access, 36-hour
 > pragmatism, CI migrations, safety); 17 findings were adopted, the largest being that the
-> instrument lives in code, not in tables. Last updated: 2026-08-22.
+> instrument lives in code, not in tables. Last updated: 2026-08-22 (D18).
 
 ---
 
 ## 0. The flow this models
 
 ```
-register ──> photo ──> consent ──> declared round ──> gates ──> quiz (15 blocks, 3 batches) ──> scored ──> ranked
-   │           │          │            │               │              │                            │          │
- participants  photo_url  consent_*   money/rooted/…   romantic_gates  quiz_responses        latent_estimates  (computed
- + session                            tags, chronotype business_gates   (one per block)          (I7)        on request, I8)
+registration (photo, name, gender, birthdate) ──> declared round ──> quiz (15 blocks, 3 batches) ──> scored ──> ranked
+   │                                                  │                   │                            │          │
+ participants + session                          money/rooted/…      quiz_responses            latent_estimates  (computed
+ photo_url, gender, birthdate, consent_* = true   tags, chronotype   (one per block)               (I7)        on request, I8)
 ```
+
+Amended by **D18** (2026-08-22): registration is one screen and the gate screens are
+gone. The diagram above is the MVP flow; the original five-step one — register → photo →
+consent → declared → gates — is what D18 replaced.
 
 A participant is a row that fills in over ~8 minutes, left to right. Every step is
 resumable: a respondent who closes the tab at block 7 is identified by the session cookie
@@ -32,8 +36,11 @@ abandons at block 4 still has gates, tags, capacity and proximity — still rank
 renders a panel. Photo and consent come first with their own minute (`AUDIT.md` S16).
 
 **The floor, stated once.** A participant is rankable under a lens only when *all* of:
-`photo_url is not null` · `consent_<lens>` · `declared_at is not null` · for romantic /
-business, the lens gate row exists. Anyone below the floor is **suppressed with a reason,
+`photo_url is not null` · `consent_<lens>` · `gender` and `birthdate` are not null ·
+`declared_at is not null`. The gate-row condition was removed by **D18** — no gate is
+asked any more, so requiring its row would put everybody below the floor; the identity
+clause replaces it, because a row registered before D18 has no gender and no birthdate and
+therefore no romantic gate that could be derived. Anyone below the floor is **suppressed with a reason,
 never ranked** (`AUDIT.md` S15). `declared_at` is in the floor because the engine's
 `LifeShape` and `chronotype` are required numbers with no degraded path: a friendship-
 consented person who quit during the declared round would otherwise be ranked on fabricated
@@ -60,7 +67,8 @@ abandoners do not.
 | D16 | **Each participant gets their own generated form, authored live, batch by batch.** Reverses D1/D2. Fixed for everyone: 15 positions, the 4/4/4/3 focus-pillar rotation, four pillars once each, exactly one reversed option on the focus pillar. Varies per person: which everyday domain each position is set in, and the writing. Authored at entry and rolled forward — batch N+1 while batch N is answered. Stored in `generated_blocks(participant_id, position)`. **The committed 15 blocks become the per-participant fallback**, served whenever authoring fails, the model is down, or `AI_GATEWAY_API_KEY` is absent. | Confirmed by the user 2026-08-22, after §10.1 had been recorded the other way and built on — see the note below. The linking objection in D1 was **overstated**: the estimator uses *authored*, not calibrated, item parameters (`AUDIT.md` S8), so a block's likelihood depends on which pillar was chosen and how it was keyed, never on the scenario text. Identical structure is identical measurement, and `validateBlock()` enforces the structure on every generated block. D14 is what makes it affordable — text-only options mean ~1,500 short completions for 100 attendees rather than ~6,000 image renders. Residual risk is content quality with no human in the loop, carried by the structural validator, a repair pass and the fallback. Measured: ~38–70s per batch of five, 15/15 blocks correctly keyed first attempt. |
 | D15 | **Every answer row carries its question.** ⚠️ The `instruments(version pk, hash, blocks jsonb, seeded_at)` **half is SUPERSEDED by D16** — there is no such table, no seed writes one, and the constant is mirrored nowhere; `generated_blocks(participant_id, position)` is the stored question set, per person. **What was kept, and shipped in I9/#13:** `quiz_responses` gains `instrument_version`, `scenario`, `most_text`, `least_text`, captured at answer time — now resolved from *that participant's* `generated_blocks` row rather than from the constant, with `save` rejecting when the block or the key is missing. | Requested by the user 2026-08-22: answers must be readable in the database together with the questions, without the code. Under D16 (same day, later) the question is not derivable from the code at *all*, so the answer-row columns became the whole of this decision instead of half of it — and a shared mirror became meaningless, because no two participants answer the same 15 scenarios. `INSTRUMENT` is still hash-pinned by its unit test and is still the per-participant fallback (D2). Cost: ~150 bytes per answer, and one extra read per `save` (the block, by its unique index). |
 | D13 | **Rankings are computed on request, not stored.** Latent estimates *are* stored — they are the avatar. | `rankRoom` is pure and ranks a 100-person room in milliseconds; persisting its output was ceremony on the last issue. The loading moment is `loading.tsx` narrating "scoring 15 blocks · ranking N people". The projected room view, when it exists, computes mutual top-k from the same in-memory array behind an operator credential. `latent_estimates` stays: it is `CONTEXT.md` §3 step 2, and the timeline will read it. |
-| D14 | **A generated pair narrative is cached; a ranking is not.** | Issue #34: a simulated life costs ~33s live and is identical for both members of the pair. `pair_simulations` stores the canonical `(lo, hi)` row; hits are re-authorised against live floor, consent, gates and latent freshness. Rankings stay ephemeral (D13) because they are a live judgement about the room; a narrative is an expensive artifact both people are entitled to see the same version of. |
+| D18 | **MVP intake: one registration screen, then the questions.** Photo, name, `gender` and `birthdate` are asked together and stored on `participants`; `consent_romantic`, `consent_business` and `consent_friendship` are set `true` by the registration itself — participating *is* consenting for this version, and no screen says the word. `romantic_gates` / `business_gates` are **no longer asked**; the tables stay in the schema, unused, and `toPerson` (I8/#10) derives the engine's gate inputs from `src/lib/domain/participant/mvp-defaults.ts`: `interestedIn` = every gender, `single` = true, `wantsKids` = true, `riskPosture` = 1, `exitHorizon` = 1, `redlinesOk` = true, and `ageBand` = `ageBandOf(birthdate, today)` (18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3). The §0 floor loses the gate-row clause and gains the identity one. No team/track question, no "interested in", no age band asked — it is derived. Nothing on any intake or quiz screen names a pillar, a lens, consent, a gate, a team, a track, the wordmark or a step number: one `Progress` bar over the whole 19-step flow is the only progress copy. Supersedes D12 for this version (the romantic switch does not exist; the AI-offspring render is out of the MVP). **Amended by issue #49 (2026-08-22):** the registration screen carries one required checkbox authorising the treatment of personal data — unticked by default, refused server-side with `reason: "data-consent"` before any row is written, and recorded as `participants.data_consent_at timestamptz` (migration `drizzle/0005_data_consent.sql`, nullable only for pre-#49 rows). It is the moment, not merely the fact, because Ley 1581 de 2012 (habeas data) expects the authorisation to be explicit and dated. The per-lens consents above are unaffected and still unasked; the screen never says the English word. | Requested by the user 2026-08-22 after testing the deployed form: completion rate is the demo (`CONTEXT.md` §4), and five steps with named categories was the thing people dropped out of. The declared round survives untouched because it is 60 % of the ranking weight (`PILLARS.md` §3) — its six bands are simply asked as ordinary questions rather than labelled with the axis they measure, which is also what stops the form teaching people what to answer (`AUDIT.md` S16). The defaults are the permissive end of every axis on purpose: a gate whose unasked half filtered people out would silently shrink the ranking. |
+| D19 | **A generated pair narrative is cached; a ranking is not.** | Issue #34: a simulated life costs ~33s live and is identical for both members of the pair. `pair_simulations` stores the canonical `(lo, hi)` row; hits are re-authorised against live floor, consent, gates and latent freshness. Rankings stay ephemeral (D13) because they are a live judgement about the room; a narrative is an expensive artifact both people are entitled to see the same version of. |
 
 ## 2. Aggregates (`src/lib/domain/`)
 
@@ -106,12 +114,15 @@ lenses are TypeScript unions; nothing in the database stores them.
 | id | uuid pk | |
 | room_id | uuid → rooms not null | index |
 | name | text not null | check `length(name) between 1 and 80` |
+| gender | gender | `M \| F \| NB`, asked at registration (D18); null only on pre-D18 rows |
+| birthdate | date | asked at registration (D18); `age_band` is derived from it, never asked |
 | photo_url | text | null until uploaded; part of the floor |
 | team | text | structural proximity (`PILLARS.md` §8 — must be a form field) |
 | track | text | idem |
 | consent_romantic | bool not null default false | **opt-out by default** |
 | consent_business | bool not null default false | |
 | consent_friendship | bool not null default false | |
+| data_consent_at | timestamptz | **when** the data-treatment box was ticked at registration (#49, Ley 1581); null only on pre-#49 rows — never "said no", since a registration without it is refused |
 | money_posture | smallint | 0..3, null until declared |
 | rootedness | smallint | 0..3 |
 | family_gravity | smallint | 0..3 |
@@ -124,7 +135,9 @@ lenses are TypeScript unions; nothing in the database stores them.
 | created_at | timestamptz not null | |
 
 Checks: every band column `is null or between 0 and 3`. `declared_at` may only be set when
-all six bands are non-null (check).
+all six bands are non-null (check). `gender` and `birthdate` are null together or set
+together (`participants_identity_pair`), which is how a pre-D18 test row stays legal and a
+new registration cannot land half-identified.
 
 Why not a `declared_profiles` table: it would be 1:1, written once, read with the
 participant every time. A join that buys nothing.
@@ -260,7 +273,8 @@ declared field is non-null by construction.
 | `structural.team` / `track` | as-is; null ⇒ undefined |
 | `structural.cohort` | rank of `quiz_completed_at` within the room, bucketed into 30-minute windows from the room's first completion; null ⇒ undefined |
 | `structural.acquaintances` | `acquaintances.knows_id[]` |
-| `gates.romantic` / `gates.business` | the gate row, absent ⇒ undefined |
+| `gates.romantic` | **D18**: derived, not read — `mvpRomanticGate({ gender, birthdate }, today)`, i.e. the asked gender, `interestedIn` = every gender, `single` / `wantsKids` true, `ageBand` = `ageBandOf(birthdate, today)`. The `romantic_gates` row is not written any more |
+| `gates.business` | **D18**: derived — `mvpBusinessGate()` = `riskPosture` 1, `exitHorizon` 1, `redlinesOk` true, the same for everyone |
 | `consent.*` | the three booleans |
 | `hasPhoto` | `photo_url is not null` |
 

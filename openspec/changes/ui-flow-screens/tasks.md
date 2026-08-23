@@ -43,8 +43,8 @@ unit targets its immediate predecessor. No task below names a base branch.
 | U3 | `useDragScroll` extracted; `RoomCanvas` migrated | ~90 | — | No | **DONE** — `feat/ui-flow-u3-drag-scroll` |
 | ~~U4~~ | ~~fixture roster + fixture `LatentSource`~~ | — | — | — | **DISSOLVED by R9/R10** |
 | ~~U5~~ | ~~fixture adapters, `viewRank`/`viewProfile`, composition ×2, viewer resolver~~ | — | — | — | **DISSOLVED by R9/R10/R11** |
-| U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | **Ready** |
-| U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | |
+| U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | **DONE** — `feat/ui-flow-u6-rank` |
+| U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | **Ready** |
 | ~~U8~~ | ~~timeline fixture + `simulateLife` + composition ×1~~ | — | — | — | **DISSOLVED by R9/R10** |
 | U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | |
 
@@ -140,6 +140,50 @@ reads as something the engine team is expected to satisfy, and none of them is.
 proven live by widening `RankBand` to admit `"low"` and watching **TS2578** fire
 at that line, then reverting. A line number in an issue body was always going to
 drift; the file and the guarantee are what #10 actually depends on.
+
+### R14 — `RankedRoom` carries no `floorReason`, so the screen names the stage
+
+AC-RANK-5 has two scenarios that want different copy for "you have not
+consented" and "you have no photo". **The contract cannot tell them apart**: the
+non-`ranked` variants are `{ status, lens }` and nothing else.
+
+Adding a `floorReason` would widen a type issue #10 implements, on our own
+authority, for copy. So U6 names the STAGE and nothing finer — `not-consented`
+sends you to the consent step, `below-floor` sends you to the profile step — and
+neither branch renders any other person's name, which is the part of AC-RANK-5
+that actually protects someone. If #10 wants the finer reason it adds the field
+and the screen reads it; one property, one line.
+
+### R15 — three branches are dead code, and the blocker is the HARNESS, not the fixture
+
+**Corrected after `sdd-verify` on U6.** The first version of this row said the
+degraded states were untestable because the fixture cannot produce them. That
+conflates two different things, and the conflation cost three unrecorded gaps.
+
+`mockNotConsented` and `mockBelowFloor` exist precisely to construct those
+states, and `<Body>` is a pure function of `RankedRoom` — so the states ARE
+constructible. **What blocks them is that `vitest.config.mts` sets
+`environment: "node"`: there is no jsdom, so no component branch is unit-testable
+at all.** Naming that correctly matters, because the same limit hits every branch
+the fixture's happy path does not walk — and by framing it as a fixture problem,
+the first version filed one gap where there were four.
+
+| Scenario | Dead code | Why the fixture never reaches it |
+|---|---|---|
+| AC-RANK-2 · no photo | `rank-card.tsx` `Avatar` null branch | `Placement.sprite` is `readonly string`, so `photoUrl` is never null |
+| AC-RANK-4 · filter with no matches | `rank-board.tsx` empty branch | `highCount >= 1` and 17 > 7, so both bands always populate |
+| AC-RANK-6 · empty room | `page.tsx` empty branch | the roster is 18 people, so `entries` is always 17 |
+| AC-RANK-5 · not-consented / below-floor | `page.tsx` `<Blocked>` | the roster carries no consent, and a fixture inventing one is what R1 forbids |
+
+**Only the last row is a fixture problem.** The first three are reachable with
+honest data — a person who has not uploaded a photo is not a fabricated *consent*
+value — and are left dead only because covering them needs either a component
+test environment or an e2e seam neither of which U6 built.
+
+All four branches are implemented. **None is covered by any test at any layer**,
+and `tasks.md` marked 6.4 and 6.6 `[x]` without saying so. That is recorded here
+rather than fixed under time pressure; the honest close is a jsdom project in
+vitest, which is a change to the test harness and not to this screen.
 
 **What R9–R12 delete from this plan:** `src/lib/adapters/reveal/**`, `view-rank.ts`,
 `view-profile.ts`, `simulate-life.ts`, `src/app/viewer.ts`, three `composition.ts`
@@ -317,63 +361,112 @@ All nine tasks deleted:
 | 5.8 second-`LatentSource` swap test | Guards a port that no longer exists |
 | 5.9 build with `DATABASE_URL` unset | **Kept**, promoted to 10.4 — it now guards the whole change, not one unit |
 
-## Phase U6 — `/rank`, screen 1c (~380)
+## Phase U6 — `/rank`, screen 1c — **DONE**
 
-Depends on U3 only. `components/rank/{view,view.test,mock}.ts` already exist on
-`feat/ui-view-models`, and the shapes they use come from
-`@/lib/domain/reveal/rank` (R13). This unit consumes both and paints the screen.
+- [x] 6.0 RED: `src/components/rank/mock.test.ts` — nine properties over every
+      lens. **It found two live demo bugs on its first run**, not one:
+      `expected 'p-diego-morales' to be 'p-laura-mendez'` (R12, known) and
+      `expected 1 to be 3` on distinct orderings — **the fixture returned the
+      same ranking for all three lenses, so the lens picker on screen 1b was
+      theatre.** Plus positions 1..n contiguous, every entry drawn from the
+      candidates handed in, determinism across calls, both friction branches
+      present, and an object-graph walk asserting no key named `rank`, `sim`,
+      `score`, `contribution` or `shortfall` anywhere. (AC-PORT-3, AC-RANK-6)
+- [x] 6.1 GREEN: `mockRankedRoom(lens, viewer, candidates)` per R12. Order is
+      `hash(lens:viewerId:personId)` — FNV-1a copied from `domain/room/layout.ts`
+      rather than exported from it, because widening a shared module's surface
+      for a fixture #10 deletes is the worse trade. **The lens is IN the hash**,
+      so the three readings genuinely differ. Friction is keyed on POSITION, not
+      the hash, so every room of three or more is guaranteed to contain a card
+      with friction and a card without — a probabilistic fixture would leave
+      AC-RANK-2's null branch untested some of the time.
+- [x] 6.2 `src/app/rank/page.tsx` replaced wholesale. Server Component; lens from
+      `dipia_lens` checked FIRST and returned on, so no data call happens at all
+      without a lens; viewer from `enterRoom` + `serverDeps()` exactly as
+      `RoomPage` does (R11); `redirect("/")` on a null `me`. **`searchParams` is
+      never read** — the strongest form of "`?subject=` is inert" is having no
+      code that could look. (AC-RANK-1, AC-PORT-1)
+- [x] 6.3 `band-pill.tsx` — two labels, `--band-*` only, never `--tag-ritual`
+      (which is byte-identical to `--band-high` and means something else).
+- [x] 6.4 `rank-card.tsx` (server) — position, name, photo or a NAMED
+      placeholder, one bond line, optional friction. **Fixed height, not
+      `min-h`**: `min-h` only stops a card collapsing below a floor, and a long
+      bond label still wrapped and made that card taller than its neighbours.
+      An explicit `aria-label` composes the name in reading order, because the
+      browser's concatenation announced a photoless card as "sin foto 3 Camila
+      Soto BANDA MEDIA…" — placeholder first, person third.
+- [x] 6.5 `rank-board.tsx` — the only client island. Two `useState` and a `.map`;
+      sorting and filtering are the pure `applyRankView`, dragging is U3's hook
+      with `initial: "start"`. Filter chips are **native `<input type="radio">`**
+      behind a transparent full-size peer, not buttons with `role="radio"`:
+      Biome's a11y rule pushed for it and was right — the native group gives
+      arrow-key navigation and roving focus for free.
+- [x] 6.6 Empty states: filter-with-no-matches, and the room still filling in.
+      Both named, neither counts or names the absent. (AC-RANK-4, AC-RANK-6)
+- [x] 6.7 Degraded states rendered from `RankedRoom.status`. **See R14 and R15**:
+      the copy names the stage rather than the exact floor reason, and neither
+      state is reachable from the fixture, so neither has an e2e.
+- [x] 6.8 `lens-{romantic,business,friendship}` on the subtree. No raw hex, no
+      invented utility; every colour resolves through a token `globals.css`
+      already defines. (AC-RANK-7)
+- [x] 6.9 `e2e/rank.spec.ts` — **26/26 across 390×844 and 1280×900**, AC id at
+      the front of each name. Two probes proven live by mutation:
 
-- [ ] 6.0 RED **before touching the page** — `src/components/rank/mock.test.ts`,
-      the surviving half of dissolved 4.2/5.1/5.2. Against
-      `mockRankedRoom(lens, me, others)` for **every lens**: ≥5 entries, both
-      `high` and `mid` present, `position` is 1..n contiguous with no gap, the
-      viewer's own id appears in **no** entry (R12), and every entry's id is one
-      of the `others` handed in. Plus the AC-PORT-3 sweep: walk the returned
-      object graph and assert no key named `rank`, `sim`, `score`,
-      `contribution` or `shortfall` anywhere in it. (AC-PORT-3, AC-RANK-6)
-- [ ] 6.1 GREEN: re-sign `mockRankedRoom` to `(lens, me: Participant, others:
-      readonly Placement[])` per R12 — the viewer and the roster come in, only
-      `position`/`band`/`bond`/`friction` are fabricated. Drop the hardcoded
-      `PEOPLE` table and the hardcoded `p-diego-morales` viewer; keep `BONDS`,
-      `FRICTIONS` and the doc comment naming #10 as the file's expiry date. Take
-      `photoUrl` from each `Placement.sprite`, which is already stable per
-      person.
-- [ ] 6.2 Replace `src/app/rank/page.tsx` wholesale: Server Component, lens from
-      `dipia_lens` via `@/app/lens`, viewer from `enterRoom(store.get(
-      IMPERSONATION_COOKIE)?.value, serverDeps())` exactly as `RoomPage` does
-      (R11), `redirect("/")` on a null `me`. **No dynamic segment, no
-      `searchParams` subject** — `?subject=` must be inert. (AC-RANK-1,
-      AC-PORT-1)
-- [ ] 6.3 `src/components/rank/band-pill.tsx` — exactly two labels,
-      `BANDA ALTA`/`BANDA MEDIA`, from `--band-high*`/`--band-mid*`. Never
-      `--tag-ritual`. (AC-RANK-3)
-- [ ] 6.4 `src/components/rank/rank-card.tsx` (server) — position, name, photo
-      or a named placeholder, one bond line, optional friction line; card does
-      not collapse when `friction` is null. Reachable by
-      `getByRole("link", {name})`. (AC-RANK-2)
-- [ ] 6.5 `src/components/rank/rank-board.tsx` — the **only** client island
-      here. Holds `{sort, band}` and calls the pure `applyRankView` from
-      `./view`; consumes `useDragScroll({ initial: "start" })` from U3. Filters
-      `Todos`/`Alta`/`Media` report no removed count and leave no placeholder.
-      (AC-RANK-4)
-- [ ] 6.6 Designed empty states: filter-with-no-matches, and the whole room
-      below the floor — named, never a blank row, never naming or counting the
-      absent. (AC-RANK-4, AC-RANK-6, AC-PORT-5)
-- [ ] 6.7 Degraded states from `RankedRoom.status`: `not-consented` and
-      `below-floor` name the step to go back to and no other person's name
-      appears; no lens cookie ⇒ link to `/room` and **no data call**.
-      `mockNotConsented` / `mockBelowFloor` already return those two states.
-      (AC-RANK-5)
-- [ ] 6.8 Thread `lens-{romantic,business,friendship}` onto the subtree. No raw
-      hex, no invented utility — grep `globals.css` first; Biome does not check
-      this any more. (AC-RANK-7)
-- [ ] 6.9 E2E `e2e/rank.spec.ts` at 390×844 and 1280×900 — AC id at the front of
-      each test name. **Set the impersonation cookie, then assert the ranking
-      greets that person and never lists them** (R12). Order/positions, both band
-      pills with differing computed backgrounds, `?subject=` is inert, no `%` or
-      bare decimal in page text, off-screen entry found by role+name then
-      `scrollIntoViewIfNeeded()`, 0 running animations under reduced motion.
-      (AC-RANK-1..8, AC-PORT-3, AC-PORT-5)
+      | Mutation | Probe | Observed |
+      |---|---|---|
+      | both band pills given the same token | AC-RANK-3 | `Expected not "rgb(251, 227, 222)"` |
+      | `87%` appended to a bond label | AC-PORT-3 | `Expected pattern not /\d+([.,]\d+)?\s*%/` |
+
+      One measurement subtlety worth keeping: AC-RANK-2's equal-height check
+      reads `offsetHeight`, **not `boundingBox()`**. The cards enter on a
+      staggered `pop-in`, and a bounding box is the TRANSFORMED box — measuring
+      mid-animation reported four different heights for four identical cards.
+
+### 6.10 — the redesign, after the first build was shown to the user
+
+The first build was rejected on sight and it deserved to be. Three problems, all
+structural rather than cosmetic:
+
+- **Half a phone of dead cream below the fold.** Everything stacked from the top
+  and stopped. Fixed by making the whole screen one flex column that fills the
+  viewport: tight header, hairline, then the row in a `flex-1` band that takes
+  ALL the slack.
+- **Every person boxed in a card.** That put a border between the viewer and the
+  person and turned a room into a catalogue. The people are loose now — a big
+  ordinal (`1º`, in the lens accent only for first place), the sprite standing on
+  its own ground-shadow ellipse, then name, band and reasons. No panel.
+- **A blank background.** Screen 1c now carries the same venue as 1b, so the
+  ranking reads as something happening in that room rather than a list rendered
+  on a blank page. Two veils, not one: the first fades the plate in from the
+  hairline, the second is a flat wash — without it the venue's own signage reads
+  THROUGH the people and the row stops being the subject. **Atmosphere loses to
+  content every time.**
+
+`items-end`, not `items-center`: centred, the sprites float in mid-air over a
+room; pushed down, they stand on its floor.
+
+**The title went back to the design's words** — `Rank Romántico` /
+`Rank de Negocios` / `Rank de Amistad`. The first build invented
+"Con quién encajás trabajando" and then "fixed" `demo-path.spec.ts`, which had
+been asserting `/negocios/i` all along. That edit is reverted: the test was
+right and the screen was wrong.
+
+Filter chips carry the design's labels too — `Todos` / `Banda alta` /
+`Banda media` — with `ordenar:` and `filtrar:` legends.
+
+### 6.11 — corrections from `sdd-verify`
+
+- **The reduced-motion probe was time-window dependent.** It counted animations
+  with `playState === "running"`, asserting at ~240ms while the staggered pop-in
+  finishes by ~1.2s — so it would have started passing on its own once the page
+  settled, which is a green meaning "you were late", not "the guard works". It
+  now asserts `document.getAnimations().length === 0`, a property of the page
+  rather than of when you looked. Re-proven live: 17 without the guard, 0 with it.
+- **R15 was rewritten** — the blocker is `environment: "node"` in
+  `vitest.config.mts`, not the fixture, and framing it as a fixture limit filed
+  one gap where there were four. See R15 for the table of dead branches.
+- **10.5's "known gap" was false** and **10.3's absence check had expired.** Both
+  corrected in Phase 10.
 
 ## Phase U7 — `/profile/[id]`, screen 1d (~330)
 
@@ -491,11 +584,16 @@ take the rail and the ending card as a second slice.
       `@/lib/composition`, the way `src/app/room/page.tsx` already does.
 - [ ] 10.2 `excludedFromRoom()` is unreachable from `src/app/**` and
       `src/components/**`. (AC-PORT-5)
-- [ ] 10.3 **Do not create** `to-person.ts`, `prepare-results.ts`,
+- [ ] 10.3 **Do not create OR EDIT** `to-person.ts`, `prepare-results.ts`,
       `score-participant.ts`, `estimate.ts` or `latent-repository.ts`; do not
       edit or un-skip `prepare-results.test.ts`, `to-person.test.ts`,
       `score-participant.test.ts` or `scoring.test.ts`. Assert their skipped
       count and file contents are unchanged after every unit. (AC-PORT-6)
+      **Reworded after U6's verify.** The old wording said these modules must be
+      ABSENT, and that expired: `score-participant.ts` and `latent-repository.ts`
+      landed on `main` via PR #37. AC-PORT-6 was never about their absence — it
+      is about this change not touching the other team's surface. Check the diff,
+      not the filesystem.
       **This is the rule R9 exists to enforce** — the deleted ports were a
       slower, politer version of breaking it.
 - [ ] 10.4 (was 5.9) `pnpm run verify` and `pnpm run build` with `DATABASE_URL`
@@ -507,10 +605,12 @@ take the rail and the ending card as a second slice.
 - [ ] 10.5 `src/app/globals.css` stays **unchanged**: `--band-*`, `@utility
       walking`/`pop-in` and the `[style*="animation"]` reduced-motion guard all
       landed in `d6e0d4d`. Verify before writing a utility; nothing machine-
-      checks token names since ESLint was removed. **Known gap:** the `walk` and
-      `popin` keyframes have no `@utility` wrapper and do not appear in the
-      `prefers-reduced-motion` block — U9 must reach them through an inline
-      `style` containing `animation`, which the guard does cover.
+      checks token names since ESLint was removed. **The "known gap" this task
+      used to record was FALSE** — `sdd-verify` checked the file: `@utility
+      walking` and `@utility pop-in` both exist and both class names are listed
+      in the `prefers-reduced-motion` block, alongside the `[style*="animation"]`
+      attribute match. U9 can use either a class or an inline animation; do not
+      route around a constraint that was never there.
 - [ ] 10.6 Never edit `src/components/ui/**` — shadcn-owned and lint-exempt.
 - [ ] 10.7 **The shared contract stays stable and stays type-only.** Two greps,
       because R13 made this the load-bearing check of the whole change:

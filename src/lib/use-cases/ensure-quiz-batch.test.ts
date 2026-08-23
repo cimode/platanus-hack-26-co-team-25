@@ -146,6 +146,11 @@ describe("ensureQuizBatch", () => {
       {
         llm: {
           async generate(request) {
+            // The tone judge sits between authoring and repair; only the
+            // author prompt carries the earlier batch's scenarios.
+            if (request.id === "quiz.judge") {
+              return request.schema.parse({ verdicts: [] });
+            }
             prompts.push(request.prompt);
             return request.schema.parse(goodBatch("p-4", 2));
           },

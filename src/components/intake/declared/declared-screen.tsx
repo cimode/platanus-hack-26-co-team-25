@@ -7,44 +7,54 @@ import {
   declaredScreenAction,
 } from "@/app/intake/declared/actions";
 import { BandTapGroup } from "@/components/intake/declared/band-tap-group";
-import {
-  BANDS,
-  type BandKey,
-  type DeclaredScreen as DeclaredScreenCopy,
-} from "@/components/intake/declared/bands";
 import { TagPicker } from "@/components/intake/declared/tag-picker";
-import { StepHeading } from "@/components/intake/step-heading";
 import { Button } from "@/components/ui/button";
 import type { DeclaredBand } from "@/lib/domain/participant";
 
 /**
- * One screen of the declared round (step 4, issue #8).
+ * One screen of the declared round (issue #8, reshaped by #42).
  *
  * This is the `"use client"` boundary and it is drawn here rather than on the
  * page (ui-composition hard rule 6): only the screen in front of the
  * participant crosses the wire, and it needs the client for exactly two things
- * -- `useActionState`'s `pending`, and the "pick one for each" message that the
- * action returns INSTEAD of redirecting when a band on this screen is untapped.
+ * -- `useActionState`'s `pending`, and the "elige una opción en cada pregunta"
+ * message the action returns INSTEAD of redirecting when a question on this
+ * screen is unanswered.
  *
- * Nothing is persisted on that path, so a reopened `/intake/declared` still
- * lands here; the taps survive because each `BandTapGroup` holds its own
+ * What it receives is deliberately thin, and for the same reason the quiz's
+ * block screen is: a client prop is serialized into the HTML as an RSC payload,
+ * and a payload is as readable as the DOM. So the band KEYS never cross --
+ * only an opaque field id, the question and its four options. Nothing served
+ * for this screen names the axis it measures (AC-5, AC-6).
+ *
+ * Nothing is persisted on the refusal path, so a reopened `/intake/declared`
+ * still lands here; the taps survive because each `BandTapGroup` holds its own
  * selection in state across the re-render.
  */
 
-export interface SavedDeclared {
-  bands: Record<BandKey, DeclaredBand | null>;
-  tags: string[];
+export interface Question {
+  /** `q1`…`q6` -- what the group posts under; the action maps it back. */
+  field: string;
+  /** Ends in "?", and is the whole of the card's copy. */
+  question: string;
+  options: readonly string[];
+  /** What is already stored, so a resumed screen opens on it. */
+  value: DeclaredBand | null;
 }
 
 const INITIAL: DeclaredScreenState = {};
 
 export function DeclaredScreen({
-  screen,
-  saved,
+  screenId,
+  questions,
+  showTags,
+  savedTags,
   previousScreenId,
 }: {
-  screen: DeclaredScreenCopy;
-  saved: SavedDeclared;
+  screenId: string;
+  questions: readonly Question[];
+  showTags: boolean;
+  savedTags: string[];
   previousScreenId: string | null;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -54,20 +64,20 @@ export function DeclaredScreen({
 
   return (
     <form action={formAction} className="flex flex-1 flex-col gap-4">
-      <StepHeading step={4} title={screen.title} />
-
       {/* Which screen this is; the action re-reads the round from the rows. */}
-      <input name="screen" type="hidden" value={screen.id} />
+      <input name="screen" type="hidden" value={screenId} />
 
-      {screen.bands.map((key) => (
+      {questions.map((question) => (
         <BandTapGroup
-          band={BANDS[key]}
-          defaultValue={saved.bands[key]}
-          key={key}
+          defaultValue={question.value}
+          field={question.field}
+          key={question.field}
+          options={question.options}
+          question={question.question}
         />
       ))}
 
-      {screen.tags ? <TagPicker defaultValue={saved.tags} /> : null}
+      {showTags ? <TagPicker defaultValue={savedTags} /> : null}
 
       <p
         aria-live="polite"
@@ -84,7 +94,7 @@ export function DeclaredScreen({
             variant="outline"
           >
             <Link href={`/intake/declared?screen=${previousScreenId}`}>
-              Back
+              Atrás
             </Link>
           </Button>
         ) : null}
@@ -93,7 +103,7 @@ export function DeclaredScreen({
           disabled={pending}
           type="submit"
         >
-          Continue
+          Continuar
         </Button>
       </div>
     </form>

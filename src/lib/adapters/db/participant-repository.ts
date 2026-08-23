@@ -56,6 +56,8 @@ const PARTICIPANT_COLUMNS = {
   id: participants.id,
   roomId: participants.roomId,
   name: participants.name,
+  gender: participants.gender,
+  birthdate: participants.birthdate,
   photoUrl: participants.photoUrl,
   team: participants.team,
   track: participants.track,
@@ -69,6 +71,7 @@ const PARTICIPANT_COLUMNS = {
   distanceBand: participants.distanceBand,
   chronotype: participants.chronotype,
   tags: participants.tags,
+  dataConsentAt: participants.dataConsentAt,
   declaredAt: participants.declaredAt,
   quizCompletedAt: participants.quizCompletedAt,
   createdAt: participants.createdAt,
@@ -117,6 +120,8 @@ type ParticipantRow = {
   id: string;
   roomId: string;
   name: string;
+  gender: Gender | null;
+  birthdate: string | null;
   photoUrl: string | null;
   team: string | null;
   track: string | null;
@@ -130,6 +135,7 @@ type ParticipantRow = {
   distanceBand: number | null;
   chronotype: number | null;
   tags: string[];
+  dataConsentAt: Date | null;
   declaredAt: Date | null;
   quizCompletedAt: Date | null;
   createdAt: Date;
@@ -151,6 +157,8 @@ function toParticipant(
     id: row.id,
     roomId: row.roomId,
     name: row.name,
+    gender: row.gender,
+    birthdate: row.birthdate,
     photoUrl: row.photoUrl,
     team: row.team,
     track: row.track,
@@ -169,6 +177,7 @@ function toParticipant(
       tags: row.tags,
       acquaintances: known,
     },
+    dataConsentAt: row.dataConsentAt,
     declaredAt: row.declaredAt,
     quizCompletedAt: row.quizCompletedAt,
     createdAt: row.createdAt,
@@ -230,6 +239,17 @@ export function createParticipantRepository(
             id,
             roomId: input.roomId,
             name: input.name,
+            gender: input.gender,
+            birthdate: input.birthdate,
+            // D18: participating is consenting, so the three flags are written
+            // by the registration itself rather than by a screen of their own.
+            consentRomantic: input.consent.romantic,
+            consentBusiness: input.consent.business,
+            consentFriendship: input.consent.friendship,
+            // Issue #49: the moment the data-treatment box was ticked, written
+            // with the row it authorises rather than by a later update, so a
+            // participant without an authorisation cannot exist for an instant.
+            dataConsentAt: input.dataConsentAt ?? null,
             team: input.team ?? null,
             track: input.track ?? null,
           })

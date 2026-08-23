@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  ageBandOf,
+  ageOn,
   type BusinessGate,
   bandToUnit,
+  birthdateProblem,
   type DeclaredProfile,
   floorReason,
   isDeclaredComplete,
   type Lens,
   meetsFloor,
+  mvpBusinessGate,
+  mvpRomanticGate,
   type Participant,
   type RankableParticipant,
   type RomanticGate,
@@ -100,11 +105,14 @@ function participantFixture(
     id,
     roomId: "22222222-2222-7222-8222-222222222222",
     name: "Ana Ramírez",
+    gender: "M",
+    birthdate: "1994-08-22",
     photoUrl: "https://blob.example/ana.jpg",
     team: "t-7",
     track: "fintech",
     consent: { romantic: true, business: true, friendship: true },
     declared: { ...ALL_BANDS },
+    dataConsentAt: null,
     declaredAt: new Date("2026-08-22T18:00:00.000Z"),
     quizCompletedAt: new Date("2026-08-22T18:30:00.000Z"),
     createdAt: new Date("2026-08-22T17:45:00.000Z"),
@@ -138,11 +146,17 @@ describe("floor", () => {
       businessGate: BUSINESS_GATE,
       acquaintances: [],
     };
-    // D: photo and bands, consent to romantic and business only, no gate rows.
+    // D: photo and bands, consent to romantic and business only, no gate rows
+    // at all -- which under D18 is every participant.
     const d: RankableParticipant = {
       participant: participantFixture("d", {
         consent: { romantic: true, business: true, friendship: false },
       }),
+      acquaintances: [],
+    };
+    // E: registered before D18, so it has neither gender nor birthdate.
+    const e: RankableParticipant = {
+      participant: participantFixture("e", { gender: null, birthdate: null }),
       acquaintances: [],
     };
 
@@ -155,14 +169,18 @@ describe("floor", () => {
 
       expect(floorReason(c, lens), lens).toBe("no-photo");
       expect(meetsFloor(c, lens), lens).toBe(false);
-
-      expect(meetsFloor(d, lens), lens).toBe(false);
     }
-    // D consented to romantic and business but never answered their gates;
-    // friendship has no gate to answer, so its floor fails on consent.
+    // D18 dropped the gate-row clause: D passes the two lenses it consented to
+    // with no gate row anywhere, and fails friendship on consent alone.
     expect(floorReason(d, "friendship")).toBe("no-consent");
-    expect(floorReason(d, "romantic")).toBe("no-gate");
-    expect(floorReason(d, "business")).toBe("no-gate");
+    expect(floorReason(d, "romantic")).toBeNull();
+    expect(floorReason(d, "business")).toBeNull();
+
+    // E is a pre-D18 row: no identity, so no lens can rank it.
+    for (const lens of LENSES) {
+      expect(floorReason(e, lens), lens).toBe("no-identity");
+      expect(meetsFloor(e, lens), lens).toBe(false);
+    }
 
     // D6: the band is what was tapped; band / 3 is what the engine consumes.
     expect(bandToUnit(0)).toBe(0);
@@ -238,5 +256,83 @@ describe("RoomMember", () => {
       consent: participant.consent,
     };
     expect(Object.keys(widened)).toHaveLength(ROOM_MEMBER_KEYS.length + 1);
+  });
+});
+
+/** AC-3's clock, passed in rather than read: the bands are edges of a year. */
+const TODAY = new Date("2026-08-22T12:00:00.000Z");
+
+/** A birthdate that makes someone exactly `age` on TODAY. */
+function bornAgo(age: number): string {
+  return `${2026 - age}-08-22`;
+}
+
+describe("ageBandOf", () => {
+  it("AC-3 · ages 18, 24, 25, 31, 32, 39, 40 and 77 map to bands 0, 0, 1, 1, 2, 2, 3, 3", () => {
+    const expected: Array<[number, 0 | 1 | 2 | 3]> = [
+      [18, 0],
+      [24, 0],
+      [25, 1],
+      [31, 1],
+      [32, 2],
+      [39, 2],
+      [40, 3],
+      [77, 3],
+    ];
+    for (const [age, band] of expected) {
+      expect(ageOn(bornAgo(age), TODAY), `age ${age}`).toBe(age);
+      expect(ageBandOf(bornAgo(age), TODAY), `age ${age}`).toBe(band);
+    }
+
+    // The day before the birthday is still the previous age -- the whole reason
+    // `today` is a parameter.
+    expect(ageOn("2008-08-23", TODAY)).toBe(17);
+    expect(ageOn("2008-08-22", TODAY)).toBe(18);
+  });
+
+  it("AC-2 · a birthdate outside 18..100, or not a date at all, is refused", () => {
+    expect(birthdateProblem(bornAgo(27), TODAY)).toBeNull();
+    expect(birthdateProblem(bornAgo(18), TODAY)).toBeNull();
+    expect(birthdateProblem(bornAgo(100), TODAY)).toBeNull();
+    expect(birthdateProblem(bornAgo(15), TODAY)).toBe("too-young");
+    expect(birthdateProblem(bornAgo(17), TODAY)).toBe("too-young");
+    expect(birthdateProblem(bornAgo(101), TODAY)).toBe("too-old");
+    expect(birthdateProblem("2026-02-30", TODAY)).toBe("malformed");
+    expect(birthdateProblem("ayer", TODAY)).toBe("malformed");
+    expect(birthdateProblem("", TODAY)).toBe("malformed");
+  });
+});
+
+describe("MVP gate defaults", () => {
+  // kind: edge. D18: no gate row is ever written, so the engine's gate inputs
+  // are derived from the identity the one registration screen asks for.
+  it("AC-7 · a D18 participant passes every lens floor and derives both gates", () => {
+    const participant = participantFixture("f", {
+      gender: "M",
+      birthdate: bornAgo(27),
+    });
+    const rankable: RankableParticipant = { participant, acquaintances: [] };
+
+    for (const lens of LENSES) {
+      expect(meetsFloor(rankable, lens), lens).toBe(true);
+    }
+
+    const romantic = mvpRomanticGate(
+      { gender: "M", birthdate: participant.birthdate as string },
+      TODAY
+    );
+    expect(romantic.gender).toBe("M");
+    expect([...romantic.interestedIn].sort()).toEqual(["F", "M", "NB"]);
+    expect(romantic.single).toBe(true);
+    expect(romantic.wantsKids).toBe(true);
+    expect(romantic.ageBand).toBe(
+      ageBandOf(participant.birthdate as string, TODAY)
+    );
+
+    expect(mvpBusinessGate()).toEqual({
+      riskPosture: 1,
+      exitHorizon: 1,
+      redlinesOk: true,
+    });
   });
 });

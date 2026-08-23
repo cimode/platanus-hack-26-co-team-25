@@ -5,6 +5,7 @@ import {
   TAG_GROUP_LABELS,
   TAG_GROUP_ORDER,
   TAG_LABELS,
+  TAGS_QUESTION,
 } from "@/components/intake/declared/bands";
 import { MAX_TAGS, TAG_GROUPS } from "@/lib/domain/participant";
 
@@ -45,14 +46,12 @@ export function TagPicker({ defaultValue }: { defaultValue: string[] }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="font-display text-base font-bold text-ink">
-          What you are into
-        </p>
-        <p className="font-mono text-xs text-ink-muted">{`${selected.length} of ${MAX_TAGS}`}</p>
+        <h2 className="font-display text-base font-bold text-ink">
+          {TAGS_QUESTION}
+        </h2>
+        <p className="font-mono text-xs text-ink-muted">{`${selected.length} de ${MAX_TAGS}`}</p>
       </div>
-      <p className="mt-1 text-xs text-ink-muted">
-        Pick up to {MAX_TAGS}. Shared ones are what a stranger can open with.
-      </p>
+      <p className="mt-1 text-xs text-ink-muted">Elige hasta {MAX_TAGS}.</p>
 
       <div className="mt-3 flex flex-col gap-4">
         {TAG_GROUP_ORDER.map((group) => (

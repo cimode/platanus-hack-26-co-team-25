@@ -1,38 +1,31 @@
 import path from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { participantBySession, roomMembers } from "./fixtures/intake-declared";
+import { createQuizParticipant } from "./helpers/quiz-participant";
 
 /**
- * Intake on a phone: register -> photo -> consent (issue #6).
+ * Intake on a phone (issue #42, docs/domain.md D18).
  *
- *     /intake?room=<slug>  step 1 -> step 2 -> step 3 -> /intake/declared
+ *     /intake?room=<slug>  one screen  ->  /intake/declared
  *
- * Issue #8 took the temporary done screen away: saving consent now hands off to
- * the declared round (docs/domain.md §0 `consent -> declared round`), the form
- * is five steps rather than three, and "what was just saved" is read back the
- * way the rows express it -- by reopening /intake and looking at the switches.
- * Every test name and AC id below is #6's, unchanged.
+ * Photo, name, gender and birthdate are asked together and submitted once.
+ * There is no consent screen, no gate screen, no step counter and no wordmark:
+ * nothing on any screen may hint at what is being measured.
  *
  * The room is `e2e-<run>`, created by e2e/global-setup.ts and never the real
  * `platanus-hack-26-bogota` (docs/domain.md D9). Photos go through the fake
- * PhotoStore, because BLOB_READ_WRITE_TOKEN is unset here -- no test uploads
- * anything to Vercel Blob.
+ * PhotoStore, because AWS_ENDPOINT_URL_S3 is unset here -- no test uploads
+ * anything to a bucket.
  *
  * Behaviour-level only: roles and visible text, never DOM structure. These run
  * on the `mobile` project (390x844), which is the intake target.
  *
- * The three `kind: safety` criteria (AC-7, AC-8, AC-9) are never skipped on
- * their own: consent defaults off, no page carries another participant's name
- * or photo, and the session cookie is unreadable from page script. A silently
- * skipped safety test is the most expensive kind of green in this product.
- *
- * The one thing that skips this file is the absence of a database. Every test
- * here registers into the `e2e-<run>` room, so without DATABASE_URL there is
- * nothing to register into (e2e/global-setup.ts prints the notice). CI sets
- * DB_REQUIRED=1 once #5 gives every run a migrated Neon branch, and then a
- * missing database fails the run before a single test can skip.
+ * The one thing that skips this file is the absence of a database (the PR #24
+ * guard); CI sets DB_REQUIRED=1, and then a missing database fails the run
+ * before a single test can skip.
  */
 
-const FIXTURE_PHOTO = path.join(__dirname, "fixtures", "face.png");
+const FIXTURE_PHOTO = path.join(__dirname, "fixtures", "face.jpg");
 
 test.skip(
   !process.env.DATABASE_URL,
@@ -55,268 +48,198 @@ function intakeUrl(slug: string): string {
   return `/intake?room=${encodeURIComponent(slug)}`;
 }
 
-const stepHeading = (page: Page, n: 1 | 2 | 3 | 4 | 5) =>
-  page.getByRole("heading", {
-    name: new RegExp(`step\\s*${n}\\s*of\\s*5`, "i"),
-  });
-
-const nameField = (page: Page) => page.getByRole("textbox", { name: /name/i });
-const continueButton = (page: Page) =>
-  page.getByRole("button", { name: /^continue$/i });
-const photoInput = (page: Page) => page.getByLabel(/take or choose a photo/i);
-const saveConsentButton = (page: Page) =>
-  page.getByRole("button", { name: /save and continue/i });
-
-/**
- * A consent control by its lens. Either role is accepted: "switch" is what the
- * design asks for, "checkbox" is what a no-JavaScript fallback degrades to, and
- * both answer the only question the criteria ask -- is this lens on or off.
- */
-const lensSwitch = (page: Page, lens: RegExp) =>
-  page
-    .getByRole("switch", { name: lens })
-    .or(page.getByRole("checkbox", { name: lens }));
+const nameField = (page: Page) =>
+  page.getByRole("textbox", { name: /cómo te llamas/i });
+const genderField = (page: Page) =>
+  page.getByRole("combobox", { name: /con qué te identificas/i });
+const birthdateField = (page: Page) => page.getByLabel(/cuándo naciste/i);
+const photoField = (page: Page) => page.getByLabel(/tu foto/i);
+const submitButton = (page: Page) =>
+  page.getByRole("button", { name: /^empezar$/i });
+/** The data-treatment box (issue #49): unticked until a test ticks it. */
+const dataBox = (page: Page) =>
+  page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "hookai_session");
 
-/** Step 1: fill the register form and land on step 2. */
-async function register(
-  page: Page,
-  slug: string,
-  who: { name: string; team?: string; track?: string }
-): Promise<void> {
-  await page.goto(intakeUrl(slug));
-  await expect(stepHeading(page, 1)).toBeVisible();
-
-  await nameField(page).fill(who.name);
-  if (who.team !== undefined) {
-    await page.getByRole("textbox", { name: /team/i }).fill(who.team);
-  }
-  if (who.track !== undefined) {
-    await page.getByRole("textbox", { name: /track/i }).fill(who.track);
-  }
-  await continueButton(page).click();
-  await expect(stepHeading(page, 2)).toBeVisible();
+/** `YYYY-MM-DD` for someone who turns `age` today. */
+function bornAgo(age: number): string {
+  const now = new Date();
+  const year = now.getUTCFullYear() - age;
+  const month = `${now.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getUTCDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-/** Step 2: attach the 1024x1024 fixture and land on step 3. */
-async function attachPhoto(page: Page): Promise<void> {
-  await photoInput(page).setInputFiles(FIXTURE_PHOTO);
-  await continueButton(page).click();
-  await expect(stepHeading(page, 3)).toBeVisible();
+/**
+ * The words no intake or quiz screen may serve, as whole words and without
+ * regard to case (AC-1, AC-5, AC-6). `gate` and `step` are here as words, so
+ * "strategy" and "instep" would not trip them.
+ */
+const FORBIDDEN = [
+  "regulation",
+  "politeness",
+  "reliability",
+  "agency",
+  "pillar",
+  "keyed",
+  "romantic",
+  "business",
+  "friendship",
+  "consent",
+  "gate",
+  "interested",
+  "hard filters",
+  "hookai",
+  "step",
+  "paso",
+  "team",
+  "track",
+  "lens",
+];
+
+function assertClean(html: string, where: string): void {
+  for (const word of FORBIDDEN) {
+    const pattern = new RegExp(`\\b${word.replace(/ /g, "\\s+")}\\b`, "i");
+    expect(pattern.test(html), `${where} must not mention "${word}"`).toBe(
+      false
+    );
+  }
 }
 
 test.describe("intake", () => {
-  test("AC-1 · a participant registers, adds a photo and saves consent on a phone", async ({
+  test("AC-1 · one screen registers a participant with photo, name, gender and birthdate", async ({
     page,
     context,
   }) => {
     const slug = roomSlug();
+    const birthdate = bornAgo(27);
+    const served: string[] = [];
 
     await page.goto(intakeUrl(slug));
-    await expect(stepHeading(page, 1)).toBeVisible();
+    await expect(submitButton(page)).toBeVisible();
+    served.push(await page.content());
 
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
     await nameField(page).fill("Ana Ramírez");
-    await page.getByRole("textbox", { name: /team/i }).fill("hookai");
-    await page.getByRole("textbox", { name: /track/i }).fill("AI");
-    await continueButton(page).click();
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(birthdate);
+    await dataBox(page).check();
+    await submitButton(page).click();
 
-    await expect(stepHeading(page, 2)).toBeVisible();
-    await photoInput(page).setInputFiles(FIXTURE_PHOTO);
-    await continueButton(page).click();
-
-    await expect(stepHeading(page, 3)).toBeVisible();
-    await lensSwitch(page, /business/i).click();
-    await lensSwitch(page, /friendship/i).click();
-    await expect(lensSwitch(page, /business/i)).toBeChecked();
-    await expect(lensSwitch(page, /friendship/i)).toBeChecked();
-    await saveConsentButton(page).click();
-
-    // #8's hand-off: consent ends in the declared round, not on a done screen.
     await expect(page).toHaveURL(/\/intake\/declared$/);
-    await expect(stepHeading(page, 4)).toBeVisible();
+    served.push(await page.content());
 
-    // What was saved is read back from the rows: reopening /intake resolves to
-    // step 3 (no band is set yet) with this participant's own name, photo and
-    // switches.
-    const saved = await context.newPage();
-    await saved.goto(intakeUrl(slug));
-    await expect(stepHeading(saved, 3)).toBeVisible();
-    await expect(saved.getByText("Ana Ramírez")).toBeVisible();
-    await expect(saved.getByRole("img", { name: /your photo/i })).toBeVisible();
-    await expect(lensSwitch(saved, /romantic/i)).not.toBeChecked();
-    await expect(lensSwitch(saved, /business/i)).toBeChecked();
-    await expect(lensSwitch(saved, /friendship/i)).toBeChecked();
+    // The row itself, read through the repository behind the session cookie.
+    const cookies = await sessionCookies(context);
+    expect(cookies).toHaveLength(1);
+    const me = await participantBySession(cookies[0].value);
+    expect(me).not.toBeNull();
+    expect(me?.name).toBe("Ana Ramírez");
+    expect(me?.gender).toBe("F");
+    expect(me?.birthdate).toBe(birthdate);
+    expect(me?.photoUrl).toBeTruthy();
+    // D18: participating is consenting, and nothing on screen said so.
+    expect(me?.consent).toEqual({
+      romantic: true,
+      business: true,
+      friendship: true,
+    });
 
-    expect(await sessionCookies(context)).toHaveLength(1);
+    for (const html of served) assertClean(html, "an intake screen");
   });
 
-  test("AC-2 · a blank or 81-character name keeps the participant on step 1 with no session", async ({
+  test("AC-2 · a 15-year-old and a missing photo each keep the screen with a message and create no row", async ({
     page,
     context,
   }) => {
     const slug = roomSlug();
+    // Counted by NAME, not by room size: the room is shared with every other
+    // test in this run and one of them registers while this one is refused.
+    const refused = "Nico Vera";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
+
+    // Too young.
     await page.goto(intakeUrl(slug));
-    await expect(stepHeading(page, 1)).toBeVisible();
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("M");
+    await birthdateField(page).fill(bornAgo(15));
+    await dataBox(page).check();
+    await submitButton(page).click();
 
-    // Blank.
-    await continueButton(page).click();
-    await expect(stepHeading(page, 1)).toBeVisible();
-    await expect(page.getByText(/name is required/i)).toBeVisible();
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/al menos 18 años/i)).toBeVisible();
 
-    // 81 characters -- one past the `participants.name` check.
-    await nameField(page).fill("A".repeat(81));
-    await continueButton(page).click();
-    await expect(stepHeading(page, 1)).toBeVisible();
-    await expect(
-      page.getByText(/name must be 80 characters or fewer/i)
-    ).toBeVisible();
-
-    // Nothing was created, so a reload is a first visit again.
+    // No photo.
     await page.goto(intakeUrl(slug));
-    await expect(stepHeading(page, 1)).toBeVisible();
-    await expect(nameField(page)).toHaveValue("");
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("M");
+    await birthdateField(page).fill(bornAgo(27));
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/agrega una foto/i)).toBeVisible();
+
     expect(await sessionCookies(context)).toHaveLength(0);
+    expect(await named()).toBe(0);
   });
 
-  test("AC-5 · returning with a cookie resumes at step 3 and shows the saved switches", async ({
-    page,
-    context,
-  }) => {
-    const slug = roomSlug();
-    await register(page, slug, { name: "Cami Ortiz", team: "hookai" });
-    await attachPhoto(page);
-
-    // Second visit: a new page of the same context, so the same cookie.
-    const second = await context.newPage();
-    await second.goto(intakeUrl(slug));
-    await expect(stepHeading(second, 3)).toBeVisible();
-    await expect(second.getByText("Cami Ortiz")).toBeVisible();
-    await expect(nameField(second)).toHaveCount(0);
-
-    await lensSwitch(second, /business/i).click();
-    await saveConsentButton(second).click();
-    await expect(second).toHaveURL(/\/intake\/declared$/);
-    await expect(stepHeading(second, 4)).toBeVisible();
-
-    // Third visit: step 3 is the resting place of this issue, and the switches
-    // on screen are the saved ones rather than the defaults.
-    const third = await context.newPage();
-    await third.goto(intakeUrl(slug));
-    await expect(stepHeading(third, 3)).toBeVisible();
-    await expect(lensSwitch(third, /business/i)).toBeChecked();
-    await expect(lensSwitch(third, /romantic/i)).not.toBeChecked();
-    await expect(lensSwitch(third, /friendship/i)).not.toBeChecked();
-  });
-
-  test('AC-6 · an unknown room slug shows "This room doesn\'t exist" and no form', async ({
+  test('AC-6b · an unknown room slug shows "Esta sala no existe" and no form', async ({
     page,
     context,
   }) => {
     const run = process.env.E2E_RUN_ID ?? roomSlug();
     await page.goto(intakeUrl(`does-not-exist-${run}`));
 
-    await expect(
-      page.getByText(/this room does\s?n['’]?t exist/i)
-    ).toBeVisible();
+    await expect(page.getByText(/esta sala no existe/i)).toBeVisible();
     await expect(nameField(page)).toHaveCount(0);
-    await expect(continueButton(page)).toHaveCount(0);
+    await expect(submitButton(page)).toHaveCount(0);
     expect(await sessionCookies(context)).toHaveLength(0);
   });
 });
 
 test.describe("safety invariants", () => {
-  // kind: safety. Every lens switch is off until the participant turns it on
-  // -- docs/domain.md §5 "romantic consent defaults to off", and D12: the
-  // romantic switch covers the AI-offspring render, so the copy says so.
-  test("AC-7 · every lens switch is off until the participant turns it on", async ({
-    page,
+  // kind: safety. Nothing served by the flow may name what is measured, and
+  // the progress bar has to be a real progressbar (issue #42, PILLARS.md A8).
+  test("AC-6 · no intake or quiz screen serves a word that names what is measured", async ({
     context,
   }) => {
     const slug = roomSlug();
-    await register(page, slug, { name: "Dana Peña" });
-    await attachPhoto(page);
 
-    await expect(lensSwitch(page, /romantic/i)).not.toBeChecked();
-    await expect(lensSwitch(page, /business/i)).not.toBeChecked();
-    await expect(lensSwitch(page, /friendship/i)).not.toBeChecked();
-    await expect(
-      page.getByText(
-        /covers the romantic ranking and the AI-offspring render\./i
-      )
-    ).toBeVisible();
+    // The registration screen, as bytes off the server rather than as the
+    // hydrated DOM: a leak hides in the RSC payload as readily as in markup.
+    const registration = await (
+      await context.request.get(intakeUrl(slug))
+    ).text();
+    assertClean(registration, "the registration screen");
 
-    // Saving without touching anything is allowed, and stores three noes.
-    await saveConsentButton(page).click();
-    await expect(page).toHaveURL(/\/intake\/declared$/);
-    await expect(stepHeading(page, 4)).toBeVisible();
+    const page = await context.newPage();
+    await page.goto(intakeUrl(slug));
+    const bar = page.getByRole("progressbar");
+    await expect(bar).toHaveAttribute("aria-valuenow", /\d/);
+    await expect(bar).toHaveAttribute("aria-valuemax", /\d/);
 
-    // The three noes, read back from the rows rather than from a done screen.
-    const saved = await context.newPage();
-    await saved.goto(intakeUrl(slug));
-    await expect(stepHeading(saved, 3)).toBeVisible();
-    await expect(lensSwitch(saved, /romantic/i)).not.toBeChecked();
-    await expect(lensSwitch(saved, /business/i)).not.toBeChecked();
-    await expect(lensSwitch(saved, /friendship/i)).not.toBeChecked();
-  });
+    // The first quiz screen, for a participant with their fifteen blocks.
+    const quiz = await createQuizParticipant({ context });
+    const quizPage = await context.newPage();
+    // `?start=1` dismisses the beat that opens a batch, so what is inspected is
+    // the block screen itself -- the first thing read after the intake. The
+    // beat is tolerated rather than assumed: it is one tap in front of block 1
+    // and this criterion is about the bytes, not about which screen shows it.
+    await quizPage.goto("/quiz?start=1");
+    const beatLink = quizPage.getByRole("link", { name: /empezar/i });
+    if ((await beatLink.count()) > 0) await beatLink.click();
+    await expect(quizPage.getByText(quiz.blockAt(1).scenario)).toBeVisible();
+    assertClean(await quizPage.content(), "the first quiz screen");
 
-  // kind: safety. A page served to one context never carries another
-  // participant's name or photo (docs/domain.md §5: photoUrl leaves the server
-  // only for its own session).
-  test("AC-8 · a page served to one participant never carries another's name or photo", async ({
-    page,
-    browser,
-  }, testInfo) => {
-    const slug = roomSlug();
-
-    // Context A: Ana, with a photo, resting on step 3.
-    await register(page, slug, { name: "Ana Ramírez", team: "hookai" });
-    await attachPhoto(page);
-    const photoA = page.getByRole("img", { name: /your photo/i });
-    await expect(photoA).toBeVisible();
-    const srcA = await photoA.getAttribute("src");
-    expect(srcA).toBeTruthy();
-
-    // Context B: a different phone, no cookies.
-    const contextB = await browser.newContext({
-      baseURL: testInfo.project.use.baseURL,
-      viewport: testInfo.project.use.viewport,
-    });
-    try {
-      const pageB = await contextB.newPage();
-      const servedToB: string[] = [];
-
-      await pageB.goto(intakeUrl(slug));
-      await expect(stepHeading(pageB, 1)).toBeVisible();
-      servedToB.push(await pageB.content());
-
-      await nameField(pageB).fill("Beto Díaz");
-      await continueButton(pageB).click();
-      await expect(stepHeading(pageB, 2)).toBeVisible();
-      servedToB.push(await pageB.content());
-
-      // The server's own bytes, not just the hydrated DOM: a leak hides in the
-      // payload as readily as in the markup.
-      servedToB.push(
-        await (await contextB.request.get(intakeUrl(slug))).text()
-      );
-
-      for (const html of servedToB) {
-        expect(html).not.toContain("Ana Ramírez");
-        expect(html).not.toContain(srcA);
-      }
-      await expect(pageB.getByText("Ana Ramírez")).toHaveCount(0);
-    } finally {
-      await contextB.close();
-    }
-
-    // A's own page still shows A's own photo.
-    await page.reload();
-    await expect(stepHeading(page, 3)).toBeVisible();
-    await expect(
-      page.getByRole("img", { name: /your photo/i })
-    ).toHaveAttribute("src", srcA ?? "");
+    const quizBar = quizPage.getByRole("progressbar");
+    await expect(quizBar).toHaveAttribute("aria-valuenow", /\d/);
+    await expect(quizBar).toHaveAttribute("aria-valuemax", /\d/);
   });
 
   // kind: safety. The session cookie is httpOnly, SameSite=Lax, and never
@@ -326,8 +249,14 @@ test.describe("safety invariants", () => {
     context,
   }) => {
     const slug = roomSlug();
-    await register(page, slug, { name: "Elena Ruiz" });
-    await expect(stepHeading(page, 2)).toBeVisible();
+    await page.goto(intakeUrl(slug));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill("Elena Ruiz");
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(bornAgo(31));
+    await dataBox(page).check();
+    await submitButton(page).click();
+    await expect(page).toHaveURL(/\/intake\/declared$/);
 
     const sessions = await sessionCookies(context);
     expect(sessions).toHaveLength(1);
@@ -335,11 +264,154 @@ test.describe("safety invariants", () => {
     expect(cookie.httpOnly).toBe(true);
     expect(cookie.sameSite).toBe("Lax");
 
-    const html = await (await context.request.get(intakeUrl(slug))).text();
+    const html = await (await context.request.get("/intake/declared")).text();
     expect(html).not.toContain(cookie.value);
-    expect(await page.content()).not.toContain(cookie.value);
 
     const documentCookie = await page.evaluate(() => document.cookie);
     expect(documentCookie).not.toContain("hookai_session");
+  });
+});
+
+/**
+ * The photo field itself (issue #47): a square that says a photo is required
+ * before one exists, and the same square under an oval face guide once it does.
+ * The file input stays the real control -- hidden to the eye, not to the
+ * accessibility tree, and still the thing Playwright fills.
+ */
+test.describe("photo guide", () => {
+  const faceGuide = (page: Page) =>
+    page.getByRole("img", { name: /guía para centrar la cara/i });
+  const changePhoto = (page: Page) =>
+    page.getByRole("button", { name: /cambiar foto/i });
+
+  test("AC-1 · before a photo is chosen the square says one is required", async ({
+    page,
+  }) => {
+    await page.goto(intakeUrl(roomSlug()));
+
+    await expect(page.getByText(/tu foto — obligatoria/i)).toBeVisible();
+    await expect(page.getByText(/tócala para tomarla ahora/i)).toBeVisible();
+    // The silhouette placeholder, not a photo, and no guide to draw yet.
+    await expect(faceGuide(page)).toHaveCount(0);
+    await expect(changePhoto(page)).toHaveCount(0);
+    // The real control, reachable by its accessible name.
+    await expect(photoField(page)).toHaveCount(1);
+    await expect(photoField(page)).toHaveAttribute("type", "file");
+  });
+
+  test("AC-2 · a chosen photo shows the oval guide, the hint and a way to change it, and still registers", async ({
+    page,
+    context,
+  }) => {
+    const slug = roomSlug();
+    const birthdate = bornAgo(24);
+
+    await page.goto(intakeUrl(slug));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+
+    await expect(faceGuide(page)).toBeVisible();
+    await expect(
+      page.getByText(/centra tu cara dentro del óvalo/i)
+    ).toBeVisible();
+    await expect(changePhoto(page)).toBeVisible();
+
+    await nameField(page).fill("Lucía Peña");
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(birthdate);
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+    const cookies = await sessionCookies(context);
+    expect(cookies).toHaveLength(1);
+    const me = await participantBySession(cookies[0].value);
+    expect(me?.name).toBe("Lucía Peña");
+    expect(me?.photoUrl).toBeTruthy();
+  });
+
+  test("AC-3 · submitting with no photo shows the error by the square and creates no row", async ({
+    page,
+    context,
+  }) => {
+    const slug = roomSlug();
+    const refused = "Sin Foto Torres";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
+
+    await page.goto(intakeUrl(slug));
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("M");
+    await birthdateField(page).fill(bornAgo(29));
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/agrega una foto/i)).toBeVisible();
+    // The square is still the placeholder: nothing was chosen.
+    await expect(page.getByText(/tu foto — obligatoria/i)).toBeVisible();
+    await expect(faceGuide(page)).toHaveCount(0);
+
+    expect(await sessionCookies(context)).toHaveLength(0);
+    expect(await named()).toBe(0);
+  });
+});
+
+/**
+ * The data-treatment authorisation (issue #49, Ley 1581 de 2012).
+ *
+ * The box is unticked by default and the submit is refused without it -- by
+ * the SERVER, not by the browser's own bubble, so the sentence is the app's and
+ * the action refuses the same way when it is called without this page at all.
+ * What is stored is the MOMENT, not merely the fact.
+ */
+test.describe("data treatment", () => {
+  test("AC-1 · an unticked box keeps the screen, shows the error and creates no row", async ({
+    page,
+    context,
+  }) => {
+    const refused = "Sara Quintero";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
+
+    await page.goto(intakeUrl(roomSlug()));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(bornAgo(26));
+    await expect(dataBox(page)).not.toBeChecked();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/necesitamos tu autorización/i)).toBeVisible();
+
+    expect(await sessionCookies(context)).toHaveLength(0);
+    expect(await named()).toBe(0);
+  });
+
+  test("AC-2 · ticking it registers and stores when the authorisation was given", async ({
+    page,
+    context,
+  }) => {
+    const before = Date.now() - 1000;
+
+    await page.goto(intakeUrl(roomSlug()));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill("Sara Quintero");
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(bornAgo(26));
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+
+    const cookies = await sessionCookies(context);
+    expect(cookies).toHaveLength(1);
+    const me = await participantBySession(cookies[0].value);
+    expect(me?.dataConsentAt).toBeTruthy();
+    const at = new Date(me?.dataConsentAt as Date).getTime();
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now() + 1000);
   });
 });

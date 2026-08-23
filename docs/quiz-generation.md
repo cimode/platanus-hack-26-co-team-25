@@ -30,6 +30,68 @@ into the deployed app, triggered when a participant starts the intake form.
 
 ---
 
+## A. Reading a batch by hand — and what "bizarre" means here
+
+*Live section, added 2026-08-22 (#43). Everything below §0 is the superseded
+plan; this part describes what is deployed.*
+
+```
+pnpm run quiz:smoke                 # participant "smoke-participant-1", batch 1
+pnpm run quiz:smoke -- alice 2      # any participant id, any batch 1..3
+```
+
+It authors one real batch through AI Gateway and prints the five blocks with, for
+each option, its pillar and its keying (`◀` marks the single reversed-keyed
+option — the focus pillar's low pole). It needs `AI_GATEWAY_API_KEY` in `.env`
+and is run **by hand, never in CI**: it spends tokens and its output is a
+judgement call, not an assertion. The unit tests cover everything that can be
+asserted.
+
+### What you are looking for
+
+The user's brief, verbatim: *"add a touch of more bizarreness while keeping the
+end goal of getting the behavioral data we need; the goal with the questions is
+that people read them, laugh and say wtf."* So read each block twice.
+
+**First as a participant.** The scenario is an everyday situation pushed one
+notch into the absurd — an object that should not be there, a creature behaving
+impossibly, a coincidence nobody planned, an escalation that got away. It should
+land in two short sentences and make you want to read it out loud. Two failures
+to watch for, and they are opposite:
+
+| Failure | Looks like | Why it is a failure |
+| --- | --- | --- |
+| **Plain** | an ordinary day with an ordinary complication | nobody repeats it to a friend, and a form nobody enjoys is a form nobody finishes |
+| **Random** | surrealism with no everyday anchor | the reader has no situation to answer *about*, so the answer stops being behavioural |
+
+The test for "random": could the twist be swapped for any other twist without
+changing the scenario? Then it is decoration, not comedy.
+
+**Then as the instrument.** The comedy lives in the *scenario*; the four options
+stay deadpan and plausible. If one option is visibly the funniest, people pick
+the funniest instead of the truest and the block measures nothing — the same
+failure mode as one option being visibly the *nicest*. Check the printout for
+four distinct pillars, exactly one `◀`, and options of eight words or fewer.
+
+### Where the rules live
+
+`src/lib/domain/quiz/authoring.ts` is the single source: `RULES` (structure 1–9,
+tone 10–15), `SPANISH_REGISTER` (Bogotá neutral, tuteo in the scenario,
+first person in the options), `judgePrompt` (the criteria that reject a block,
+including *plain or predictable* and *random rather than anchored*), and
+`authoredBatchSchema` — which enforces the two-sentence and eight-word limits as
+a schema, because a tone instruction is a request and a schema is a refusal.
+`.claude/skills/quest-skill/SKILL.md` restates the tone contract for offline
+authoring and defers to this file on any disagreement.
+
+The pipeline is author → judge → repair → fallback (`generate-quiz-batch.ts`).
+A block the judge rejects is re-authored with the judge's own words quoted back
+at it; a block that is still structurally invalid after that is served from the
+committed `INSTRUMENT` (still `v1` — regenerating it bumps the structural
+version and is a separate decision).
+
+---
+
 ## 0. The one thing that must be decided first
 
 "On demand, when the user starts the form" has two readings, and they are not

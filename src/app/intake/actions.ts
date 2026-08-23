@@ -1,94 +1,71 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
-import {
-  readSessionToken,
-  setSessionCookie,
-} from "@/lib/adapters/http/session";
+import { setSessionCookie } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
+import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
 import {
   RegisterParticipantError,
+  type RegisterParticipantReason,
   registerParticipant,
 } from "@/lib/use-cases/register-participant";
-import { SetConsentError, setConsent } from "@/lib/use-cases/set-consent";
-import { SetPhotoError, setPhoto } from "@/lib/use-cases/set-photo";
 
 /**
- * The three intake Server Actions (issue #6).
+ * Intake's one Server Action (issue #42).
  *
- * Every one of them is a public HTTP endpoint reachable without ever rendering
- * the page, so each re-reads the session cookie itself and each re-resolves the
- * room by slug -- the Next forms guide's warning, and the reason no room id and
- * no participant id ever crosses the wire.
+ * The MVP asks everything on a single screen -- photo, name, gender, birthdate
+ * -- so there is one action instead of three, and it is a public HTTP endpoint
+ * reachable without the page ever rendering: it re-reads nothing from the
+ * client it can derive, resolves the room by SLUG (never an id, D9) and
+ * validates the `FormData` with zod before a use case sees it.
  *
- * `FormData` is validated with zod against docs/form-response.md §10 before it
- * reaches a use case. The copy lives here rather than in the use case: the use
- * cases speak in reasons (`invalid-name`, `too-large`), the screen speaks
- * English.
+ * The copy lives here rather than in the use case: the use case speaks in
+ * reasons (`birthdate-too-young`, `photo`), the screen speaks Spanish. Nothing
+ * it can say names what is being measured.
  *
- * Register and photo redirect back to `/intake?room=<slug>` on success, and the
- * page decides the step from the rows (docs/domain.md §0). That is what makes
- * the flow work without JavaScript and what makes "reload lands where you left
- * off" true by construction rather than by a step counter someone has to keep
- * in sync.
- *
- * Consent redirects too, and to the next STEP rather than back to `/intake`:
- * issue #8 gave the flow a step 4, so `consent -> declared round` (§0) is a
- * navigation now instead of a done screen the rows could not express. The
- * saved switches stay visible where they always were -- on `/intake` itself,
- * which resolves to step 3 until a band is tapped. `useActionState` still
- * carries the error case into the re-render before hydration, so a phone whose
- * bundle never arrived sees the same screen.
+ * On success the participant's first five quiz blocks start being written in
+ * `after()` (docs/domain.md D16), off the response and inside `/intake`'s
+ * `maxDuration`. The declared round takes minutes and authoring takes ~40-70s,
+ * so by the time `/quiz` asks for block 1 it is one SELECT instead of a wait on
+ * a model. `prefetchQuizBatch` never rejects.
  */
 
-/** Only types are exported beside the actions -- they erase at compile time. */
+/** Only types are exported beside the action -- they erase at compile time. */
 export type RegisterState = {
-  /** Shown next to the Name field, announced with `aria-live`. */
   nameError?: string;
-  /** Shown next to Team / Track, for the same reason. */
-  teamError?: string;
-  trackError?: string;
+  genderError?: string;
+  birthdateError?: string;
+  photoError?: string;
+  /** The data-treatment box (issue #49). */
+  dataError?: string;
   /** Anything not attributable to one field. */
   error?: string;
 };
 
-export type PhotoState = { error?: string };
+const ROOM_MISSING = "Esta sala no existe.";
 
-export type ConsentState = { error?: string };
+/** One sentence, said the same way whichever side refuses (issue #49). */
+const DATA_MISSING = "Necesitamos tu autorización para continuar";
 
 const RegisterInput = z.object({
-  room: z.string().min(1),
+  room: z.string().trim().min(1).max(200),
   name: z
     .string()
     .trim()
-    .min(1, "Name is required")
-    .max(80, "Name must be 80 characters or fewer"),
-  team: z
+    .min(1, "Escribe tu nombre")
+    .max(80, "Máximo 80 caracteres"),
+  gender: z.enum(["M", "F", "NB"], { message: "Elige una opción" }),
+  birthdate: z
     .string()
-    .trim()
-    .max(80, "Team must be 80 characters or fewer")
-    .optional(),
-  track: z
-    .string()
-    .trim()
-    .max(80, "Track must be 80 characters or fewer")
-    .optional(),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Escribe tu fecha de nacimiento"),
+  /**
+   * An unticked checkbox submits NOTHING -- no key at all -- so the literal
+   * a browser sends when it is ticked is the whole contract (issue #49).
+   */
+  dataConsent: z.literal("on", DATA_MISSING),
 });
-
-const ConsentInput = z.object({
-  romantic: z.boolean().default(false),
-  business: z.boolean().default(false),
-  friendship: z.boolean().default(false),
-});
-
-const RoomField = z.string().trim().min(1).max(200);
-
-/** The URL the participant continues at; the page re-resolves the slug. */
-function intakePath(slug: string): string {
-  return `/intake?${new URLSearchParams({ room: slug }).toString()}`;
-}
 
 /** `formData.get` returns `File | string | null`; only a string is a field. */
 function text(formData: FormData, key: string): string {
@@ -96,20 +73,31 @@ function text(formData: FormData, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/** An unchecked box sends nothing at all -- absence IS the "off" (D12). */
-function checked(formData: FormData, key: string): boolean {
-  return formData.get(key) !== null;
-}
-
 function issueFor(error: z.ZodError, field: string): string | undefined {
   return error.issues.find((issue) => issue.path[0] === field)?.message;
 }
 
-/**
- * Step 1. Creates the participant and the session in one `db.batch()`, then
- * writes the returned token to the httpOnly cookie -- the only place it is
- * ever written (D4).
- */
+/** One sentence per refusal, keyed by the reason the use case threw. */
+const COPY: Record<RegisterParticipantReason, RegisterState> = {
+  "room-not-found": { error: ROOM_MISSING },
+  "invalid-name": { nameError: "Escribe tu nombre" },
+  "invalid-gender": { genderError: "Elige una opción" },
+  "birthdate-malformed": {
+    birthdateError: "Escribe tu fecha de nacimiento",
+  },
+  "birthdate-too-young": {
+    birthdateError: "Tienes que tener al menos 18 años",
+  },
+  "birthdate-too-old": { birthdateError: "Revisa el año, no cuadra" },
+  "photo-missing": { photoError: "Agrega una foto" },
+  "photo-unsupported-type": {
+    photoError: "Ese archivo no sirve como foto",
+  },
+  "photo-too-large": { photoError: "La foto pesa demasiado, intenta de nuevo" },
+  "data-consent": { dataError: DATA_MISSING },
+  photo: { photoError: "No pudimos guardar tu foto, intenta de nuevo" },
+};
+
 export async function registerAction(
   _previous: RegisterState,
   formData: FormData
@@ -117,135 +105,73 @@ export async function registerAction(
   const parsed = RegisterInput.safeParse({
     room: text(formData, "room"),
     name: text(formData, "name"),
-    team: text(formData, "team"),
-    track: text(formData, "track"),
+    gender: text(formData, "gender"),
+    birthdate: text(formData, "birthdate"),
+    dataConsent: text(formData, "dataConsent"),
   });
 
-  if (!parsed.success) {
-    // Each field answers for itself. Folding Team's or Track's length into the
-    // generic message put "This room doesn't exist." under the Name field for
-    // someone whose only mistake was typing a sentence into Team.
-    const fields = {
-      nameError: issueFor(parsed.error, "name"),
-      teamError: issueFor(parsed.error, "team"),
-      trackError: issueFor(parsed.error, "track"),
-    };
-    if (fields.nameError || fields.teamError || fields.trackError) {
-      return fields;
-    }
-    // Nothing left but `room`, which the participant never typed.
-    return { error: "This room doesn't exist." };
-  }
-
-  const { room, name, team, track } = parsed.data;
-
-  try {
-    const { sessionToken } = await registerParticipant(
-      { roomSlug: room, name, team, track },
-      serverDeps()
-    );
-    await setSessionCookie(sessionToken);
-  } catch (error) {
-    if (error instanceof RegisterParticipantError) {
-      return error.reason === "invalid-name"
-        ? { nameError: "Name is required" }
-        : { error: "This room doesn't exist." };
-    }
-    throw error;
-  }
-
-  // Outside the try: `redirect` signals by throwing, and catching it here would
-  // swallow the navigation and re-render step 1 with the cookie already set.
-  revalidatePath("/intake");
-  redirect(intakePath(room));
-}
-
-/**
- * Step 2. The client re-encodes to <= 512 px JPEG first; the use case enforces
- * the ceiling anyway, because this endpoint is reachable without the client.
- */
-export async function photoAction(
-  _previous: PhotoState,
-  formData: FormData
-): Promise<PhotoState> {
-  const room = RoomField.safeParse(text(formData, "room"));
-  if (!room.success) return { error: "This room doesn't exist." };
-
-  const token = await readSessionToken();
-  if (!token) return { error: "Your session expired — start again." };
-
+  // The file is read before the parse result is judged so that a person who
+  // got two things wrong is told about both at once.
   const file = formData.get("photo");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Take or choose a photo to continue." };
+  const hasPhoto = file instanceof File && file.size > 0;
+
+  if (!parsed.success || !hasPhoto) {
+    const fields: RegisterState = {
+      nameError: parsed.success ? undefined : issueFor(parsed.error, "name"),
+      genderError: parsed.success
+        ? undefined
+        : issueFor(parsed.error, "gender"),
+      birthdateError: parsed.success
+        ? undefined
+        : issueFor(parsed.error, "birthdate"),
+      photoError: hasPhoto ? undefined : "Agrega una foto",
+      dataError: parsed.success
+        ? undefined
+        : issueFor(parsed.error, "dataConsent"),
+    };
+    const named =
+      fields.nameError ??
+      fields.genderError ??
+      fields.birthdateError ??
+      fields.photoError ??
+      fields.dataError;
+    // Nothing left but `room`, which nobody typed.
+    return named ? fields : { error: ROOM_MISSING };
   }
 
+  const { room, name, gender, birthdate } = parsed.data;
+
+  let participantId: string;
   try {
-    await setPhoto(
+    const { participant, sessionToken } = await registerParticipant(
       {
-        sessionToken: token,
-        bytes: new Uint8Array(await file.arrayBuffer()),
-        contentType: file.type,
+        roomSlug: room,
+        name,
+        gender,
+        birthdate,
+        // The parse above already refused anything but the ticked literal.
+        dataConsent: true,
+        photo: {
+          bytes: new Uint8Array(await file.arrayBuffer()),
+          contentType: file.type,
+        },
       },
       serverDeps()
     );
+    await setSessionCookie(sessionToken);
+    participantId = participant.id;
   } catch (error) {
-    if (error instanceof SetPhotoError) return { error: photoCopy(error) };
-    throw error;
-  }
-
-  revalidatePath("/intake");
-  redirect(intakePath(room.data));
-}
-
-function photoCopy(error: SetPhotoError): string {
-  if (error.reason === "too-large") return "Photo is too large — try again";
-  if (error.reason === "unsupported-type") {
-    return "That file isn't a photo we can use";
-  }
-  return "Your session expired — start again.";
-}
-
-/**
- * Step 3. Saving with every switch off is a valid answer and stores three noes
- * (docs/domain.md §5): consent is opt-in, so silence is a no, not a prompt.
- *
- * Hands off to the declared round, which is the deferral #6 wrote down and #8
- * closes: the flow is `consent -> declared round` (docs/domain.md §0), and the
- * temporary "You're in" screen is gone. What was saved is still visible -- it
- * is read back from the rows by reopening `/intake?room=...`, where the three
- * switches show what is stored, rather than from a screen only a fresh save
- * could reach.
- */
-export async function consentAction(
-  _previous: ConsentState,
-  formData: FormData
-): Promise<ConsentState> {
-  const room = RoomField.safeParse(text(formData, "room"));
-  if (!room.success) return { error: "This room doesn't exist." };
-
-  const token = await readSessionToken();
-  if (!token) return { error: "Your session expired — start again." };
-
-  const parsed = ConsentInput.safeParse({
-    romantic: checked(formData, "romantic"),
-    business: checked(formData, "business"),
-    friendship: checked(formData, "friendship"),
-  });
-  if (!parsed.success) return { error: "That didn't save — try again." };
-
-  try {
-    await setConsent(
-      { sessionToken: token, consent: parsed.data },
-      serverDeps()
-    );
-  } catch (error) {
-    if (error instanceof SetConsentError) {
-      return { error: "Your session expired — start again." };
+    if (error instanceof RegisterParticipantError) {
+      return COPY[error.reason] ?? { error: ROOM_MISSING };
     }
     throw error;
   }
 
+  // The person exists and will reach the questions: start authoring their first
+  // five blocks now, after the response (docs/domain.md D16).
+  after(() => prefetchQuizBatch({ participantId, batch: 1 }, serverDeps()));
+
   // Outside the try: `redirect` signals by throwing, and catching it here would
-  // swallow the navigation and re-render step 3 over a saved row.
+  // swallow the navigation and re-render the form over a created row.
   redirect("/intake/declared");
 }

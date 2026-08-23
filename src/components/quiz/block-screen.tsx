@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { answerBlockAction } from "@/app/quiz/actions";
+import {
+  FLOW_QUIZ_FIRST_STEP,
+  FlowProgress,
+} from "@/components/intake/flow-progress";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import type { OptionKey } from "@/lib/domain/quiz";
 import type { PublicBlock, PublicOption } from "@/lib/use-cases/quiz-progress";
 import { OptionCard, type OptionMark } from "./option-card";
@@ -122,10 +125,9 @@ export function BlockScreen({
           </span>
         </div>
 
-        <Progress
-          aria-label="Progreso del cuestionario"
-          value={(block.position / total) * 100}
-        />
+        {/* The whole flow's bar, not the quiz's own: registration and the
+            three declared screens are behind this block (issue #42). */}
+        <FlowProgress step={FLOW_QUIZ_FIRST_STEP + block.position - 1} />
       </header>
 
       <p className="shrink-0 font-display text-lg leading-snug font-bold text-balance text-ink">
@@ -202,7 +204,7 @@ function hint(
   least: OptionKey | null,
   singlePick: boolean
 ): string {
-  if (most === null) return "Marcá la que más te suena a vos";
+  if (most === null) return "Marca la que más se parece a ti";
   if (!singlePick && least === null) return "Ahora la que menos";
   return "";
 }

@@ -324,7 +324,105 @@ to); U9 with `"center"`.
   port, so `E2E_PORT` alone does not isolate a run in the same working tree.
   Reuse the running server (`pnpm exec playwright test`) or kill it first.
 
+## Batch 6 — Work unit U6 (`/rank`, screen 1c) — COMPLETE
+
+10/10 on `feat/ui-flow-u6-rank`, branched from `main` at `413f59a`
+(PR #40 merged). Strict TDD. **First user-visible screen of the change.**
+
+### The probe found TWO live demo bugs, not one
+
+6.0 was written before the screen. Its first run:
+
+```
+expected 'p-diego-morales' to be 'p-laura-mendez'   <- R12, already known
+expected 1 to be 3                                   <- NEW
+```
+
+The second is the one worth carrying. `mockRankedRoom(lens)` returned the **same
+ordering for all three lenses** — so screen 1b's lens picker, whose entire
+promise is that romantic, business and friendship are three different readings
+of the same room, was theatre. Nothing on 1b could have caught it; only a
+property asserted across all three lenses at once did.
+
+The lens is now inside the hash alongside the viewer id, so two people never see
+the same room and one person never sees the same room twice.
+
+### What shipped
+
+| File | Role |
+|---|---|
+| `components/rank/mock.ts` | re-signed `(lens, viewer, candidates)`; FNV-1a ordering |
+| `components/rank/mock.test.ts` | 9 properties over every lens |
+| `app/rank/page.tsx` | Server Component, replaced wholesale |
+| `components/rank/band-pill.tsx` | two labels, `--band-*` only |
+| `components/rank/rank-card.tsx` | fixed-height card, composed `aria-label` |
+| `components/rank/rank-board.tsx` | the only client island |
+| `e2e/rank.spec.ts` | 26/26 across both viewports |
+
+### Decisions that are not obvious from the diff
+
+- **`searchParams` is never read.** The strongest form of "`?subject=` is inert"
+  is having no code that could look, so the e2e compares the two documents byte
+  for byte rather than checking that the ranking "looks the same".
+- **The lens is checked first and returned on**, so a request with no lens
+  cookie reaches no data source at all (AC-RANK-5).
+- **The card is a FIXED height, not `min-h`.** `min-h` only stops a card
+  collapsing below a floor; a long bond label still wrapped and made that card
+  taller than its neighbours. That reads as broken layout AND made AC-RANK-2
+  untestable, because the heights differed for a reason unrelated to friction.
+- **The card carries an explicit `aria-label` composed in reading order.** Left
+  to the browser's concatenation, a photoless card announced itself as
+  "sin foto 3 Camila Soto BANDA MEDIA les une…" — placeholder first, person third.
+- **Filter chips are native `<input type="radio">`** behind a transparent
+  full-size peer. Biome's a11y rule pushed back on `role="radio"` buttons and was
+  right: the native group brings arrow-key navigation and roving focus for free.
+  A `sr-only` input is NOT enough — a clipped 1px input has no hit area, so it is
+  unreachable by pointer and unactionable to Playwright (30s timeouts).
+- **Friction is keyed on POSITION, not the hash**, so every room of three or more
+  is guaranteed to contain both a card with friction and one without. A
+  probabilistic fixture leaves AC-RANK-2's null branch untested some of the time.
+
+### Probe liveness
+
+| Mutation | Probe | Observed |
+|---|---|---|
+| both band pills given the same token | AC-RANK-3 | `Expected not "rgb(251, 227, 222)"` |
+| `87%` appended to a bond label | AC-PORT-3 | `Expected pattern not /\d+([.,]\d+)?\s*%/` |
+
+### A measurement subtlety worth keeping
+
+AC-RANK-2's equal-height check reads **`offsetHeight`, not `boundingBox()`**. The
+cards enter on a staggered `pop-in`, and a bounding box is the TRANSFORMED box —
+measuring mid-animation reported four different heights for four identical cards.
+
+### One assertion in another suite changed, and it is not a silent edit
+
+`demo-path.spec.ts` pinned `/rank`'s heading to `/negocios/i`, which was the
+**stub's** wording. The heading now echoes the picker you just clicked
+("Trabajando") so the two screens speak the same language. The test's intent —
+the lens survives the navigation and is named — is unchanged, and the reason is
+written into the test.
+
+### Two AC gaps recorded, not papered over
+
+- **R14** — `RankedRoom` carries no `floorReason`, so AC-RANK-5's photo-vs-consent
+  copy cannot be distinguished. The screen names the STAGE. Widening a type
+  issue #10 implements, for copy, is not ours to do.
+- **R15** — neither degraded state is reachable from the fixture: the roster holds
+  `{id, name, team}` and no consent, and a fixture inventing consent is exactly
+  what R1 forbids. Both branches are implemented; their e2e waits for #10.
+
+### Verification
+
+`e2e/rank.spec.ts` 26/26; `demo-path.spec.ts` + `rank.spec.ts` together 64/64.
+`pnpm run verify` **178 passed / 21 skipped**. `pnpm run build` with
+`DATABASE_URL` unset green, 14 routes. Phase 10 all clean.
+
+Full-suite failures are `quiz.spec.ts` and `intake-declared.spec.ts`, which need
+`DATABASE_URL`; this diff touches nothing under either.
+
 ### Remaining
 
-U6, U7, U9, plus every Phase 10 check re-run per unit. Next dependency-ready:
-**U6** (`/rank`, screen 1c) — the first user-visible screen of the change.
+U7 (`/profile/[id]`) then U9 (`/simulate/[id]`), plus Phase 10 per unit.
+**`sdd-verify` now runs per unit** — the user's call after noticing it had been
+skipped for U3 and U6.

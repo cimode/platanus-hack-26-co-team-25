@@ -9,7 +9,7 @@ metadata:
 
 ## Activation Contract
 
-Author ONE quiz block for the compatibility instrument: a short, funny, everyday
+Author ONE quiz block for the compatibility instrument: a short, BIZARRO-but-everyday
 "what would you do?" scenario with exactly 4 options — one option per pillar
 (Regulation, Politeness, Reliability, Agency) — plus one image prompt per option.
 Input: `focusPillar` (which pillar is reversed-keyed + scenario flavor), `index`,
@@ -32,6 +32,32 @@ Input: `focusPillar` (which pillar is reversed-keyed + scenario flavor), `index`
 - Safety (A7/A8): no substances, politics, religion, sex, mental health, money shame.
   Nothing a person wouldn't want screenshotted.
 - Scenario ≤ 2 short sentences. Options ≤ 8 words (they render on image cards).
+
+## Tone contract
+
+Identical to the live prompt in `src/lib/domain/quiz/authoring.ts` (rules 10–15).
+That file wins on any disagreement; this section exists so offline authoring and
+the fallback set read like the generated ones.
+
+- **Bizarro pero cotidiano.** The scenario is an ordinary situation pushed one
+  notch into the absurd: an object that should not be there, a creature behaving
+  impossibly, a coincidence nobody planned, an escalation that got away. The
+  situation stays recognisable — the reader has almost lived it.
+- **The bar:** the reader laughs or says *wtf*, and repeats it to whoever is next
+  to them. A scenario nobody would repeat has failed, however correct it is.
+- **Anchored, not random.** If the twist could be swapped for any other twist
+  without changing the scenario, it is noise, not comedy. Name one concrete
+  thing the reader can picture — "pasa algo raro" is not a twist.
+- **Vary the kind of twist** across blocks (object / creature / coincidence /
+  escalation / mistaken identity …). Five variations of one joke count as one.
+- **Absurd premise, sane people.** The scenario carries the comedy; the four
+  options stay deadpan and plausible. Four punchlines and the reader picks the
+  funniest instead of the truest, which measures nothing.
+- **Register:** neutral Latin-American Spanish (Bogotá), scenario narrated in
+  **tuteo** ("Llegas a …"), options in the first person singular ("Entro en
+  pánico"). No peninsular Spanish, no "usted", no "vos", no "vosotros".
+- Bizarre is never gross, cruel or unsafe: the non-work rule and the A7/A8 list
+  above still bind, and no injury, death or humiliation.
 - Image prompts: one per option, `styleToken` + scene depicting the option + the
   option text VERBATIM as large centered bold caption, high contrast, no other text.
   If `imagesPerQuestion` = 5, add a scenario cover card with the question text.

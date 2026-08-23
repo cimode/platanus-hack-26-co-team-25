@@ -33,8 +33,22 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1787445973946,
-      "tag": "0004_pair_simulations",
+      "when": 1787442495422,
+      "tag": "0004_participant_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787445275408,
+      "tag": "0005_data_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787446152241,
+      "tag": "0006_amused_mister_sinister",
       "breakpoints": true
     }
   ]
