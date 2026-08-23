@@ -217,3 +217,44 @@ export function assignmentsForBatch(
     return { ...assignment, domain: take(substitute) };
   });
 }
+
+/**
+ * The same position in a fresh setting: the first domain of this participant's
+ * own shuffle that neither `taken` nor its theme group has used, and the next
+ * twist kind along (`attempt` steps further each time).
+ *
+ * For a position the model keeps retelling — the repair came back with the
+ * joke it was told to avoid — the setting is the lever. Asking for the same
+ * domain and twist again, with a sterner note, is how the production pool lost
+ * one form in three on 2026-08-23: two forms written the same minute drew the
+ * same setting, and the second could only ever find the first's premise.
+ */
+export function replanSetting(
+  participantId: string,
+  assignment: Assignment,
+  taken: readonly string[],
+  attempt = 1
+): Assignment {
+  const { domainOrder } = draw(participantId);
+  const used = new Set([...taken, assignment.domain]);
+  const usedGroups = new Set<string>();
+  for (const domain of used) {
+    const group = groupOf(domain);
+    if (group) usedGroups.add(group);
+  }
+  const free = (domain: string) => {
+    if (used.has(domain)) return false;
+    const group = groupOf(domain);
+    return !(group && usedGroups.has(group));
+  };
+  const domain =
+    domainOrder.find(free) ??
+    domainOrder.find((candidate) => !used.has(candidate)) ??
+    assignment.domain;
+
+  const current = TWIST_KINDS.indexOf(assignment.twistKind);
+  const twistKind =
+    TWIST_KINDS[(Math.max(current, 0) + attempt) % TWIST_KINDS.length];
+
+  return { ...assignment, domain, twistKind };
+}

@@ -403,6 +403,50 @@ describe("generateQuizBatch", () => {
     expect(repair?.prompt).toContain(shown);
   });
 
+  it("re-plans a retold position into a fresh domain and twist before asking again", async () => {
+    // The production failure of 2026-08-23: two pool forms drew the same
+    // setting, the second could only find the first's premise, and repair
+    // and final asked for the same setting again. Now the row changes.
+    const shown = "Un gato desconocido se queda dormido en tu maleta hecha.";
+    const fresh = "El portero del edificio colecciona tus paraguas perdidos.";
+    const plan = assignmentsForBatch("p-replan", 1);
+    const { llm, state, sent } = authorStub((call) => {
+      const batch = goodBatch("p-replan", 1);
+      if (call === 1) {
+        batch.blocks[2].scenario = shown;
+        return batch;
+      }
+      return { blocks: [authoredFor(plan[2], fresh)] };
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-replan", batch: 1, previousScenarios: [shown] },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([3]);
+
+    const repair = sent.find((s) => s.id === "quiz.author.batch-1.repair");
+    const row = /- position 3:[^\n]*domain=([^,\n]+), twist=([^\n]+)/.exec(
+      repair?.prompt ?? ""
+    );
+    expect(row).not.toBeNull();
+    expect(row?.[1]).not.toBe(plan[2].domain);
+    expect(row?.[2]).not.toBe(plan[2].twistKind);
+    expect(repair?.prompt).toContain("write it in a new setting");
+    // The fresh setting must not collide with a sibling's.
+    const siblings = plan.filter((a) => a.position !== 3).map((a) => a.domain);
+    expect(siblings).not.toContain(row?.[1]);
+
+    // The block carries the setting it was written in, and still validates.
+    expect(result.blocks[2].domain).toBe(row?.[1]);
+    expect(result.blocks[2].scenario).toBe(fresh);
+    for (const block of result.blocks) {
+      expect(() => validateBlock(block)).not.toThrow();
+    }
+  });
+
   it("rejects a block that retells an accepted sibling of the same batch", async () => {
     const { llm, state, sent } = authorStub((call) => {
       const batch = goodBatch("p-twin", 1);
