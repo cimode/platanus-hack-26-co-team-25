@@ -27,7 +27,7 @@ export const metadata: Metadata = {
  */
 const LIFE: PairedTimeline = {
   lens: "romantic",
-  subject: { id: "ana", name: "Ana", avatar: "avatar3" },
+  subject: { id: "ana", name: "Ana", avatar: "avatar3", photoUrl: null },
   other: { id: "bruno", name: "Bruno", photoUrl: null, avatar: "avatar1" },
   horizonYears: 11,
   ending: {

@@ -101,6 +101,13 @@ interface SimulatedLifeBase {
      * here reveals nothing new. Null on rows older than the column.
      */
     readonly avatar: AvatarKey | null;
+    /**
+     * The viewer's OWN photo, so the reveal can put a face on both parents.
+     * Their own is the first exception D11 names; `projectForViewer` sets it
+     * per viewer, exactly as it already does for `other.photoUrl`, so a
+     * cached canonical row that predates this field is never served stale.
+     */
+    readonly photoUrl: string | null;
   };
   readonly other: {
     readonly id: string;

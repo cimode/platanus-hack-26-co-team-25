@@ -58,7 +58,7 @@ describe("pair-simulation-repository", () => {
       participantHi: hiId,
       life: {
         lens: "romantic",
-        subject: { id: loId, name: lo.name, avatar: "avatar1" },
+        subject: { id: loId, name: lo.name, avatar: "avatar1", photoUrl: null },
         other: {
           id: hiId,
           name: hi.name,
