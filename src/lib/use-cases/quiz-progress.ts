@@ -69,6 +69,13 @@ export interface QuizProgressView {
   roomId: string;
   /** The plate this person wears, so the block can draw them. */
   avatar: Avatar | null;
+  /**
+   * The viewer's OWN photo, so the avatar telling the scene has their face on
+   * it. Their own is the first exception D11 names to "a photo URL never
+   * leaves the server": this view is resolved from a session token, so the
+   * only photo it can carry is the photo of whoever is holding it.
+   */
+  photoUrl: string | null;
   /** The position on screen: the frontier, or `at` when it is behind it. */
   nextPosition: number;
   batch: number;
@@ -170,6 +177,7 @@ export async function quizProgress(
     participantId: participant.id,
     roomId: participant.roomId,
     avatar: participant.avatar,
+    photoUrl: participant.photoUrl,
     answeredCount: rows.length,
   };
 

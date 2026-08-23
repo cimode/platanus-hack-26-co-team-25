@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { seedParticipant, signIn } from "./fixtures/intake";
 
 /**
  * /design/faces -- a real photo in the avatar's blank face.
@@ -162,5 +163,51 @@ test.describe("faces gallery", () => {
       (node) => getComputedStyle(node).backgroundImage
     );
     expect(image).toContain("/sprites/emotes/avatar1/walk-back.webp");
+  });
+});
+
+/**
+ * The avatar that fills the form (`/quiz`).
+ *
+ * The reason this exists as its own criterion: the composite working on
+ * /design/faces proves the library, not the product. A participant meets their
+ * avatar while answering twelve scenes, and that is where the face has to be.
+ */
+test.describe("the avatar that fills the form", () => {
+  test("wears the participant's own face, from the opening scene onward", async ({
+    page,
+    context,
+  }) => {
+    const me = await seedParticipant({ name: "Cara Formulario" });
+    await signIn(context, me.sessionToken);
+
+    // The opening beat: server-rendered, the sprite is the one island in it.
+    await page.goto("/quiz");
+    const opening = page.locator('[data-avatar] [data-anim="idle"]').first();
+    await expect(opening).toBeVisible();
+    await expect
+      .poll(
+        () =>
+          opening.evaluate((node) => getComputedStyle(node).backgroundImage),
+        { timeout: 15_000 }
+      )
+      .toContain("blob:");
+
+    // And on a block, which is a client island and reaches the sprite by a
+    // different path -- a face on one and not the other would be a half fix.
+    await page.goto("/quiz?start=1");
+    const onBlock = page.locator('[data-avatar] [data-anim="idle"]').first();
+    await expect(onBlock).toBeVisible();
+    await expect
+      .poll(
+        () =>
+          onBlock.evaluate((node) => getComputedStyle(node).backgroundImage),
+        { timeout: 15_000 }
+      )
+      .toContain("blob:");
+    // The plain plate is what it would have drawn before this existed.
+    expect(
+      await onBlock.evaluate((node) => getComputedStyle(node).backgroundImage)
+    ).not.toContain("/sprites/avatar");
   });
 });

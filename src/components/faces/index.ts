@@ -21,4 +21,5 @@ export {
 } from "@/lib/domain/faces/faces";
 export { compositeClip, croppedPhoto, resetFaceCache } from "./composite";
 export { FaceGallery } from "./face-gallery";
+export { FacedAvatar } from "./faced-avatar";
 export { useFacedSprite } from "./use-faced-sprite";

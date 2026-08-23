@@ -50,6 +50,9 @@ import {
 
 const PARTICIPANT_ID = "11111111-1111-4111-8111-111111111111";
 const ROOM_ID = "22222222-2222-4222-8222-222222222222";
+
+/** The viewer's own photo: the avatar telling the scene wears their face. */
+const PHOTO_URL = "https://storage.example/photos/ana/9f3c.jpg";
 const TOKEN = "session-known" as SessionToken;
 const UNKNOWN_TOKEN = "session-unknown" as SessionToken;
 const NOW = new Date("2026-08-22T21:00:00.000Z");
@@ -119,7 +122,7 @@ function makeWorld(options: WorldOptions = {}) {
     gender: "F",
     birthdate: "1996-05-04",
     avatar: "avatar3",
-    photoUrl: null,
+    photoUrl: PHOTO_URL,
     team: null,
     track: null,
     consent: { ...DEFAULT_CONSENT },
@@ -318,6 +321,10 @@ describe("quizProgress", () => {
     expect(atGap?.completed).toBe(false);
     expect(atGap?.roomId).toBe(ROOM_ID);
     expect(atGap?.avatar).toBe("avatar3");
+    // D11 names the viewer's own photo as the first thing a payload MAY carry,
+    // and this view is resolved from a session token -- so the only photo it
+    // can ever hold is the photo of whoever is holding it.
+    expect(atGap?.photoUrl).toBe(PHOTO_URL);
     expect(expectPublicOnly(atGap?.block).scenario).toBe("escena 4");
     expect(gapped.calls.roomsById).toEqual([ROOM_ID]);
     expect(gapped.calls.byBatch).toContainEqual({
