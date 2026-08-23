@@ -398,7 +398,7 @@ test.describe("data treatment", () => {
 
     await page.goto(intakeUrl(roomSlug()));
     await photoField(page).setInputFiles(FIXTURE_PHOTO);
-    await nameField(page).fill("Sara Quintero");
+    await nameField(page).fill("Valeria Quintero");
     await genderField(page).selectOption("F");
     await birthdateField(page).fill(bornAgo(26));
     await dataBox(page).check();
