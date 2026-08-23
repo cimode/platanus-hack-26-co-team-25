@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { intakePath } from "@/app/intake/guards";
+import { after } from "next/server";
+import { intakePath } from "@/app/intake/path";
+import { poolTarget } from "@/app/intake/pool-target";
 import { QrCode } from "@/components/qr/qr-code";
 import { serverDeps } from "@/lib/composition";
+import { topUpQuizPool } from "@/lib/use-cases/ensure-quiz-batch";
 
 export const metadata: Metadata = { title: "dipia · QR" };
+
+/**
+ * `after()` takes the page's budget. Showing the code is the earliest signal
+ * that people are about to register, so this page also warms the room's pool
+ * of whole forms (docs/domain.md D20) -- batch 1, then 2 and 3 side by side,
+ * ~100-150 s -- and needs the same ceiling `/intake` has.
+ */
+export const maxDuration = 300;
 
 /**
  * `/qr` -- the code the host holds up, person after person.
@@ -31,6 +42,13 @@ export default async function QrPage(props: PageProps<"/qr">) {
   const room = slug ? await serverDeps().rooms.bySlug(slug) : null;
 
   if (!room) return <MissingRoom slug={slug} />;
+
+  // The host holds this up minutes before the first scan: the best moment to
+  // have the forms written. Closed over as plain strings, nothing request-
+  // scoped reaches the callback.
+  const roomId = room.id;
+  const target = poolTarget();
+  after(() => topUpQuizPool({ roomId, target }, serverDeps()));
 
   const link = `${await requestOrigin()}${intakePath(room.slug)}`;
 

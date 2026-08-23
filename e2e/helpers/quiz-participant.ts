@@ -6,12 +6,13 @@ import { createParticipantRepository } from "../../src/lib/adapters/db/participa
 import { createResponseRepository } from "../../src/lib/adapters/db/response-repository";
 import { createRoomRepository } from "../../src/lib/adapters/db/room-repository";
 import type { SessionToken } from "../../src/lib/domain/participant";
+import type { Avatar } from "../../src/lib/domain/participant/avatar";
 import type {
   Block,
   BlockResponse,
   OptionKey,
 } from "../../src/lib/domain/quiz";
-import { INSTRUMENT } from "../../src/lib/domain/quiz";
+import { BLOCK_COUNT, INSTRUMENT } from "../../src/lib/domain/quiz";
 import { shownOrderFor } from "../../src/lib/domain/quiz/shown-order";
 import type { StoredBlock } from "../../src/lib/ports/generated-block-repository";
 
@@ -23,13 +24,18 @@ import type { StoredBlock } from "../../src/lib/ports/generated-block-repository
  * creates -- so "no other row exists for this room" is an assertion a test can
  * actually make while the suite runs in parallel.
  *
- * The important part is what it seeds: all fifteen `generated_blocks` rows,
- * written through `GeneratedBlockRepository.saveBatch` from the committed
- * constant as `source: "fallback"`, three batches of five. Under D16 the quiz
- * reads a participant's blocks through `ensureQuizBatch`, which authors only
- * when a batch is missing -- so a fully seeded participant means every
- * `ensureQuizBatch` and `prefetchQuizBatch` on the e2e path is one SELECT and
- * **no model is ever called in e2e**.
+ * The important part is what it seeds: the participant's `generated_blocks`
+ * rows -- all fifteen by default, or the `positions` asked for -- written
+ * through `GeneratedBlockRepository.saveBatch` from the committed constant's
+ * content as `source: "generated"`. The source matters: `quizProgress` treats
+ * a `fallback` row as not authored and answers `pending`, so a fixture seeded
+ * as fallback would put every test on the wait screen. Seeded as generated,
+ * the quiz reads these rows and **no model is ever called in e2e**; seeding a
+ * subset (`positions: [1, 2, 3, 4, 5]`) is how a test reaches the wait screen
+ * on purpose.
+ *
+ * The participant wears `avatar3`: the quiz draws the stored plate on every
+ * screen, and a row without one would render the bubble alone.
  *
  * Everything is created and read back through the repositories, so #4's real
  * `byId`, #13's real `save` (which resolves the answer's texts from the
@@ -57,6 +63,9 @@ const MISSING_URL =
   "quiz participant. Point .env at a migrated Neon branch " +
   "(`neon checkout dev-domain`).";
 
+/** The plate every seeded participant wears. */
+export const FIXTURE_AVATAR: Avatar = "avatar3";
+
 let created = 0;
 
 function db() {
@@ -70,7 +79,7 @@ export interface QuizParticipant {
   roomId: string;
   roomSlug: string;
   sessionToken: string;
-  /** This participant's own fifteen blocks, read back from the database. */
+  /** This participant's seeded blocks, read back from the database. */
   blocks: Block[];
   /** The stored block at `position` (1..15). */
   blockAt(position: number): Block;
@@ -92,12 +101,14 @@ export interface QuizParticipantOptions {
   /** When given, the participant's session cookie is set on it. */
   context?: BrowserContext;
   name?: string;
-  /** Seed responses for positions 1..answered (most a, least b). */
+  /** Seed responses for positions 1..answered (most a, no least). */
   answered?: number;
+  /** Which of the fifteen positions to seed a block for. All by default. */
+  positions?: number[];
 }
 
 /**
- * A room, a participant, its session cookie, its fifteen generated blocks and
+ * A room, a participant, its session cookie, its generated blocks and
  * optionally its first `answered` responses.
  */
 export async function createQuizParticipant(
@@ -125,7 +136,7 @@ export async function createQuizParticipant(
     roomId: room.id,
     gender: "F",
     birthdate: "1996-05-04",
-    avatar: "avatar3",
+    avatar: FIXTURE_AVATAR,
     consent: { romantic: true, business: true, friendship: true },
     // Issue #49: registered rows carry the moment they authorised the
     // treatment of their data, so a seeded one does too.
@@ -135,21 +146,34 @@ export async function createQuizParticipant(
     track: "AI",
   });
 
-  // Three saveBatch calls of five: the participant's own form, served from the
-  // committed constant so nothing here reaches a model.
+  // One saveBatch per batch that has something to seed: the participant's own
+  // form, with the committed constant's content, so nothing here reaches a
+  // model. The rows say "generated" because that is what the quiz serves.
+  const wanted = new Set(
+    options.positions ??
+      Array.from({ length: BLOCK_COUNT }, (_, index) => index + 1)
+  );
   for (const batch of [1, 2, 3]) {
     const stored: StoredBlock[] = INSTRUMENT.blocks
-      .filter((block) => block.batch === batch)
-      .map((block) => ({ block, source: "fallback" as const }));
-    await generatedBlocks.saveBatch(participant.id, stored);
+      .filter((block) => block.batch === batch && wanted.has(block.position))
+      .map((block) => ({ block, source: "generated" as const }));
+    if (stored.length > 0) {
+      await generatedBlocks.saveBatch(participant.id, stored);
+    }
   }
 
   for (let position = 1; position <= (options.answered ?? 0); position++) {
+    if (!wanted.has(position)) {
+      throw new Error(
+        `cannot seed an answer at position ${position}: no block was seeded there`
+      );
+    }
     await responses.save({
       participantId: participant.id,
       position,
       mostKey: "a",
-      leastKey: "b",
+      // What the product writes under single pick, the default elicitation.
+      leastKey: null,
       shownOrder: shownOrderFor(participant.id, position),
       answeredAt: new Date(),
     });

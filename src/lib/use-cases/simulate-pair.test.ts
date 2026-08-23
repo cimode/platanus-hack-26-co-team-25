@@ -270,7 +270,12 @@ const ROW_RANKABLE = rankable(RANKABLE, "Rafa", {
   businessGate: BUSINESS,
 });
 const ROW_ABANDONED = rankable(ABANDONED, "Abel", {
-  participant: { declaredAt: null, quizCompletedAt: null },
+  participant: {
+    gender: null,
+    birthdate: null,
+    declaredAt: null,
+    quizCompletedAt: null,
+  },
   declared: NO_BANDS,
   romanticGate: MUTUAL_ROMANTIC,
   businessGate: BUSINESS,
@@ -534,7 +539,7 @@ describe("simulatePair", () => {
     const llm = countingLlm(fixedSentenceLlm());
     const baseDeps = () => depsFor(AC8_ROOM, {}, [SUBJECT], llm);
 
-    expect(floorReason(ROW_ABANDONED, "romantic")).toBe("declared-incomplete");
+    expect(floorReason(ROW_ABANDONED, "romantic")).toBe("no-identity");
 
     const results = await Promise.all([
       simulatePair(
@@ -806,8 +811,9 @@ describe("simulatePair", () => {
       participant: {
         ...rows[anaIndex].participant,
         consent: ALL_LENSES,
-        declaredAt: null,
-        declared: NO_BANDS,
+        // Null bands no longer fail the floor (D20); a missing identity does.
+        gender: null,
+        birthdate: null,
       },
     };
     expect(

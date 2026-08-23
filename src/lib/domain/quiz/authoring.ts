@@ -11,6 +11,13 @@
  *   PILLARS.md  §5 A5 every block loads all four pillars · §8 rule 1 mixed keying
  *   AUDIT.md    F1 reversed keying is irreversible · A7/A8 safety
  *
+ * There are deliberately NO example scenarios, example options or example
+ * twists anywhere in the live prompt. Measured: every concrete example became
+ * the scenario the model wrote, for every participant in the room — the parrot
+ * that learned the alarm tone, the neighbour at the party, the option "Entro en
+ * pánico" — so the rules below are stated abstractly and the per-position
+ * twist kind in the assignment table is what makes each block specific.
+ *
  * Contract: pure TypeScript. Builds strings; performs no I/O and calls no model.
  */
 
@@ -32,7 +39,11 @@ export const authoredBlockSchema = z.object({
     .array(
       z.object({
         key: z.enum(["a", "b", "c", "d"]),
-        text: z.string().min(2).max(60),
+        // 90, not 60: twelve words of Spanish run to ~85 characters, and this
+        // schema is what the model's output is validated against -- an option
+        // one character over it fails the WHOLE call as "no object", not one
+        // position as a repair. The word cap below is the real rule.
+        text: z.string().min(2).max(90),
         pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
         keyed: z.enum(["positive", "reversed"]),
       })
@@ -52,9 +63,17 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-/** Scenario: at most two short sentences. Option: at most eight words. */
+/**
+ * Scenario: at most two short sentences. Option: the prompt asks for 4–7 words
+ * and the judge frowns past 8, but the HARD cap is looser. The options render
+ * as full-width rows since 2026-08-23 (style "B · Diálogo"), where a ten-word
+ * line simply wraps; what the cap guards against is a paragraph, not a joke
+ * that ran one word long. Rejecting at nine cost real forms: the model lands
+ * 9–10 words often enough that whole batches failed after repair and the
+ * final pass, and with the pool of whole forms one lost batch is a lost form.
+ */
 const MAX_SENTENCES = 2;
-const MAX_OPTION_WORDS = 8;
+const MAX_OPTION_WORDS = 12;
 
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
 
@@ -86,7 +105,7 @@ function optionProblem(
  *
  * The per-block form of `authoredBatchSchema`'s refinement, for the author
  * loop: an eleven-word option must cost that position a repair, not the whole
- * batch a fallback — which is what enforcing the same rule at the batch
+ * batch a failure — which is what enforcing the same rule at the batch
  * boundary (inside `generateObject`) did.
  */
 export function authoredBlockProblem(block: AuthoredBlock): string | null {
@@ -100,9 +119,18 @@ export function authoredBlockProblem(block: AuthoredBlock): string | null {
 }
 
 /**
- * The batch's shape alone — what the model is asked to produce. The length
- * limits are applied per block by the author loop via `authoredBlockProblem`.
+ * What one author call returns: between one and five blocks. The first call
+ * asks for five; a repair or top-up asks only for the positions still missing,
+ * so the count is the call's, not the batch's. A miscounted answer costs the
+ * missing positions another call rather than the whole response.
  */
+export const authoredBlocksSchema = z.object({
+  blocks: z.array(authoredBlockSchema).min(1).max(5),
+});
+
+export type AuthoredBlocks = z.infer<typeof authoredBlocksSchema>;
+
+/** A whole batch's shape — five blocks — with no length rules applied. */
 export const authoredBatchShapeSchema = z.object({
   blocks: z.array(authoredBlockSchema).length(5),
 });
@@ -182,30 +210,29 @@ HARD RULES — a block breaking any of these is discarded:
    Options: 4 to 7 words each, at most 8 words — they render as small cards,
    and a ninth word discards the whole block. Count the words of every
    option before returning and shorten any that reaches 8.
-7. Vary the structure across the five blocks. Not five versions of one joke,
-   and no two blocks sharing a premise.
+7. Vary the structure across the blocks. Not several versions of one joke,
+   and no two blocks sharing a premise, a cast, a prop or a punchline.
 8. VOICE — every option, in every block, is written in the FIRST PERSON
-   SINGULAR, present tense: "Entro en pánico", "Me río y sigo", "Prometo
-   llegar". Never second person ("te ríes", "aguantas"), never infinitives.
-   The participant is describing themselves, and a form that switches person
-   between blocks reads as two different questionnaires.
+   SINGULAR, present tense: the participant stating what they do, as a verb
+   they conjugate for themselves. Never second person, never infinitives,
+   never a description of the participant from outside. A form that switches
+   person between blocks reads as two different questionnaires.
 9. Do not put the reversed-keyed option in slot (a) every time. Move it around
-   the four slots across the five blocks.
+   the four slots across the blocks.
 
 TONE — the register, and the reason anyone finishes the form:
 10. BIZARRO PERO COTIDIANO. Every scenario is an ordinary situation pushed one
-    notch into the absurdo: an object that should not be there, a creature
-    behaving impossibly, a coincidence nobody planned, or an escalation that
-    got away from everyone. The situation stays recognisable — the reader has
+    notch into the absurdo. The situation stays recognisable — the reader has
     almost lived it. Random nonsense is not bizarre, it is noise: if the twist
     could be swapped for any other twist without changing the scenario, it is
     not anchored and the block fails.
-11. The twist is CONCRETE and NAMED — one thing the reader can picture. "pasa
-    algo raro" is not a twist; "el loro del vecino aprendió tu tono de alarma"
-    is.
-12. Every one of the five blocks uses a DIFFERENT KIND of twist (object /
-    creature / coincidence / escalation / mistaken identity ...). Five
-    variations of one joke count as one block, and the batch is rejected.
+11. The twist is CONCRETE and NAMED — one specific thing, with its own noun,
+    that the reader can picture at once. A vague "something strange happens"
+    is not a twist; the strange thing itself, named, is.
+12. Each position below is assigned a KIND of twist. Write that kind and no
+    other for that position — the kinds are different across the blocks on
+    purpose, and a batch whose blocks all turn on the same kind of twist
+    counts as one block and is rejected.
 13. The scenario carries the comedy; the OPTIONS stay deadpan and plausible.
     Four punchlines in a row means the reader picks the funniest one instead of
     the truest one, and the block measures nothing (see rule 3). Absurd
@@ -214,7 +241,11 @@ TONE — the register, and the reason anyone finishes the form:
     everyone forgives. Funny, never villainous, never pathetic (rule 2).
 15. Bizarre is not gross, cruel or unsafe. Rules 4 and 5 still bind: no work,
     no substances, politics, religion, sex, mental health or money shame. No
-    injury, no death, no humiliation of a real-seeming person.`;
+    injury, no death, no humiliation of a real-seeming person.
+16. Every scenario is NEW. Nothing you have written before, nothing a
+    participant could have read elsewhere in this room, and nothing under the
+    headings below. Invent the specific people, places and objects for each
+    block from its domain and its twist kind.`;
 
 /**
  * Regional register, kept separate from the rules because it is the one thing
@@ -227,10 +258,10 @@ TONE — the register, and the reason anyone finishes the form:
  */
 const SPANISH_REGISTER = `Neutral Latin American Spanish as spoken in Bogotá:
 colloquial, warm, never formal.
-TUTEO: the SCENARIO is narrated to the reader with "tú" ("Llegas a la fiesta y
-tu vecino ..."). Never "usted", never "vos", never "vosotros". The OPTIONS are
-the reader answering, so they stay in the first person singular (rule 8) —
-"Entro en pánico", never "Entras en pánico".
+TUTEO: the SCENARIO is narrated to the reader with "tú" — second person
+singular, present tense, the reader as the protagonist. Never "usted", never
+"vos", never "vosotros". The OPTIONS are the reader answering, so they stay in
+the first person singular (rule 8), conjugated for "yo".
 Do NOT use peninsular Spanish. Wrong → right: piso → apartamento · coche →
 carro · móvil → celular · la peli → la película · el súper → el supermercado ·
 ordenador → computador · vale/guay → listo/bacano · caradura → descarado ·
@@ -240,27 +271,44 @@ export interface AuthorPromptInput {
   assignments: Assignment[];
   /** Neutral Spanish by default — the room is in Bogotá. */
   language: string;
-  /** Scenarios already written for this participant, to avoid repeating them. */
+  /** Scenarios this participant, or their room, has already read. */
   avoid: string[];
+  /**
+   * Blocks of the same batch already accepted, when the call is for the
+   * positions still missing. Listed under their own heading so the model
+   * knows they are its own neighbours rather than old material.
+   */
+  siblings?: string[];
+  /** The judge's or validator's complaints about the previous attempt. */
+  notes?: string[];
+}
+
+function bulleted(items: readonly string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
 }
 
 /**
- * The author prompt for one batch of five blocks.
+ * The author prompt for one call: the whole batch, or the positions still
+ * missing from it.
  *
  * Five per call rather than one: the model sees its own five and so does not
  * repeat itself within a batch, which one-block-per-call cannot prevent. Blocks
- * already written for this participant arrive in `avoid` — that is what stops
- * batch 3 reusing batch 1's joke, the failure the offline workflow actually hit.
+ * already written for this participant — and lately for anyone in the room —
+ * arrive in `avoid`; that is what stops batch 3 reusing batch 1's joke, the
+ * failure the offline workflow actually hit, and what stops two neighbours
+ * reading the same one.
  */
 export function authorPrompt(input: AuthorPromptInput): string {
   const { assignments, language, avoid } = input;
+  const siblings = input.siblings ?? [];
+  const notes = input.notes ?? [];
 
   const table = assignments
     .map(
       (a) =>
         `- position ${a.position}: focusPillar=${a.focusPillar} ` +
         `(its one option is the reversed one; the other three pillars get one ` +
-        `positive option each), domain=${a.domain}`
+        `positive option each), domain=${a.domain}, twist=${a.twistKind}`
     )
     .join("\n");
 
@@ -268,32 +316,47 @@ export function authorPrompt(input: AuthorPromptInput): string {
     ? `\n\nThis participant has already been shown the scenarios below. Do not ` +
       `reuse their premises, their punchlines, their objects or their twists — ` +
       `a new block must surprise someone who has read all of these:\n` +
-      avoid.map((s) => `- ${s}`).join("\n")
+      bulleted(avoid)
+    : "";
+
+  const siblingsClause = siblings.length
+    ? `\n\nThese blocks of the SAME batch are already written and accepted. ` +
+      `Yours sit beside them, so they must not share a premise, a cast, a ` +
+      `prop or a punchline with any of them:\n${bulleted(siblings)}`
+    : "";
+
+  const notesClause = notes.length
+    ? `\n\nNOTES on the previous attempt — each one names a position that was ` +
+      `rejected and why. Fix exactly what is named, and keep the rest of the ` +
+      `rules:\n${bulleted(notes)}`
     : "";
 
   const register = language === "es" ? `\n\n${SPANISH_REGISTER}` : "";
 
   return `${RULES}
 
-Write the ${assignments.length} blocks below in ${language}.${register}
+Write the ${assignments.length} block${assignments.length === 1 ? "" : "s"} below in ${language}.${register}
 
-The domain is only the setting — it does not change the rules.
+The domain is only the setting and the twist is only the kind — neither
+changes the rules.
 
-${table}${avoidClause}
+${table}${avoidClause}${siblingsClause}${notesClause}
 
 Before returning, re-check rules 1, 2 and 6 on every block.
-Return one object per position, with the position echoed back.`;
+Return one object per position listed above, with the position echoed back.`;
 }
 
 /**
- * The judge prompt: one pass over everything written for this participant.
+ * The judge prompt: one pass over everything written in this call.
  *
- * Deliberately sees every block at once rather than one batch at a time. The
- * offline pipeline judged per batch and shipped two blocks with the same joke,
- * because no judge ever saw both.
+ * Deliberately sees every block at once rather than one at a time, and sees
+ * the scenarios the participant has already read: the offline pipeline judged
+ * per batch and shipped two blocks with the same joke, because no judge ever
+ * saw both.
  */
 export function judgePrompt(
-  blocks: { position: number; scenario: string; options: { text: string }[] }[]
+  blocks: { position: number; scenario: string; options: { text: string }[] }[],
+  previousScenarios: readonly string[] = []
 ): string {
   const rendered = blocks
     .map(
@@ -302,6 +365,11 @@ export function judgePrompt(
         b.options.map((o) => `   · ${o.text}`).join("\n")
     )
     .join("\n\n");
+
+  const shown = previousScenarios.length
+    ? `\n\nALREADY SHOWN — fail any block that repeats these, in premise, ` +
+      `cast, prop, twist or punchline:\n${bulleted(previousScenarios)}`
+    : "";
 
   return `You are the desirability judge for forced-choice quiz blocks.
 
@@ -319,15 +387,16 @@ Fail a block if ANY of these is true:
 - the humor is flat or mean-spirited
 - any option runs past ~8 words
 - it repeats another block's premise, punchline, object or kind of twist
+- it repeats anything under ALREADY SHOWN
 
 List concrete problems for every failure — they are handed to the author
-verbatim, so "make it funnier" is useless and "the twist is just a late bus,
-name a stranger thing that happens on that bus" is not. Judge all blocks
-together — repetition across blocks is the failure you are best placed to
-catch.
+verbatim, so "make it funnier" is useless. Name what is missing (which rule,
+which element of the scenario) and what would have to change, without writing
+the replacement scenario yourself. Judge all blocks together — repetition
+across blocks is the failure you are best placed to catch.
 
 BLOCKS:
-${rendered}`;
+${rendered}${shown}`;
 }
 
 export const verdictsSchema = z.object({

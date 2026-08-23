@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
-import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
+import { continueQuizGeneration } from "@/lib/use-cases/ensure-quiz-batch";
 import { findParticipant } from "@/lib/use-cases/list-participants";
 import { IMPERSONATION_COOKIE, type ImpersonateState } from "./impersonation";
 import { LENS_COOKIE } from "./lens";
@@ -32,7 +32,8 @@ export async function impersonateAction(
     return { error: "Elige a alguien de la lista para continuar." };
   }
 
-  const participant = await findParticipant(id, serverDeps());
+  const deps = serverDeps();
+  const participant = await findParticipant(id, deps);
   if (!participant) {
     return { error: "Esa persona no está en la lista." };
   }
@@ -44,22 +45,32 @@ export async function impersonateAction(
     path: "/",
   });
 
-  // Start authoring this participant's first five blocks now, in the
-  // background (docs/domain.md D16). Measured at ~40-70s; they will spend
-  // longer than that on the room and the declared round, so by the time /quiz
-  // needs block 1 it is already stored and the screen does one SELECT.
+  // Start authoring this participant's questions now, in the background
+  // (docs/domain.md D20). The roster carries no room, so the venue default is
+  // the room generation is claimed under -- the same one `/intake` falls back
+  // to; without it there is nothing to claim and nothing is scheduled.
   //
   // `after` runs once the response is sent and is bounded by this route's
-  // maxDuration, so it costs the participant nothing. `prefetchQuizBatch`
-  // never rejects -- an unhandled rejection in a background task would crash
-  // the invocation -- and if it fails anyway, `ensureQuizBatch` simply authors
-  // inline when the quiz is reached.
+  // maxDuration (120s on `src/app/page.tsx`), which is why the budget here is
+  // 90s rather than the registration action's 240s: one batch, two at most.
+  // `continueQuizGeneration` never rejects -- an unhandled rejection in a
+  // background task would crash the invocation -- and stops itself when the
+  // budget is spent; the quiz reads never generate, so whatever is missing is
+  // authored by the next claim holder.
   //
-  // TEMPORARY HOME. This belongs in registration (#6); impersonation is
-  // today's only "a participant arrives" event. Move it, do not duplicate it.
-  after(() =>
-    prefetchQuizBatch({ participantId: participant.id, batch: 1 }, serverDeps())
-  );
+  // TEMPORARY HOME. Registration (#6) is the real "a participant arrives"
+  // event and already does this; impersonation keeps it for the demo path.
+  const venueSlug = process.env.HOOKAI_ROOM_SLUG;
+  const room = venueSlug ? await deps.rooms.bySlug(venueSlug) : null;
+  if (room) {
+    const roomId = room.id;
+    after(() =>
+      continueQuizGeneration(
+        { participantId: participant.id, roomId, budgetMs: 90_000 },
+        serverDeps()
+      )
+    );
+  }
 
   // `redirect` signals by throwing, so nothing below runs and the declared
   // return type is only reached on the error paths above.

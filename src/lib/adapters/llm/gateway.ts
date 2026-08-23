@@ -95,6 +95,8 @@ export interface GatewayLlmOptions {
   temperature?: number;
   /** Abort a call that has clearly hung, so a batch cannot pin an invocation. */
   timeoutMs?: number;
+  /** The SDK's own retries on 429/5xx before the call is reported failed. */
+  maxRetries?: number;
 }
 
 export class LlmGenerationError extends Error {
@@ -122,22 +124,46 @@ export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
   // room for a non-"none" reasoning level without inviting a 90 s call.
   const maxOutputTokens = options.maxOutputTokens ?? 16_384;
   const temperature = options.temperature ?? 0.9;
-  const timeoutMs = options.timeoutMs ?? 90_000;
+  // A batch authors in 15–30 s at minimal reasoning; 60 s is a hung call, and
+  // the chain behind it has two more batches to fit in its budget.
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  // Explicit rather than the SDK default, because the deadline above cuts a
+  // long backoff short and the number of attempts is what the log then names.
+  const maxRetries = options.maxRetries ?? 2;
 
   return {
     async generate<T>(request: LlmRequest<T>): Promise<T> {
       const signal = AbortSignal.timeout(timeoutMs);
+      const started = Date.now();
       try {
-        const { object } = await generateObject({
+        const { object, warnings, response, usage } = await generateObject({
           model: gateway(model),
           schema: request.schema,
           prompt: request.prompt,
           maxOutputTokens,
           temperature,
           reasoning,
+          maxRetries,
           abortSignal: signal,
           providerOptions: { gateway: { models: fallbacks } },
         });
+        // Which model actually answered is the one fact a fallback hides: the
+        // gateway may have routed past Sonnet, and only this line says so.
+        console.warn(
+          `[llm] ${request.id} answered by ${response.modelId ?? model} in ` +
+            `${Math.round((Date.now() - started) / 1000)} s ` +
+            `(${usage.outputTokens ?? "?"} output tokens` +
+            `${request.note ? `; ${request.note}` : ""})`
+        );
+        for (const warning of warnings ?? []) {
+          console.warn(
+            `[llm] ${request.id} warning: ${
+              warning.type === "other"
+                ? warning.message
+                : JSON.stringify(warning)
+            }`
+          );
+        }
         // `generateObject` already validated, but it infers its own result type;
         // parsing again is what makes the returned value provably a `T`.
         return request.schema.parse(object);
@@ -176,9 +202,10 @@ export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
             )
           : failure;
         const wrapped = new LlmGenerationError(request.id, timedOut);
-        // Every caller degrades silently by design (fallback blocks, "no
-        // objection"), so this line is the only trace a dead, slow or
-        // truncated model leaves in the function logs.
+        // The generation chain reports a failed batch as one warning of its
+        // own; this line is the only trace of *why* the model failed — dead,
+        // slow, truncated, or routed to a fallback that could not keep the
+        // schema.
         console.warn(`[llm] ${wrapped.message}`);
         throw wrapped;
       }
@@ -189,10 +216,10 @@ export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
 /**
  * True when a real model call can be made in this process.
  *
- * Read before scheduling generation so a missing key degrades to the committed
- * fallback instrument at the door, rather than throwing halfway through a
- * participant's quiz. On Vercel, OIDC can stand in for the key at runtime, so
- * this is a hint rather than a guarantee — the call itself is the real check.
+ * Read before scheduling generation so a missing key is reported at the door
+ * rather than as a failed batch halfway through a participant's quiz. On
+ * Vercel, OIDC can stand in for the key at runtime, so this is a hint rather
+ * than a guarantee — the call itself is the real check.
  */
 export function gatewayConfigured(): boolean {
   return Boolean(
