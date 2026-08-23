@@ -189,7 +189,7 @@ test.describe("1f · the simulated life", () => {
     await open(page, `/simulate/${OTHER.id}`, "friendship");
     await expect(page.getByText(/Año \d+ de \d+/)).toHaveCount(0);
     await expect(
-      page.getByRole("region", { name: /cómo termina/i })
+      page.getByRole("region", { name: /fin de la simulación/i })
     ).toHaveCount(0);
     // Still a life: the events are there, only the duration claim is not.
     expect(await cards(page).count()).toBeGreaterThan(0);
@@ -274,7 +274,7 @@ test.describe("1f · the simulated life", () => {
     page,
   }) => {
     await open(page, `/simulate/${OTHER.id}`);
-    const ending = page.getByRole("region", { name: /cómo termina/i });
+    const ending = page.getByRole("region", { name: /fin de la simulación/i });
     await expect(ending).toHaveCount(1);
     await expect(ending).toContainText(/año \d+/i);
 
@@ -299,7 +299,7 @@ test.describe("1f · the simulated life", () => {
      * ending in document order, because that is where the type puts it.
      */
     await open(page, "/simulate/p-fernanda-lopez");
-    const ending = page.getByRole("region", { name: /cómo termina/i });
+    const ending = page.getByRole("region", { name: /fin de la simulación/i });
     await expect(ending).toContainText(/se separan en el año \d+/i);
     await expect(ending).not.toContainText(/llegan juntos/i);
 
@@ -315,7 +315,7 @@ test.describe("1f · the simulated life", () => {
     // The other half of the same branch: `epilogue` is `string | null`, and the
     // null case must not leave a hole where a sentence was.
     await open(page, "/simulate/p-sofia-guzman");
-    const ending = page.getByRole("region", { name: /cómo termina/i });
+    const ending = page.getByRole("region", { name: /fin de la simulación/i });
     await expect(ending).toContainText(/se separan en el año \d+/i);
     await expect(ending).toBeVisible();
   });
@@ -349,7 +349,7 @@ test.describe("1f · the simulated life", () => {
       await open(page, `/simulate/${OTHER.id}`);
       const events = await page.getByRole("article").allInnerTexts();
       const ending = await page
-        .getByRole("region", { name: /cómo termina/i })
+        .getByRole("region", { name: /fin de la simulación/i })
         .innerText();
       return [...events, ending].join("|");
     };

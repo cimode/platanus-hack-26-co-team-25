@@ -2,21 +2,23 @@ import type { Ending } from "@/lib/domain/reveal/timeline";
 import { cn } from "@/lib/utils";
 
 /**
- * How it ends.
+ * The end of the board, and the only thing on this screen that asks for
+ * anything.
  *
  * TWO branches, not three. `Ending` has no `"open"` variant, because friendship
  * never reaches this type at all -- it is a `PairedTimeline` field and the
- * friendship branch structurally lacks it. Writing an `"open"` case here would
- * be handling something unreachable, which reads to the next person as though
- * it can happen.
+ * friendship branch structurally lacks it. An `"open"` case here would be
+ * handling something unreachable, which reads to the next person as though it
+ * can happen.
  *
  * No probability, no percentage, no survival fraction (AUDIT.md S10). The
- * simulation narrates ONE life it played out, not a distribution over lives --
- * "68% chance you last" is a claim this product cannot support and would not
- * make even if it could.
+ * simulation narrates ONE life it played out, not a distribution over lives.
  *
- * The epilogue renders AFTER the ending in document order, and only on the
- * `apart` branch, because that is where the type puts it.
+ * The CTA is INERT, and that is the requirement rather than an omission: no
+ * Server Action, no write, nothing that changes what any other person can see
+ * (AC-SIM-8). The line under it describes what accepting WOULD do once that
+ * flow exists with its own consent story -- it is copy, not a promise this
+ * button currently keeps.
  */
 export function EndingCard({
   ending,
@@ -29,35 +31,56 @@ export function EndingCard({
 }) {
   return (
     <section
-      aria-label="Cómo termina"
+      aria-label="Fin de la simulación"
       className={cn(
-        "flex min-h-[168px] w-[248px] shrink-0 flex-col justify-center gap-2 rounded-[18px] p-4",
-        "border-2 border-ink-faint/35 border-dashed bg-background/90"
+        "relative shrink-0 self-center",
+        "flex w-[276px] flex-col gap-2 rounded-[20px] p-5",
+        "border-2 border-primary/55 bg-card shadow-toy"
       )}
     >
+      <p className="font-mono text-[10px] text-ink-faint uppercase tracking-[0.1em]">
+        fin de la simulación
+      </p>
+
       {ending.outcome === "together" ? (
         <>
-          <p className="font-display font-bold text-[15px] text-ink">
-            Llegan juntos al año {horizonYears}.
-          </p>
-          <p className="font-mono text-[10.5px] text-ink-muted leading-relaxed">
-            hasta donde alcanza esta simulación, siguen ahí.
+          <h2 className="font-display font-extrabold text-[19px] text-ink leading-tight">
+            ¿Se conocen en persona?
+          </h2>
+          <p className="font-display text-[13px] text-ink-muted leading-snug">
+            Llegan juntos al año {horizonYears}. Está a unos metros de ti, ahora
+            mismo.
           </p>
         </>
       ) : (
         <>
-          <p className="font-display font-bold text-[15px] text-ink">
+          <h2 className="font-display font-extrabold text-[19px] text-ink leading-tight">
+            ¿Se conocen en persona?
+          </h2>
+          <p className="font-display text-[13px] text-ink-muted leading-snug">
             Se separan en el año {ending.year}.
+            {ending.epilogue ? ` ${ending.epilogue}` : ""}
           </p>
-          {ending.epilogue ? (
-            <p className="font-mono text-[10.5px] text-ink-muted leading-relaxed">
-              {ending.epilogue}
-            </p>
-          ) : null}
         </>
       )}
 
-      <p className="mt-1 font-mono text-[9.5px] text-ink-faint lowercase">
+      <button
+        className={cn(
+          "mt-1 w-full rounded-[14px] bg-primary px-5 py-3",
+          "font-display font-bold text-[15px] text-primary-foreground shadow-toy",
+          "transition-transform hover:-translate-y-px hover:shadow-toy-lg active:translate-y-px",
+          "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+        )}
+        type="button"
+      >
+        Proponer encuentro
+      </button>
+
+      <p className="font-mono text-[9px] text-ink-faint leading-snug lowercase">
+        si acepta → ubicación en vivo compartida dentro del lugar
+      </p>
+
+      <p className="font-mono text-[9px] text-ink-faint lowercase">
         una vida posible con {otherName}, no una predicción
       </p>
     </section>
