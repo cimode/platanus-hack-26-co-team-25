@@ -11,7 +11,8 @@ import { describe, expect, it } from "vitest";
  *
  * The repo is pnpm (PR #15) and has no eslint job (Biome replaced it), so the
  * script matcher is `pnpm run <script>` and the gate set AC-6 asserts is
- * {typecheck, biome, audit, db-check, unit, build, e2e}.
+ * {typecheck, biome, audit, db-check, unit, build}. `e2e` is out of that set
+ * for the demo only -- see the note on AC-6's assertion below.
  */
 
 const WORKFLOWS = new URL("../.github/workflows/", import.meta.url);
@@ -561,8 +562,15 @@ describe("ci.yml", () => {
     // Every gate the pipeline defines, exactly: a new gate that
     // migrate-production does not wait on is a migration that can outrun a
     // failing check.
+    //
+    // ─── DEMO ONLY · revert after the event ────────────────────────────────
+    // `e2e` is deliberately out of this list, tracking the same carve-out in
+    // ci.yml: Playwright is ~6 of the ~8 minutes of a main run and no longer
+    // holds the deploy behind it. This list and ci.yml move together -- `e2e`
+    // goes back here in the same commit it goes back into migrate-production
+    // and deploy-production. `openspec/changes/demo-baby-always/` has the note.
     expect([...needsOf(job)].sort()).toEqual(
-      ["audit", "biome", "build", "db-check", "e2e", "typecheck", "unit"].sort()
+      ["audit", "biome", "build", "db-check", "typecheck", "unit"].sort()
     );
 
     const steps = splitSteps(job);

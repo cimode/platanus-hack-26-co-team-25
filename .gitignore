@@ -74,6 +74,10 @@ node_modules/
 # emote pipeline scratch (clips, frames); the packed sheets live in public/sprites/emotes
 .emotes-work/
 
+# Demo walkthrough audio (large, local only)
+*.m4a
+demo/*.m4a
+
 # face-fit review artefacts (the shipped assets live in public/sprites/faces)
 scripts/face/out/
 scripts/face/__pycache__/
