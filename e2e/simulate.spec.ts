@@ -421,19 +421,39 @@ test.describe("1f · the simulated life", () => {
     expect(Math.abs(after - before)).toBeGreaterThan(20);
   });
 
-  test("AC-SIM-8 · the meet CTA is focusable and inert", async ({ page }) => {
+  test("AC-SIM-8 · the meet CTA opens the ask, and opening it writes nothing", async ({
+    page,
+  }) => {
     await open(page, `/simulate/${OTHER.id}`);
     const cta = page.getByRole("button", { name: /proponer encuentro/i });
     await expect(cta).toBeVisible();
     await cta.focus();
     await expect(cta).toBeFocused();
 
-    // Inert means NO request leaves the page. A Server Action would POST here.
+    /*
+     * AC-SIM-8 used to require the CTA to be wholly inert, because the meet
+     * flow did not exist and the copy under it described something the button
+     * did not do. It exists now (`/encuentros`), so what the criterion
+     * protects has moved: the CTA still must not WRITE, but it is allowed to
+     * reveal the ask.
+     *
+     * Both halves are asserted. Opening is pure client state, so no request of
+     * any method may leave the page -- a Server Action would POST here. The
+     * write is behind "Enviar", which this test deliberately does not press:
+     * the request that button sends is another participant's inbox row, and
+     * `AC-MEET-*` owns it.
+     */
     const requests: string[] = [];
     page.on("request", (request) => {
       if (request.method() !== "GET") requests.push(request.url());
     });
     await cta.click();
+
+    // The ask is now on screen: a place, a time, and a way out.
+    await expect(page.getByRole("combobox").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^enviar$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /cancelar/i })).toBeVisible();
+
     await page.waitForTimeout(400);
     expect(requests).toEqual([]);
   });

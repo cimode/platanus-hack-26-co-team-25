@@ -60,6 +60,7 @@ export function TimelineRail({
         <EndingCard
           ending={life.ending}
           horizonYears={life.horizonYears}
+          otherId={life.other.id}
           otherName={life.other.name}
         />
       )}

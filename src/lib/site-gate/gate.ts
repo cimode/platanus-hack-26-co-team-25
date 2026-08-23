@@ -100,7 +100,15 @@ export function safeNextPath(raw: string | null | undefined): string {
  * `/simulate`, `/design`, the reveal -- and nothing a person who scanned the
  * code is asked to do. `/gate` itself is open so the password can be POSTed.
  */
-export const OPEN_PAGES = ["/qr", "/results"] as const;
+/*
+ * `/encuentros` is open for the same reason `/results` is: it is a screen the
+ * PARTICIPANT'S OWN flow needs, and every other screen past the quiz is behind
+ * the password. A meet request that only its recipient's operator could open
+ * is not a meet request. It names one other participant -- the one who already
+ * chose to ask this viewer -- and reaching it still requires that viewer's own
+ * `dipia_session`, so the gate is not what was protecting it.
+ */
+export const OPEN_PAGES = ["/qr", "/results", "/encuentros"] as const;
 export const OPEN_PREFIXES = ["/intake", "/quiz"] as const;
 
 /**

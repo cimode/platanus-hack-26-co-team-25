@@ -71,6 +71,13 @@
       "when": 1787475166855,
       "tag": "0009_drop_quiz_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787493344325,
+      "tag": "0010_meet_requests",
+      "breakpoints": true
     }
   ]
 }
