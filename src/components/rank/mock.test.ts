@@ -18,10 +18,13 @@ import { mockRankedRoom, type RankCandidate } from "./mock";
 
 const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
 
+// Every candidate carries a sprite, exactly as `/rank`'s page mapping does --
+// `Placement.sprite` is `readonly string` and can never be null. So the one
+// photoless entry below is the FIXTURE's doing, which is the point of the test.
 const CANDIDATES: readonly RankCandidate[] = [
   { id: "p-ana-ramirez", name: "Ana Ramírez", photoUrl: "/sprites/a.png" },
   { id: "p-andres-gil", name: "Andrés Gil", photoUrl: "/sprites/b.png" },
-  { id: "p-camila-soto", name: "Camila Soto", photoUrl: null },
+  { id: "p-camila-soto", name: "Camila Soto", photoUrl: "/sprites/c.png" },
   { id: "p-diego-morales", name: "Diego Morales", photoUrl: "/sprites/d.png" },
   { id: "p-elena-vargas", name: "Elena Vargas", photoUrl: "/sprites/e.png" },
   { id: "p-mateo-herrera", name: "Mateo Herrera", photoUrl: "/sprites/f.png" },
@@ -91,8 +94,24 @@ describe("mockRankedRoom", () => {
         expect(given.has(entry.id), `${lens}: ${entry.id}`).toBe(true);
         const source = CANDIDATES.find((c) => c.id === entry.id);
         expect(entry.name).toBe(source?.name);
-        expect(entry.photoUrl).toBe(source?.photoUrl ?? null);
+        // Photo presence may be DROPPED but never invented: a fixture may say
+        // "this person has not uploaded one yet", which is a render state, and
+        // may not conjure a photo for someone who has none.
+        if (entry.photoUrl !== null) {
+          expect(entry.photoUrl).toBe(source?.photoUrl);
+        }
       }
+    }
+  });
+
+  it("gives the photoless placeholder a subject in every room", () => {
+    // Without this, `rank-card.tsx`'s placeholder branch and `avatar-stage`'s
+    // are code no test and no demo has ever rendered. Two verify passes called
+    // that CRITICAL before it was closed.
+    for (const lens of LENSES) {
+      const room = ranked(mockRankedRoom(lens, VIEWER, CANDIDATES));
+      const photoless = room.entries.filter((e) => e.photoUrl === null);
+      expect(photoless.length, lens).toBe(1);
     }
   });
 

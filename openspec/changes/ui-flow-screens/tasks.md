@@ -44,9 +44,9 @@ unit targets its immediate predecessor. No task below names a base branch.
 | ~~U4~~ | ~~fixture roster + fixture `LatentSource`~~ | — | — | — | **DISSOLVED by R9/R10** |
 | ~~U5~~ | ~~fixture adapters, `viewRank`/`viewProfile`, composition ×2, viewer resolver~~ | — | — | — | **DISSOLVED by R9/R10/R11** |
 | U6 | `/rank` (1c) + `components/rank/*` + `mock.ts` wiring + e2e | ~380 | U3 | Yes | **DONE** — `feat/ui-flow-u6-rank` |
-| U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | **Ready** |
+| U7 | `/profile/[id]` (1d) + `components/profile/*` + `mock.ts` + e2e | ~330 | U6 | Yes | **DONE** — `feat/ui-flow-u7-profile` |
 | ~~U8~~ | ~~timeline fixture + `simulateLife` + composition ×1~~ | — | — | — | **DISSOLVED by R9/R10** |
-| U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | |
+| U9 | `/simulate/[id]` (1f) + `components/simulate/*` + `mock.ts` + e2e | ~420 | U3, U7 | Yes | **Ready** |
 
 **Numbers are NOT reused.** U4, U5 and U8 stay struck through rather than
 renumbering U6/U7/U9 down, because `apply-progress.md`, six Engram observations
@@ -468,42 +468,122 @@ Filter chips carry the design's labels too — `Todos` / `Banda alta` /
 - **10.5's "known gap" was false** and **10.3's absence check had expired.** Both
   corrected in Phase 10.
 
-## Phase U7 — `/profile/[id]`, screen 1d (~330)
+## Phase U7 — `/profile/[id]`, screen 1d — **DONE**
 
-Depends on U6 — it reuses the card's photo placeholder and the lens threading.
-
-- [ ] 7.0 RED+GREEN: `src/components/profile/mock.ts` —
-      `mockProfile(personId, lens, me, others)` returning `PersonProfile | null`
-      from `@/lib/domain/reveal/profile` (R13 — the shape is #10's to return, so
-      it is not redeclared here). Returns **`null` for an unknown id, for the viewer's own id,
-      and for a person absent from the ranking under that lens**, so the four
-      AC-PROF-2 suppression cases collapse to one indistinguishable `null`.
-      `standing` is read off `mockRankedRoom` for the same lens — **never a band
-      literal in this file**, or the profile and the ranking can disagree.
-      (AC-PROF-2, AC-PROF-3)
-- [ ] 7.1 RED: `mock.test.ts` — all four suppression causes return `null` and
-      nothing distinguishes them; `standing` matches the entry's band from
-      `mockRankedRoom` for every roster id × 3 lenses; `tags` are
-      `domain/participant/tags.ts` slugs and are **shared only** — never a tag
-      the viewer does not also hold. (AC-PROF-2, AC-PROF-3)
-- [ ] 7.2 `src/app/profile/[id]/page.tsx` — Server Component; `personId` from
-      the segment, viewer from `enterRoom` (R11), `notFound()` on `null`.
+- [x] 7.0 RED+GREEN: `src/components/profile/mock.ts` —
+      `mockProfile(personId, room, candidates)`. **It takes the `RankedRoom`
+      screen 1c already built rather than re-ranking**, and that is the
+      load-bearing decision of the unit: `standing` is where this person sits in
+      THIS viewer's ranking, so a second derivation would let 1c and 1d drift
+      apart about the same pair. One source, one answer. RED was 4 assertion
+      failures against a Fake-It `return null`.
+- [x] 7.1 RED: `mock.test.ts`, 8 properties. Suppression is asserted as
+      **indistinguishability**, never as "returns null for reason X" — unknown
+      id and the viewer's own id must reach the same `null`, or the 404 becomes
+      an oracle for who is in the room. Plus: `standing` equals the ranking's
+      entry field for field; tags are exactly the intersection; the empty-tags
+      and photoless states each have a subject; nothing offspring-shaped and no
+      score key survives `JSON.stringify`. (AC-PROF-2, AC-PROF-3)
+- [x] 7.2 `src/app/profile/[id]/page.tsx` — Server Component. `personId` from
+      the segment, viewer from the impersonation cookie: **the URL names who you
+      are LOOKING AT and the cookie names who is LOOKING**, and the second is
+      not something a request may assert. One `null` check, one `notFound()`.
       (AC-PROF-1, AC-PROF-2)
-- [ ] 7.3 `src/components/profile/{profile-card,avatar-stage,tag-chips}.tsx` —
-      all Server Components. Shared tags only, with an explicit "nothing in
-      common yet" state; photoless avatar gets a named placeholder. (AC-PROF-3)
-- [ ] 7.4 Avatar bob as an **inline `style` containing `animation`** (or a class
-      already listed in the reduced-motion block). No new bespoke animation
-      class; `globals.css` stays unchanged. (AC-PROF-6)
-- [ ] 7.5 Simulate CTA — `getByRole("link", {name})` to `/simulate/{personId}`,
-      no query string, no viewer id in the URL; lens travels by cookie.
-      (AC-PROF-5)
-- [ ] 7.6 E2E `e2e/profile.spec.ts` — 404 bodies byte-identical across unknown
-      id / below-floor / gate-failed / non-consenting; lens changes who is
-      reachable; **consent-invariant DOM** across two people differing only in
-      `consent.romantic`, and no accessible name matching
-      `/beb[eé]|hijo|offspring/i`; motion runs, then stops under reduced motion.
-      (AC-PROF-2..6, AC-PORT-8)
+- [x] 7.3 `components/profile/{profile-card,avatar-stage,tag-chips,standing-pill}.tsx`,
+      all Server Components. **Rebuilt to the design after the first pass missed
+      it entirely** — name and standing pill in the header, one dashed card with
+      a mono label and the chips INSIDE it, the CTA immediately under the card
+      rather than at the foot of the screen, a hairline, then the sprite taking
+      the whole lower half with the "la foto real se inserta en la cara del
+      sprite" note. The CTA is high on purpose: it is the only thing to do on
+      this screen, and burying it under the art makes the page look like a dead
+      end. See R17 for the two places the design and the spec disagree. Shared tags only — intersected in the fixture, never in
+      the component, so the screen *cannot* present the other person's private
+      interests as common ground even by accident. Explicit "nothing in common
+      yet" state; photoless stage gets a named placeholder. Interest chips
+      deliberately do NOT use `--tag-*`: that palette is screen 1f's event
+      families, and the same colour meaning two things is a coincidence read as
+      a relationship. (AC-PROF-3)
+- [x] 7.4 Avatar bob via `@utility avatar-bob`, which `globals.css` already
+      defines AND already lists in the `prefers-reduced-motion` block. No new
+      bespoke class. The ground shadow deliberately does NOT bob — a shadow that
+      rises with the body reads as the ground moving. (AC-PROF-6)
+- [x] 7.5 Simulate CTA — `getByRole("link")` to `/simulate/{personId}`, no query
+      string, no viewer id. A link that leaks out of this session names a person
+      and nothing about who was looking at them. (AC-PROF-5)
+- [x] 7.6 E2E `e2e/profile.spec.ts` — **8/8**. Three probes proven live:
+
+      | Mutation | Probe | Observed |
+      |---|---|---|
+      | `avatar-bob` removed | AC-PROF-6 | `Expected > 0, Received 0` |
+      | tags sent un-intersected | AC-PROF-3 (unit) | `expected [ 'anime', 'k-pop', …(3) ] to deeply equal []` |
+      | `?from=` appended to the CTA | AC-PROF-5 | `Received "/simulate/p-diego-morales?from=5"` |
+
+      The tag mutation is the one that matters: it is the privacy leak, caught
+      as the other person's private interests being presented as shared.
+
+### R17 — the 1d design vs AC-PROF-3, and the bio that is not invented
+
+The design for 1d (shown after the first build) puts two things on screen that
+the spec argues about.
+
+**1. `1º en tu rank`, a rank index, on the profile.** AC-PROF-3 says the page
+"MUST NOT render a score, percentage, **rank index**, or any wording that implies
+a numeric ordering". The design renders exactly that, in a band-coloured pill.
+
+**Decision: build the design.** The position is the same one screen 1c showed on
+the card the viewer just tapped to get here, so it discloses nothing new *to this
+viewer*; it is not a score and is not invertible into one; and the AC's own
+examples — "87% match", "3rd best" — are judgements, where this is a location.
+It remains the ONLY number on the screen and nothing else here may become a
+second one. If the product decides otherwise it is one line in
+`components/profile/standing-pill.tsx`.
+
+**2. A "SMALL BIO" card of free prose. BUILT — the objection was answered, not
+sustained.** The first pass refused to fabricate it: `PersonProfile` carries no
+bio field, and adding one would put invented sentences in a named participant's
+mouth. **The product owner overruled it, and correctly** — the bio is real
+product, written by an AI over intake's declared data once that data exists, and
+mocking a stand-in is what a fixture is for.
+
+What the objection DID change is where it lives. `bio` is **not** on
+`PersonProfile` and must not become so: issue #10 produces a ranking, not prose,
+and the bio has its own future source. It sits on `ProfileView`, a screen-local
+type in `components/profile/mock.ts` that extends the contract — the same rule
+R9/R13 settled, applied to a field instead of a function.
+
+`mockBio` composes from the person's OWN tags, not the shared ones. A bio is
+someone describing themselves; composing it from the intersection would describe
+them as a function of whoever is looking, and two viewers would read two
+different people. It carries no gendered adjective either — the roster holds
+names, not genders, and "Madrugadora" on a person who declared none is a guess
+the product has no business making. Both properties are tested, along with a
+**voseo regression guard**: generated prose is exactly where the assistant's
+Rioplatense persona would leak back in, so the rule is a test now, not a note.
+
+**3. The venue background stays on 1d**, by the product owner's call — the flow
+never leaves the room. It is veiled harder than on 1c and for a concrete reason:
+1c's content is short chips and big ordinals, this screen's content is a
+paragraph, and a paragraph read over a sponsor wall is not atmospheric, it is
+unreadable. So the wash is **opaque across the top third** and only opens below
+the CTA, and the card itself is near-solid. The room shows where there is
+nothing to read — which is where the person is standing anyway.
+
+**4. The sprite caption is gone.** The first build shipped the design's
+annotation, "la foto real se inserta en la cara del sprite", as if it were
+product copy. It was a note to whoever reads the mockup, not to whoever uses the
+app. Explaining your own art on screen is the tell of a screen that does not
+trust it.
+
+### R16 — AC-PROF-2's lens scenario is not reachable, and the e2e says so
+
+The spec wants "P consents to friendship but not romance ⇒ friendship renders,
+romance 404s". The fixture carries no consent (R15), so that scenario has no
+subject. **The e2e asserts the reachable half of the same guarantee** — the same
+person's profile *differs* between lenses, i.e. this is not one global profile —
+and the test carries a comment saying which half it is testing and why. A test
+that quietly asserted something weaker than its AC id claims would be worse than
+no test.
 
 ## ~~Phase U8 — Timeline fixture + use case~~ — DISSOLVED (R9, R10)
 

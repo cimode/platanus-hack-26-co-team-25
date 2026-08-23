@@ -421,8 +421,103 @@ written into the test.
 Full-suite failures are `quiz.spec.ts` and `intake-declared.spec.ts`, which need
 `DATABASE_URL`; this diff touches nothing under either.
 
+### Remaining after Batch 6
+
+U7 then U9, plus Phase 10 per unit. **`sdd-verify` now runs per unit** — the
+user's call after noticing it had been skipped for U3 and U6.
+
+## Batch 7 — Work unit U7 (`/profile/[id]`, screen 1d) — COMPLETE
+
+Branch `feat/ui-flow-u7-profile`, stacked on U6. **This batch was missing
+entirely until `sdd-verify` filed it as C4** — the file still listed U7 under
+"Remaining" after the unit had shipped.
+
+### The decision that carries the unit
+
+`mockProfile` takes the `RankedRoom` screen 1c already built rather than ranking
+again. `standing` is where this person sits in THIS viewer's ranking, so a
+second derivation — a second hash, a second band rule — would let 1c and 1d
+drift apart about the same pair. **Caveat the verifier added, and it is fair**:
+this is *same roster ⇒ same answer*, not literally one source. `band` is a
+function of `others.length` and `friction` of `position % 3`, so one extra
+arrival between the two page loads changes 6 of 17 pairs. #10 removes the
+question by supplying both from one call.
+
+### Two redesigns, because the first build did not follow the design
+
+1. **Structure.** Name and standing pill in the header, one dashed card with a
+   mono label and the chips inside it, the CTA immediately under the card rather
+   than at the foot, then the sprite taking the lower half. The CTA is high on
+   purpose: it is the only thing to do on this screen.
+2. **Bio, venue, no caption.** The quick bio is mocked and stands in for an AI
+   step over intake's declared data; the venue stays, veiled hard; the design's
+   annotation "la foto real se inserta en la cara del sprite" had been shipped
+   as product copy by mistake and is gone.
+
+`bio` is **not** on `PersonProfile` — #10 produces a ranking, not prose. It sits
+on `ProfileView`, a screen-local type extending the contract. Same rule as
+R9/R13, applied to a field instead of a function. `mockBio` composes from the
+person's OWN tags (a bio composed from the intersection would describe them as a
+function of whoever is looking) and carries no gendered adjective (the roster
+holds names, not genders). Both are tested, along with a **voseo regression
+guard** — generated prose is exactly where the assistant's persona leaks back in.
+
+### `sdd-verify` verdict: FAIL, four blockers, all closed
+
+Every safety property it attacked **held**, and more firmly than the suite
+proves: 404 bodies byte-identical at 18,567 bytes once the requester's own URL
+segment and Next's nonce are removed; none of the subject's five non-shared tags
+in the HTML or the flight payload; no viewer id on the wire; AC-PROF-6
+time-invariant across seven sample points 0–5s.
+
+| # | Finding | Close |
+|---|---|---|
+| C1 | the empty-tags assertion **could not fail** — summing two counts and asserting 1 is satisfied by a bare `<ul>` just as well as by the designed state | XOR + non-empty check on the list. Mutation gives `Expected > 0, Received 0` |
+| C2 | the photoless placeholder **could not render** on either screen, and had not for two verify passes | one subject per room in the fixture; 1c's e2e asserts it paints |
+| C3 | consent-invariance had no test and no row | tested for what is true — the render is a function of `PersonProfile`, which has no consent field — with the test saying it must be REPLACED when #10 lands, not extended |
+| C4 | this batch did not exist | written |
+| — | the viewer-self guard was **mutation-dead**, and the first repair moved the shadow instead of removing it (the viewer also has to be in `candidates`) | both shadows gone; deleting the guard now gives `expected { …(7) } to be null` |
+
+R16 corrected: the lens substitution is NOT "the same underlying guarantee" —
+the spec's scenario is *reachability*, the substitute is *variation* — and it
+passes at 2 of 3 lenses, because business and friendship render identically for
+the tested pair.
+
+### The process failure, recorded as R19
+
+**The verify ran while its own working tree was being edited under it.** The
+hazard was written down two units earlier and then walked into anyway when
+design feedback arrived mid-run. The agent caught the divergence itself and
+clobbered nothing, but roughly a third of a 211k-token run went to code that no
+longer existed. **A delegated verify owns the working tree for its duration.**
+Wait, or kill it.
+
+### `main` merged in, and it moved a lot
+
+PRs #46 (intake MVP, issue #42) and #48 (sprites without floor). #46 deleted
+`set-photo`, `submit-business-gate` and `submit-romantic-gate`. **None of U6/U7's
+dependency surface moved** — `enter-room`, `roster`, `layout`, `ports/participants`
+and `impersonation` all intact. Clean merge, no conflicts.
+
+One trap worth keeping: after that merge `pnpm run typecheck` failed with three
+`TS2307`s inside **`.next/dev/types/validator.ts`**, a generated file still
+pointing at intake pages #46 had deleted. `next typegen` does not clear it.
+`rm -rf .next` does.
+
+### Verification
+
+`pnpm run verify` **210 passed / 16 skipped**. `pnpm exec playwright test
+rank.spec.ts profile.spec.ts demo-path.spec.ts` **84 passed**. `pnpm run build`
+with `DATABASE_URL` unset green.
+
+### Still open
+
+- **W6 — 1d's CTA lands on a 404 until U9 ships.** Not a defect, an ordering
+  consequence. **Do not demo that button before U9 merges.**
+- R15's jsdom gap now covers `profile-card`, `avatar-stage` and `tag-chips` at
+  0% unit coverage; they are exercised only through Playwright.
+
 ### Remaining
 
-U7 (`/profile/[id]`) then U9 (`/simulate/[id]`), plus Phase 10 per unit.
-**`sdd-verify` now runs per unit** — the user's call after noticing it had been
-skipped for U3 and U6.
+**U9** (`/simulate/[id]`, screen 1f) — the last unit and the largest. Plus Phase
+10 per unit, and a re-verify of U7 against the settled screen.
