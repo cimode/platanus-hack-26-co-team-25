@@ -5,8 +5,10 @@ import {
   isLens,
   placeInRoom,
   roomColumns,
+  SPRITE_ASPECT,
   STANDING_BAND,
   spriteHeightFraction,
+  VENUE_ASPECT,
 } from "./layout";
 
 const { back: BACK, front: FRONT } = STANDING_BAND;
@@ -58,6 +60,25 @@ describe("spriteHeightFraction", () => {
       expect(spriteHeightFraction(y + 0.01)).toBeGreaterThan(
         spriteHeightFraction(y)
       );
+    }
+  });
+
+  // The regression this locks: WALL_INSET was 0.02, which happened to be half
+  // the widest sprite of the day and said so nowhere. The sprites grew, the
+  // constant did not, and the near row stood with a foot through the rim.
+  it("keeps a sprite's whole body on the floor, at every depth", () => {
+    for (let y = BACK; y <= FRONT; y += 0.01) {
+      // The sprite is centred on x, so half of it hangs off each side. Height
+      // is a fraction of the plate's height, this span is of its width.
+      const halfWidth =
+        (spriteHeightFraction(y) * SPRITE_ASPECT) / VENUE_ASPECT / 2;
+      const { left, right } = floorSpan(y);
+      const floorEdge = {
+        left: 0.109 + 1.23 * (y - 0.8),
+        right: 0.938 - 1.23 * (y - 0.8),
+      };
+      expect(left - halfWidth).toBeGreaterThanOrEqual(floorEdge.left);
+      expect(right + halfWidth).toBeLessThanOrEqual(floorEdge.right);
     }
   });
 });
