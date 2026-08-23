@@ -3,7 +3,7 @@ import Link from "next/link";
 import { EmoteGallery } from "@/components/emotes/emote-gallery";
 
 export const metadata: Metadata = {
-  title: "hookai · emotes",
+  title: "dipia · emotes",
   description:
     "Catálogo de reacciones y caminatas de los avatares digitales, listo para usar en cualquier pantalla.",
 };
