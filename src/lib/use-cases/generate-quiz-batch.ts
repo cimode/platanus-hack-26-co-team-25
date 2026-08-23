@@ -40,7 +40,8 @@ import {
 } from "../domain/quiz/assignments.ts";
 import {
   type AuthoredBatch,
-  authoredBatchSchema,
+  authoredBatchShapeSchema,
+  authoredBlockProblem,
   authorPrompt,
   judgePrompt,
   verdictsSchema,
@@ -211,7 +212,9 @@ export async function generateQuizBatch(
           language,
           avoid: [...previousScenarios, ...notes],
         }),
-        schema: authoredBatchSchema,
+        // Shape only: a length rule broken in one block is that block's
+        // problem (repaired below), not a reason to reject the whole call.
+        schema: authoredBatchShapeSchema,
         note: `participant ${participantId}, batch ${batch}`,
       });
     } catch {
@@ -228,7 +231,9 @@ export async function generateQuizBatch(
       if (!assignment || accepted.has(raw.position)) continue;
 
       const block = toBlock(raw, assignment);
-      const problem = problemWith(block);
+      // Length rules first — they are worded for the repair prompt — then the
+      // structural contract every returned block must honour.
+      const problem = authoredBlockProblem(raw) ?? problemWith(block);
       if (problem) {
         problems.set(raw.position, problem);
         continue;

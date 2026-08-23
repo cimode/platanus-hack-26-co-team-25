@@ -68,6 +68,7 @@ const PARTICIPANT: Participant = {
     tags: ["escalada", "ramen"],
     acquaintances: [KNOWS_A, KNOWS_B],
   },
+  dataConsentAt: null,
   declaredAt: new Date("2026-08-22T19:00:00.000Z"),
   quizCompletedAt: new Date("2026-08-22T19:30:00.000Z"),
   createdAt: new Date("2026-08-22T18:00:00.000Z"),

@@ -12,6 +12,23 @@ import { expect, type Page, test } from "@playwright/test";
  * cannot both be "one of seven", so the token is what gets asserted.
  */
 
+/*
+ * DATABASE-DEPENDENT as of the #33 merge, and that is a real cost worth naming.
+ *
+ * Screen 1f used to paint a colocated fixture, so these 26 tests ran anywhere.
+ * It now reads `serverDeps().timelines.simulate(...)` -- the real engine behind
+ * a Postgres cache -- which is unambiguously the better screen and unambiguously
+ * a narrower place to test it from.
+ *
+ * The skip follows the repo's existing convention (`intake.spec.ts`): CI sets
+ * DB_REQUIRED=1, so a missing database fails the run before anything can skip.
+ * With CI's Neon key returning 401 (issue #55) that safety net is currently
+ * down, so these run NOWHERE until either the key is rotated or a local
+ * DATABASE_URL is pointed at a migrated branch. Said out loud rather than left
+ * for someone to discover in a green summary.
+ */
+test.skip(!process.env.DATABASE_URL, "needs DATABASE_URL (issue #55)");
+
 const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
 const OTHER = { id: "p-diego-morales", name: "Diego Morales" };
 

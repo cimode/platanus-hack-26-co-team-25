@@ -35,15 +35,22 @@ interface RegisterInput {
   gender: "M" | "F" | "NB";
   birthdate: string;     // YYYY-MM-DD; 18 ≤ age ≤ 100, evaluated against a `today` passed in
   photo: Blob;           // ≤ 512 px re-encoded client-side; ≤ 1 MiB and JPEG/PNG/WebP on the server
+  dataConsent: "on";     // the data-treatment checkbox; absent when unticked (#49)
 }
-// → participants row with gender, birthdate, photo_url and the three consents `true`
+// → participants row with gender, birthdate, photo_url, data_consent_at and the three consents `true`
 // → sets the httpOnly cookie `hookai_session`; the token never appears in any payload
 ```
+
+`dataConsent` is the ONE authorisation this version asks for (issue #49): the box is
+unticked by default, the action refuses with `reason: "data-consent"` when it is missing —
+before any row is written — and `participants.data_consent_at` records **when** it was
+given, which is what Ley 1581 de 2012 expects. The per-lens consents below are a different
+thing entirely and stay unasked.
 
 `birthdate` is asked because the engine wants an age band and nobody should have to pick
 one: `ageBandOf(birthdate, today)` maps 18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3.
 
-## 2. consent — not asked (D18)
+## 2. the per-lens consents — not asked (D18)
 
 `consent_romantic`, `consent_business` and `consent_friendship` are written `true` by the
 registration itself: participating *is* consenting for this version. There is no consent

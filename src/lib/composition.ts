@@ -9,6 +9,7 @@ import { createGatewayLlm } from "./adapters/llm/gateway";
 import { rosterParticipants } from "./adapters/participants/roster";
 import { createFakePhotoStore } from "./adapters/storage/fake-photo-store";
 import { createNeonObjectStoragePhotoStore } from "./adapters/storage/neon-object-storage-photo-store";
+import { createDbTimelines } from "./adapters/timeline";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
@@ -19,6 +20,7 @@ import type { ProfilePort } from "./ports/profile";
 import type { RankingPort } from "./ports/ranking";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
+import type { TimelinePort } from "./ports/timeline";
 import { prepareProfile } from "./use-cases/prepare-profile";
 import type { PrepareResultsDeps } from "./use-cases/prepare-results";
 import { prepareResults } from "./use-cases/prepare-results";
@@ -63,6 +65,8 @@ export interface Deps {
   ranking: RankingPort;
   /** `prepareProfile`, likewise. Screens name the port, never the use case. */
   profiles: ProfilePort;
+  /** `simulatePair`, likewise (issue #33). */
+  timelines: TimelinePort;
 }
 
 export type ServerDeps = Pick<
@@ -78,6 +82,7 @@ export type ServerDeps = Pick<
   | "photos"
   | "ranking"
   | "profiles"
+  | "timelines"
 >;
 
 let cachedLlm: LlmPort | undefined;
@@ -185,6 +190,9 @@ export function serverDeps(): ServerDeps {
         byId: (personId, viewerId, lens) =>
           prepareProfile(personId, viewerId, lens, deps),
       };
+    },
+    get timelines(): TimelinePort {
+      return createDbTimelines(getDb(), getLlm());
     },
     get photos() {
       return process.env.AWS_ENDPOINT_URL_S3

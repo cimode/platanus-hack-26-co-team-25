@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { type RegisterState, registerAction } from "@/app/intake/actions";
+import { PhotoField } from "@/components/intake/photo-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,15 @@ const MAX_BYTES = 1024 * 1024;
 
 /** The server's own sentence, so the two paths read identically. */
 const TOO_LARGE = "La foto pesa demasiado. Intenta de nuevo.";
+
+/**
+ * The one authorisation this version asks for (issue #49): habeas data wants
+ * it explicit, in plain Spanish, and naming what is kept and how to undo it.
+ */
+const DATA_TREATMENT =
+  "Acepto el tratamiento de mis datos personales (nombre, foto, fecha de " +
+  "nacimiento y respuestas) para esta experiencia. Puedo pedir que se borren " +
+  "escribiendo a privacidad@dipia.lat.";
 
 /**
  * The one registration screen (issue #42): photo, name, gender, birthdate, one
@@ -93,31 +103,13 @@ export function RegisterForm({ roomSlug }: { roomSlug: string }) {
       <input name="room" type="hidden" value={roomSlug} />
 
       <div className="space-y-3">
-        <Label className="text-ink" htmlFor="intake-photo">
-          Tu foto, tomada ahora
-        </Label>
-        <input
-          accept="image/*"
-          capture="user"
-          className="w-full rounded-xl border border-input bg-card p-3 text-sm text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-medium file:text-secondary-foreground"
-          id="intake-photo"
-          name="photo"
+        <PhotoField
+          invalid={Boolean(tooLarge || state.photoError)}
           onChange={handleChange}
-          type="file"
+          preview={preview}
         />
         <FieldError message={tooLarge ? TOO_LARGE : state.photoError} />
       </div>
-
-      {preview ? (
-        <div className="flex justify-center">
-          {/* biome-ignore lint/performance/noImgElement: a blob: URL that exists only in this tab, which next/image cannot optimise and must not try to */}
-          <img
-            alt="Tú, recién ahora"
-            className="size-32 rounded-2xl border-2 border-border object-cover"
-            src={preview}
-          />
-        </div>
-      ) : null}
 
       <div className="space-y-5">
         <div className="space-y-2">
@@ -174,6 +166,30 @@ export function RegisterForm({ roomSlug }: { roomSlug: string }) {
           />
           <FieldError message={state.birthdateError} />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        {/* A NATIVE checkbox, not the shadcn one: Radix renders a button and
+            submits nothing without JavaScript, and this is the one field the
+            whole submit hangs on. No `required` either -- the browser's own
+            bubble would replace the server's sentence, and the action is a
+            public endpoint that has to refuse on its own anyway. */}
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+          <input
+            aria-invalid={state.dataError ? true : undefined}
+            className="mt-0.5 size-5 shrink-0 accent-primary"
+            id="intake-datos"
+            name="dataConsent"
+            type="checkbox"
+          />
+          <Label
+            className="text-ink-soft text-xs leading-snug font-normal"
+            htmlFor="intake-datos"
+          >
+            {DATA_TREATMENT}
+          </Label>
+        </div>
+        <FieldError message={state.dataError} />
       </div>
 
       <Button

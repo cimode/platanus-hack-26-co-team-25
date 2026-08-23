@@ -56,6 +56,57 @@ function wordCount(text: string): number {
 const MAX_SENTENCES = 2;
 const MAX_OPTION_WORDS = 8;
 
+export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
+
+/** The length complaint about a scenario, worded for the repair prompt. */
+function scenarioProblem(block: AuthoredBlock): string | null {
+  const sentences = sentenceCount(block.scenario);
+  if (sentences <= MAX_SENTENCES) return null;
+  return (
+    `position ${block.position}: the scenario has ${sentences} ` +
+    `sentences; the limit is ${MAX_SENTENCES} short sentences`
+  );
+}
+
+/** The length complaint about one option, worded for the repair prompt. */
+function optionProblem(
+  block: AuthoredBlock,
+  option: AuthoredBlock["options"][number]
+): string | null {
+  const words = wordCount(option.text);
+  if (words <= MAX_OPTION_WORDS) return null;
+  return (
+    `position ${block.position}: option "${option.key}" has ` +
+    `${words} words; the limit is ${MAX_OPTION_WORDS} words`
+  );
+}
+
+/**
+ * The first length rule this block breaks, or null.
+ *
+ * The per-block form of `authoredBatchSchema`'s refinement, for the author
+ * loop: an eleven-word option must cost that position a repair, not the whole
+ * batch a fallback — which is what enforcing the same rule at the batch
+ * boundary (inside `generateObject`) did.
+ */
+export function authoredBlockProblem(block: AuthoredBlock): string | null {
+  const scenario = scenarioProblem(block);
+  if (scenario) return scenario;
+  for (const option of block.options) {
+    const problem = optionProblem(block, option);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/**
+ * The batch's shape alone — what the model is asked to produce. The length
+ * limits are applied per block by the author loop via `authoredBlockProblem`.
+ */
+export const authoredBatchShapeSchema = z.object({
+  blocks: z.array(authoredBlockSchema).length(5),
+});
+
 /**
  * The batch, plus the two length limits the character caps above cannot express.
  *
@@ -66,37 +117,31 @@ const MAX_OPTION_WORDS = 8;
  * recovers from it. Messages name the position and the limit, because the model
  * is answering about five blocks at once and "too long" is not actionable.
  */
-export const authoredBatchSchema = z
-  .object({
-    blocks: z.array(authoredBlockSchema).length(5),
-  })
-  .superRefine((batch, ctx) => {
+export const authoredBatchSchema = authoredBatchShapeSchema.superRefine(
+  (batch, ctx) => {
     batch.blocks.forEach((block, index) => {
-      const sentences = sentenceCount(block.scenario);
-      if (sentences > MAX_SENTENCES) {
+      const scenario = scenarioProblem(block);
+      if (scenario) {
         ctx.addIssue({
           code: "custom",
           path: ["blocks", index, "scenario"],
-          message:
-            `position ${block.position}: the scenario has ${sentences} ` +
-            `sentences; the limit is ${MAX_SENTENCES} short sentences`,
+          message: scenario,
         });
       }
 
       block.options.forEach((option, optionIndex) => {
-        const words = wordCount(option.text);
-        if (words > MAX_OPTION_WORDS) {
+        const problem = optionProblem(block, option);
+        if (problem) {
           ctx.addIssue({
             code: "custom",
             path: ["blocks", index, "options", optionIndex, "text"],
-            message:
-              `position ${block.position}: option "${option.key}" has ` +
-              `${words} words; the limit is ${MAX_OPTION_WORDS} words`,
+            message: problem,
           });
         }
       });
     });
-  });
+  }
+);
 
 export type AuthoredBatch = z.infer<typeof authoredBatchSchema>;
 
@@ -119,8 +164,12 @@ HARD RULES — a block breaking any of these is discarded:
 1. Every block loads ALL FOUR pillars, exactly one option each. Options a,b,c,d
    appear once each. A block whose options measure one pillar is invalid.
 2. Exactly ONE option is reversed-keyed, and it must be the low pole of that
-   block's focusPillar. It must stay likable and funny, never villainous.
-   Without it the form carries zero information about trait levels.
+   block's focusPillar. That is the focusPillar's ONLY option — never add a
+   second, positive option for the focusPillar; the other three options
+   belong to the other three pillars, one each, all positive-keyed. Four
+   options, four different pillars, one of them reversed. The reversed one
+   must stay likable and funny, never villainous. Without it the form
+   carries zero information about trait levels.
 3. Desirability matching: if any option reads as "the obviously good answer"
    within three seconds, the block fails. Comedy is the equalizer — every
    option must be something a likable person plausibly does.
@@ -130,7 +179,9 @@ HARD RULES — a block breaking any of these is discarded:
 5. Safety: no substances, politics, religion, sex, mental health, or money
    shame. Nothing a person would not want screenshotted.
 6. Scenario: at most two short sentences, under 220 characters.
-   Options: at most 8 words each — they render as small cards.
+   Options: 4 to 7 words each, at most 8 words — they render as small cards,
+   and a ninth word discards the whole block. Count the words of every
+   option before returning and shorten any that reaches 8.
 7. Vary the structure across the five blocks. Not five versions of one joke,
    and no two blocks sharing a premise.
 8. VOICE — every option, in every block, is written in the FIRST PERSON
@@ -208,7 +259,8 @@ export function authorPrompt(input: AuthorPromptInput): string {
     .map(
       (a) =>
         `- position ${a.position}: focusPillar=${a.focusPillar} ` +
-        `(its LOW pole is the reversed option), domain=${a.domain}`
+        `(its one option is the reversed one; the other three pillars get one ` +
+        `positive option each), domain=${a.domain}`
     )
     .join("\n");
 
@@ -229,6 +281,7 @@ The domain is only the setting — it does not change the rules.
 
 ${table}${avoidClause}
 
+Before returning, re-check rules 1, 2 and 6 on every block.
 Return one object per position, with the position echoed back.`;
 }
 

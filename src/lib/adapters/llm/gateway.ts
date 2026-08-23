@@ -17,7 +17,7 @@
  */
 
 import { gateway } from "@ai-sdk/gateway";
-import { generateObject, NoObjectGeneratedError } from "ai";
+import { generateObject, NoObjectGeneratedError, RetryError } from "ai";
 
 import type { LlmPort, LlmRequest } from "../../ports/llm";
 
@@ -34,11 +34,62 @@ export const DEFAULT_FALLBACKS = [
   "google/gemini-3.6-flash",
 ];
 
+/** The AI SDK's portable reasoning levels; the gateway maps each to its provider. */
+export type GatewayReasoning =
+  | "provider-default"
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
+
+const REASONING_LEVELS: readonly string[] = [
+  "provider-default",
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+/**
+ * The least thinking the model is allowed, not none.
+ *
+ * With the provider default, Sonnet 5 thinks adaptively: on 2026-08-23 it spent
+ * 7,342 of an 8,192-token output cap thinking about a five-block batch, ran out
+ * mid-JSON (`finishReason: length`) after ~76 s, and every position fell back to
+ * the committed instrument — then the `after()` prefetch of the next batch did
+ * it again and pushed the request past `maxDuration`. Measured the same day
+ * against the author prompt: `none` answers in ~14 s but doubles the focus
+ * pillar in most blocks; `minimal` and `low` author in ~15–30 s and pass
+ * structure on 4–5 of 5 first time. The judge→repair loop carries the rest
+ * (docs/quiz-generation.md §7). Raise it with `AI_REASONING=low` if quality
+ * slips; the token cap below is not the lever.
+ */
+export const DEFAULT_REASONING: GatewayReasoning = "minimal";
+
+function reasoningFromEnv(): GatewayReasoning | undefined {
+  const value = process.env.AI_REASONING;
+  return value !== undefined && REASONING_LEVELS.includes(value)
+    ? (value as GatewayReasoning)
+    : undefined;
+}
+
 export interface GatewayLlmOptions {
   /** `provider/model`. Defaults to `AI_MODEL` in the environment, then Sonnet. */
   model?: string;
   fallbacks?: string[];
-  /** Headroom for a five-block batch. */
+  /**
+   * How much the model may think before answering. Defaults to `AI_REASONING`
+   * in the environment, then `DEFAULT_REASONING`.
+   */
+  reasoning?: GatewayReasoning;
+  /**
+   * Headroom for a five-block batch. The cap is shared between thinking and
+   * the answer, so read it together with `reasoning`.
+   */
   maxOutputTokens?: number;
   /** Low but non-zero: these are creative prompts, not extractions. */
   temperature?: number;
@@ -65,7 +116,11 @@ export class LlmGenerationError extends Error {
 export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
   const model = options.model ?? process.env.AI_MODEL ?? DEFAULT_MODEL;
   const fallbacks = options.fallbacks ?? DEFAULT_FALLBACKS;
-  const maxOutputTokens = options.maxOutputTokens ?? 8192;
+  const reasoning =
+    options.reasoning ?? reasoningFromEnv() ?? DEFAULT_REASONING;
+  // Sonnet 5 allows 128k. A five-block batch is ~1k tokens of JSON; 16k leaves
+  // room for a non-"none" reasoning level without inviting a 90 s call.
+  const maxOutputTokens = options.maxOutputTokens ?? 16_384;
   const temperature = options.temperature ?? 0.9;
   const timeoutMs = options.timeoutMs ?? 90_000;
 
@@ -79,6 +134,7 @@ export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
           prompt: request.prompt,
           maxOutputTokens,
           temperature,
+          reasoning,
           abortSignal: signal,
           providerOptions: { gateway: { models: fallbacks } },
         });
@@ -89,13 +145,42 @@ export function createGatewayLlm(options: GatewayLlmOptions = {}): LlmPort {
         // The interesting failure: the model answered but not in the shape
         // asked for. Surfacing it distinctly is what lets a caller decide
         // between retrying and falling back.
-        if (NoObjectGeneratedError.isInstance(error)) {
-          throw new LlmGenerationError(
-            request.id,
-            new Error(`model did not return an object matching the schema`)
-          );
-        }
-        throw new LlmGenerationError(request.id, error);
+        const failure = NoObjectGeneratedError.isInstance(error)
+          ? new Error(
+              "model did not return an object matching the schema " +
+                `(finishReason: ${error.finishReason ?? "unknown"}, ` +
+                `output tokens: ${error.usage?.outputTokens ?? "?"}, ` +
+                `of which reasoning: ${
+                  error.usage?.outputTokenDetails?.reasoningTokens ?? "?"
+                })`
+            )
+          : RetryError.isInstance(error)
+            ? // The SDK retries 429/5xx with backoff; when `timeoutMs` cuts
+              // that short the surfaced message is only "Delay was aborted",
+              // so name the attempts that led there.
+              new Error(
+                `${error.message} (reason: ${error.reason}; attempts: ${
+                  error.errors
+                    .map((e) => (e instanceof Error ? e.message : String(e)))
+                    .join(" | ") || "none"
+                })`
+              )
+            : error;
+        // A hung gateway call or a retry backoff cut short both surface as a
+        // bare AbortError; say whose deadline it was.
+        const timedOut = signal.aborted
+          ? new Error(
+              `gave up after ${timeoutMs} ms (${
+                failure instanceof Error ? failure.message : String(failure)
+              })`
+            )
+          : failure;
+        const wrapped = new LlmGenerationError(request.id, timedOut);
+        // Every caller degrades silently by design (fallback blocks, "no
+        // objection"), so this line is the only trace a dead, slow or
+        // truncated model leaves in the function logs.
+        console.warn(`[llm] ${wrapped.message}`);
+        throw wrapped;
       }
     },
   };

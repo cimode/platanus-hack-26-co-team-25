@@ -4,12 +4,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
-import { mockRankedRoom, type RankCandidate } from "@/components/rank/mock";
-import { mockSimulatedLife } from "@/components/simulate/mock";
 import { TimelineRail } from "@/components/simulate/timeline-rail";
 import { serverDeps } from "@/lib/composition";
 import { isLens } from "@/lib/domain/room/layout";
-import { enterRoom } from "@/lib/use-cases/enter-room";
 import { cn } from "@/lib/utils";
 
 /**
@@ -34,26 +31,29 @@ export default async function SimulatePage({
 
   if (!isLens(lens)) redirect("/room");
 
-  const { me, others } = await enterRoom(
-    store.get(IMPERSONATION_COOKIE)?.value,
-    serverDeps()
-  );
-  if (!me) redirect("/");
+  const viewerId = store.get(IMPERSONATION_COOKIE)?.value;
+  if (!viewerId) redirect("/");
 
-  const candidates: readonly RankCandidate[] = others.map((spot) => ({
-    id: spot.participant.id,
-    name: spot.participant.name,
-    photoUrl: spot.sprite,
-    team: spot.participant.team,
-  }));
-
-  // The SAME room screens 1c and 1d used, so eligibility here cannot disagree
-  // with what the ranking already showed.
-  const life = mockSimulatedLife(
-    id,
-    mockRankedRoom(lens, me, candidates),
-    candidates
-  );
+  /*
+   * THE REAL PORT, not a fixture.
+   *
+   * This screen shipped against `mockSimulatedLife` for exactly as long as it
+   * took the other team to land issue #33 -- `simulate-pair`, the engine
+   * adapter and a Postgres cache, wired here as `serverDeps().timelines`. Their
+   * data beats a fixture outright, so the fixture is deleted rather than kept
+   * as a fallback: a screen that renders invented lives in the demo and real
+   * ones in production is a screen nobody can trust either way.
+   *
+   * The seam held. Their `simulate-pair` returns `SimulatedLife` from
+   * `@/lib/domain/reveal/timeline` -- the type R13 argued back into existence
+   * after an earlier refactor deleted it. Had it stayed deleted, this would be
+   * two incompatible shapes to reconcile instead of one import.
+   */
+  const life = await serverDeps().timelines.simulate({
+    subjectId: viewerId,
+    otherId: id,
+    lens,
+  });
   if (!life) notFound();
 
   return (

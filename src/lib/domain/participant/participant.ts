@@ -72,6 +72,13 @@ export interface NewParticipant {
   gender: Gender;
   birthdate: IsoDate;
   consent: Consent;
+  /**
+   * The instant the person ticked the data-treatment box (issue #49). Optional
+   * here and null in the row when absent, so a fixture or a repair script can
+   * still write a participant; the registration use case always passes one,
+   * because that is the only path a person walks.
+   */
+  dataConsentAt?: Date | null;
   team?: string | null;
   track?: string | null;
 }
@@ -88,6 +95,11 @@ export interface Participant {
   team: string | null;
   track: string | null;
   consent: Consent;
+  /**
+   * WHEN the treatment of personal data was authorised (issue #49). Null only
+   * for rows written before the box existed; a registration cannot produce one.
+   */
+  dataConsentAt: Date | null;
   declared: DeclaredProfile;
   declaredAt: Date | null;
   quizCompletedAt: Date | null;

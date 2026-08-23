@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { type Assignment, assignmentsForBatch } from "./assignments.ts";
-import { authoredBatchSchema, authorPrompt, judgePrompt } from "./authoring.ts";
+import {
+  authoredBatchSchema,
+  authoredBatchShapeSchema,
+  authoredBlockProblem,
+  authorPrompt,
+  judgePrompt,
+} from "./authoring.ts";
 
 /**
  * `authoring.ts` is the prompt, and the prompt is the product (`docs/domain.md`
@@ -179,6 +185,26 @@ describe("authoredBatchSchema", () => {
   it("still rejects a batch that is not five blocks", () => {
     const batch = goodBatch();
     batch.blocks.pop();
+    expect(authoredBatchSchema.safeParse(batch).success).toBe(false);
+  });
+});
+
+describe("authoredBlockProblem", () => {
+  it("names the position and limit per block, while the shape schema lets the block through", () => {
+    const batch = goodBatch();
+    const block = batch.blocks[3];
+    block.options[2].text =
+      "uno dos tres cuatro cinco seis siete ocho nueve diez once";
+
+    const problem = authoredBlockProblem(block);
+    expect(problem).toContain(`position ${block.position}`);
+    expect(problem).toContain('option "c"');
+    expect(problem).toContain("11 words");
+    expect(authoredBlockProblem(batch.blocks[0])).toBeNull();
+
+    // The model-facing schema carries the shape only; the length rules are
+    // the author loop's to apply one block at a time.
+    expect(authoredBatchShapeSchema.safeParse(batch).success).toBe(true);
     expect(authoredBatchSchema.safeParse(batch).success).toBe(false);
   });
 });
