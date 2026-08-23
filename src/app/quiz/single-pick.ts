@@ -1,15 +1,18 @@
 /**
- * single-pick.ts — the one place the elicitation fallback is read (issue #9).
+ * single-pick.ts — the one place the elicitation mode is read (issue #9).
  *
- * `PILLARS.md` §8 puts single-pick first in the cut order: if completion
- * suffers, "Menos yo" is the mark that goes, and the 2×2 degrades with no
- * redesign. The flag is server-side ONLY — `page.tsx` renders one-mark mode
- * with it and `actions.ts` decides with it whether `leastKey` is required.
+ * Single pick is the product default: one tap, one answer, the block advances.
+ * `PILLARS.md` §8 framed it as the first cut if completion suffered; the product
+ * owner made it the baseline after watching people hesitate over "Menos yo",
+ * because completion rate is the demo. The two-mark elicitation survives
+ * behind `HOOKAI_QUIZ_MOST_LEAST=1` for a room that wants the extra orderings.
  *
- * It deliberately never travels in the form. A field the client sends is a
- * field the client can flip, and a participant who could set `singlePick=1`
- * from a phone would waive half the measurement of every block they answer.
+ * The flag is server-side ONLY — `page.tsx` renders one-mark mode with it and
+ * `actions.ts` decides with it whether `leastKey` is read at all. It
+ * deliberately never travels in the form: a field the client sends is a field
+ * the client can flip, and a participant who could switch modes from a phone
+ * would change what every block they answer measures.
  */
 export function isSinglePick(): boolean {
-  return process.env.HOOKAI_QUIZ_SINGLE_PICK === "1";
+  return process.env.HOOKAI_QUIZ_MOST_LEAST !== "1";
 }

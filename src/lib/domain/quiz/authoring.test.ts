@@ -5,6 +5,7 @@ import {
   authoredBatchSchema,
   authoredBatchShapeSchema,
   authoredBlockProblem,
+  authoredBlocksSchema,
   authorPrompt,
   judgePrompt,
 } from "./authoring.ts";
@@ -16,9 +17,11 @@ import {
  *
  * These tests pin the *tone contract* added after the deployed blocks read as
  * dull: bizarre-but-everyday scenarios, the "wtf" bar, tuteo — alongside the
- * measurement rules that must survive it. The last test is the important one:
- * loosening the register must not loosen the structure, because structure is
- * what makes two participants' different scenarios score on one metric.
+ * measurement rules that must survive it, and the later finding that every
+ * concrete example in the prompt became everyone's scenario, so there are
+ * none. The last test is the important one: loosening the register must not
+ * loosen the structure, because structure is what makes two participants'
+ * different scenarios score on one metric.
  */
 
 const PILLARS = ["regulation", "politeness", "reliability", "agency"] as const;
@@ -42,6 +45,22 @@ function authoredFor(plan: Assignment) {
 function goodBatch() {
   return { blocks: assignmentsForBatch("p-1", 1).map(authoredFor) };
 }
+
+/**
+ * Every example that was ever found verbatim in a participant's block. None
+ * may appear in the live prompt again.
+ */
+const LEAKED_EXAMPLES = [
+  "loro",
+  "tono de alarma",
+  "Entro en pánico",
+  "Me río y sigo",
+  "Prometo llegar",
+  "Llegas a la fiesta",
+  "tu vecino",
+  "late bus",
+  "Entras en pánico",
+];
 
 describe("authorPrompt", () => {
   // AC-1
@@ -75,13 +94,27 @@ describe("authorPrompt", () => {
     }
 
     // And the plan is echoed back, position by position: the model has to know
-    // which pillar it is writing the reversed option for.
+    // which pillar it is writing the reversed option for, and which twist.
     for (const assignment of assignments) {
       expect(prompt).toContain(
         `position ${assignment.position}: focusPillar=${assignment.focusPillar}`
       );
       expect(prompt).toContain(`domain=${assignment.domain}`);
+      expect(prompt).toContain(`twist=${assignment.twistKind}`);
     }
+  });
+
+  it("carries no concrete example a model could copy into everyone's form", () => {
+    const prompt = authorPrompt({
+      assignments: assignmentsForBatch("p-1", 1),
+      language: "es",
+      avoid: [],
+    });
+    for (const leaked of LEAKED_EXAMPLES) {
+      expect(prompt, leaked).not.toContain(leaked);
+    }
+    // The twist taxonomy is per position now, not a list to pick from.
+    expect(prompt).not.toMatch(/object \/ creature \/ coincidence/);
   });
 
   // AC-2
@@ -106,13 +139,48 @@ describe("authorPrompt", () => {
     expect(prompt).toMatch(/twists/);
   });
 
-  it("omits the avoid clause entirely for the first batch", () => {
+  it("omits the avoid, siblings and notes clauses when there is nothing to say", () => {
     const prompt = authorPrompt({
       assignments: assignmentsForBatch("p-1", 1),
       language: "es",
       avoid: [],
     });
     expect(prompt).not.toContain("already been shown");
+    expect(prompt).not.toContain("SAME batch");
+    expect(prompt).not.toContain("NOTES on the previous attempt");
+  });
+
+  it("lists accepted siblings and repair notes under their own headings, apart from the avoid list", () => {
+    const avoid = ["Un perro entra a la boda y se lleva el ramo."];
+    const siblings = ["La cajera canta cada precio en ópera."];
+    const notes = ["position 3 was rejected: plain or predictable"];
+    const missing = assignmentsForBatch("p-1", 1).slice(2, 3);
+
+    const prompt = authorPrompt({
+      assignments: missing,
+      language: "es",
+      avoid,
+      siblings,
+      notes,
+    });
+
+    const avoidAt = prompt.indexOf("already been shown");
+    const siblingsAt = prompt.indexOf("SAME batch");
+    const notesAt = prompt.indexOf("NOTES on the previous attempt");
+    expect(avoidAt).toBeGreaterThan(0);
+    expect(siblingsAt).toBeGreaterThan(avoidAt);
+    expect(notesAt).toBeGreaterThan(siblingsAt);
+
+    // Each item sits under its own heading, not inside the avoid list.
+    expect(prompt.indexOf(siblings[0])).toBeGreaterThan(siblingsAt);
+    expect(prompt.indexOf(notes[0])).toBeGreaterThan(notesAt);
+    expect(prompt.slice(avoidAt, siblingsAt)).toContain(avoid[0]);
+    expect(prompt.slice(avoidAt, siblingsAt)).not.toContain(notes[0]);
+
+    // Only the missing position is asked for.
+    expect(prompt).toContain("Write the 1 block below");
+    expect(prompt).toContain(`position ${missing[0].position}:`);
+    expect(prompt).not.toContain("position 1:");
   });
 });
 
@@ -145,6 +213,28 @@ describe("judgePrompt", () => {
     for (const block of goodBatch().blocks) {
       expect(prompt).toContain(`position ${block.position}:`);
     }
+
+    // No example objection for the model to parrot back.
+    for (const leaked of LEAKED_EXAMPLES) expect(prompt).not.toContain(leaked);
+    expect(prompt).not.toContain("ALREADY SHOWN —");
+  });
+
+  it("hands the judge what the participant has already read, as a failure criterion", () => {
+    const shown = [
+      "Un perro entra a la boda y se lleva el ramo.",
+      "La cajera canta cada precio en ópera.",
+    ];
+    const prompt = judgePrompt(
+      goodBatch().blocks.map((b) => ({
+        position: b.position,
+        scenario: b.scenario,
+        options: b.options.map((o) => ({ text: o.text })),
+      })),
+      shown
+    );
+    expect(prompt).toContain("ALREADY SHOWN");
+    expect(prompt).toMatch(/fail any block that repeats these/);
+    for (const scenario of shown) expect(prompt).toContain(scenario);
   });
 });
 
@@ -168,18 +258,25 @@ describe("authoredBatchSchema", () => {
   });
 
   // AC-4
-  it("still rejects an eleven-word option, naming the position and limit", () => {
+  it("still rejects a fourteen-word option, naming the position and limit", () => {
     const batch = goodBatch();
     batch.blocks[3].options[2].text =
-      "uno dos tres cuatro cinco seis siete ocho nueve diez once";
+      "uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce";
 
     const parsed = authoredBatchSchema.safeParse(batch);
     expect(parsed.success).toBe(false);
     const message = parsed.error?.issues.map((i) => i.message).join("\n") ?? "";
     expect(message).toContain(`position ${batch.blocks[3].position}`);
     expect(message).toContain('option "c"');
-    expect(message).toContain("11 words");
-    expect(message).toContain("8 words");
+    expect(message).toContain("14 words");
+    expect(message).toContain("12 words");
+  });
+
+  it("lets a ten-word option through: full-width rows wrap, and the prompt already asks for fewer", () => {
+    const batch = goodBatch();
+    batch.blocks[3].options[2].text =
+      "uno dos tres cuatro cinco seis siete ocho nueve diez";
+    expect(authoredBatchSchema.safeParse(batch).success).toBe(true);
   });
 
   it("still rejects a batch that is not five blocks", () => {
@@ -189,17 +286,34 @@ describe("authoredBatchSchema", () => {
   });
 });
 
+describe("authoredBlocksSchema", () => {
+  it("accepts one to five blocks — a repair call asks only for what is missing", () => {
+    const batch = goodBatch();
+    expect(authoredBlocksSchema.safeParse(batch).success).toBe(true);
+    expect(
+      authoredBlocksSchema.safeParse({ blocks: batch.blocks.slice(0, 2) })
+        .success
+    ).toBe(true);
+    expect(authoredBlocksSchema.safeParse({ blocks: [] }).success).toBe(false);
+    expect(
+      authoredBlocksSchema.safeParse({
+        blocks: [...batch.blocks, batch.blocks[0]],
+      }).success
+    ).toBe(false);
+  });
+});
+
 describe("authoredBlockProblem", () => {
   it("names the position and limit per block, while the shape schema lets the block through", () => {
     const batch = goodBatch();
     const block = batch.blocks[3];
     block.options[2].text =
-      "uno dos tres cuatro cinco seis siete ocho nueve diez once";
+      "uno dos tres cuatro cinco seis siete ocho nueve diez once doce trece";
 
     const problem = authoredBlockProblem(block);
     expect(problem).toContain(`position ${block.position}`);
     expect(problem).toContain('option "c"');
-    expect(problem).toContain("11 words");
+    expect(problem).toContain("13 words");
     expect(authoredBlockProblem(batch.blocks[0])).toBeNull();
 
     // The model-facing schema carries the shape only; the length rules are

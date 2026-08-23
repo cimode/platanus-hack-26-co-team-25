@@ -4,22 +4,21 @@
 > stored at the end. Derived from `docs/domain.md` §3/§7 and mirrored 1:1 by the types in
 > `src/lib/domain/participant/` and `src/lib/domain/quiz/` (issue #4). If this file and
 > those files disagree, the code wins.
-> Last updated: 2026-08-22 (D18).
+> Last updated: 2026-08-23 (D20).
 
-The form is **five submissions**, not one, since **D18** (2026-08-22): one registration,
-three declared screens, then the quiz. Each screen is its own Server Action with its own
-payload, saved as soon as it is answered, so abandonment keeps everything before it. A
-participant is rankable once registration and the declared round are complete (the
-*floor*); the quiz adds the measured traits.
+The form is **two kinds of submission** since **D20** (2026-08-23): one registration, then
+the quiz. Each block is its own Server Action with its own payload, saved as soon as it is
+answered, so abandonment keeps everything before it. A participant is rankable the moment
+registration is complete (the *floor*); the quiz adds the measured traits.
 
 ```
-1 registration (photo · name · gender · birthdate) ─> 2 declared ×3 ─> 3 quiz ×15 ─> done
-   └──────────────────────── the floor ────────────────────────┘
+1 registration (photo · name · gender · birthdate) ─> 2 quiz ×15 ─> done
+   └──────────── the floor ────────────┘
 ```
 
 Nothing on any of these screens names a pillar, a lens, consent, a gate, a team, a track,
-the wordmark or a step number. One `Progress` bar spans the whole 19-step flow (1
-registration + 3 declared screens + 15 blocks) and is the only progress copy there is.
+the wordmark or a step number. One `Progress` bar spans the whole 16-step flow (1
+registration + 15 blocks) and is the only progress copy there is.
 
 ## 1. `register` — creates the participant, the session and the photo
 
@@ -39,6 +38,7 @@ interface RegisterInput {
 }
 // → participants row with gender, birthdate, photo_url, data_consent_at and the three consents `true`
 // → sets the httpOnly cookie `dipia_session`; the token never appears in any payload
+// → adopts one pre-written set of first questions from the room's pool (D20), then redirects to /quiz
 ```
 
 `dataConsent` is the ONE authorisation this version asks for (issue #49): the box is
@@ -50,6 +50,14 @@ thing entirely and stay unasked.
 `birthdate` is asked because the engine wants an age band and nobody should have to pick
 one: `ageBandOf(birthdate, today)` maps 18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3.
 
+**What happens around the submit (D20).** Opening the form tops up a per-room pool of
+first batches in the background, so by the time the person taps *Empezar* there is usually
+a set of five questions waiting; the action moves it into their own `generated_blocks` as
+batch 1 and redirects. Whatever is still missing — batch 1 when the pool was empty, then
+batches 2 and 3 — is authored after the response under a database claim. The quiz never
+generates on a read: a block that is not stored yet shows a "writing your questions" state
+until the rows land.
+
 ## 2. the per-lens consents — not asked (D18)
 
 `consent_romantic`, `consent_business` and `consent_friendship` are written `true` by the
@@ -57,40 +65,33 @@ registration itself: participating *is* consenting for this version. There is no
 screen, no switch and no consent copy anywhere in the product — the decision is recorded
 in `docs/domain.md` D18, not shown.
 
-## 3. `declared` — six questions and a list of interests
+## 3. the declared round — not asked (D20)
 
-Saved per screen; any field may still be `null` until the round is complete. Every band is
-asked as an ordinary question ending in "?" with four options, and the axis it measures is
-never named on screen — the index tapped is what is stored (D6).
+The three declared screens are gone. The six band columns (`money_posture` …
+`chronotype`), `tags` and `declared_at` stay in the schema and are simply never written
+for a new participant — no destructive migration, nothing reads them as a requirement.
+`DeclaredProfile` survives as a type with every band `null`:
 
 ```ts
 type DeclaredBand = 0 | 1 | 2 | 3;
 
 interface DeclaredProfile {
-  moneyPosture: DeclaredBand | null;      // "¿Cómo va tu bolsillo este mes?"
-  rootedness: DeclaredBand | null;        // "¿Qué tan pegado estás al lugar donde vives?"
-  familyGravity: DeclaredBand | null;     // "¿Cuánto pesa tu familia en una semana normal?"
-  capacityHoursBand: DeclaredBand | null; // discretionary hours ACTUALLY spent, last 4 weeks
-  distanceBand: DeclaredBand | null;      // re-contact latency (3 = longest)
-  chronotype: DeclaredBand | null;        // "¿A qué hora funcionas de verdad?"
-  tags: string[];                         // ≤ 12 slugs from the fixed vocabulary below
-  acquaintances: ParticipantId[];         // ≤ 5; picker is cut from the first build — stays []
+  moneyPosture: DeclaredBand | null;      // null for everyone registered since D20
+  rootedness: DeclaredBand | null;
+  familyGravity: DeclaredBand | null;
+  capacityHoursBand: DeclaredBand | null;
+  distanceBand: DeclaredBand | null;
+  chronotype: DeclaredBand | null;
+  tags: string[];                         // []
+  acquaintances: ParticipantId[];         // []
 }
 ```
 
-`declaredAt` is set only when all six bands are non-null. The engine consumes `band / 3`
-for the Life Shape trio; the band itself for capacity and chronotype (`docs/domain.md` §6).
-Completing the third screen hands off straight to `/quiz`.
-
-**Tag vocabulary (30 slugs, five groups of six):**
-
-| group | slugs |
-| --- | --- |
-| interests | `fotografia` `ajedrez` `astronomia` `plantas` `videojuegos` `manualidades` |
-| media | `anime` `k-pop` `reggaeton` `podcasts` `cine-de-culto` `fantasia` |
-| food | `ramen` `arepas` `cafe-de-especialidad` `picante` `reposteria` `vegetariano` |
-| activity | `tango` `running` `escalada` `ciclismo` `natacion` `senderismo` |
-| pets | `perros` `gatos` `aves` `reptiles` `peces` `sin-mascotas` |
+The engine treats a null band as **unmeasured**: `toPerson` maps it to an absent field and
+each declared term scores at its neutral midpoint with the weights untouched, the same
+degraded path `distanceBand` always had (`AUDIT.md` S15). A pre-D20 row that did answer
+still ranks on what it answered — `band / 3` for the Life Shape trio, the band itself for
+capacity and chronotype (`docs/domain.md` §6).
 
 ## 4. gates — not asked (D18)
 
@@ -111,17 +112,18 @@ or ranking payload.
 ## 5. the floor, restated
 
 `photo_url is not null` · `gender` and `birthdate` are not null · `consent_<lens>` (always
-true under D18) · `declared_at is not null`. The gate-row clause is gone with the gate
-screens.
+true under D18). The gate-row clause went with the gate screens (D18); the `declared_at`
+clause went with the declared screens (D20). Registration *is* the floor.
 
 ## 6. `quiz` — fifteen block responses, one submission each
 
 Each participant answers **their own 15 blocks**, authored live at entry and stored in
-`generated_blocks(participant_id, position)` (`docs/domain.md` D16). What is fixed for
+`generated_blocks(participant_id, position)` (`docs/domain.md` D16, D20). What is fixed for
 everyone is the structure — 15 positions, four text options per block, one per pillar,
 exactly one reversed-keyed on the focus pillar — and `INSTRUMENT` (version `v1`) is the
-structural contract plus the fallback served when authoring fails. The form submits
-**keys**, never text:
+structural contract. Since D20 the committed blocks are never served to a participant: a
+stored row with `source = 'fallback'` counts as not authored. The form submits **keys**,
+never text:
 
 ```ts
 type OptionKey = "a" | "b" | "c" | "d";
@@ -129,8 +131,8 @@ type OptionKey = "a" | "b" | "c" | "d";
 interface BlockResponse {
   participantId: string;
   position: number;         // 1..15 — which block of the instrument
-  mostKey: OptionKey;       // "most like me"
-  leastKey: OptionKey | null; // "least like me"; null under the single-pick fallback
+  mostKey: OptionKey;       // the one tap (single pick is the product default)
+  leastKey: OptionKey | null; // "least like me"; only under HOOKAI_QUIZ_MOST_LEAST=1
   shownOrder: string;       // the shuffled display order, e.g. "cbad" — a permutation of "abcd"
   answeredAt: Date;
 }
@@ -145,11 +147,11 @@ Blocks 1–5, 6–10, 11–15 are delivered as three batches; the batch is deriv
 answer above reads, on its own:
 
 ```json
-{ "position": 1, "mostKey": "c", "leastKey": "b", "shownOrder": "cbad",
+{ "position": 1, "mostKey": "c", "leastKey": null, "shownOrder": "cbad",
   "instrumentVersion": "v1",
   "scenario": "Tu amigo movió la perilla del horno y el pollo lleva una hora crudo. Los invitados ya están tocando el timbre.",
   "mostText": "Tomo el mando: pedimos pizza y listo",
-  "leastText": "Anuncio que la cena está oficialmente arruinada" }
+  "leastText": null }
 ```
 
 The question a person saw lives in their own `generated_blocks` row (with each option's
@@ -169,8 +171,8 @@ interface Participant {
   team: string | null;
   track: string | null;
   consent: Consent;
-  declared: DeclaredProfile;
-  declaredAt: Date | null;     // floor
+  declared: DeclaredProfile;   // every band null since D20
+  declaredAt: Date | null;     // dormant since D20; never part of the floor any more
   quizCompletedAt: Date | null;// also the arrival-cohort timestamp
   createdAt: Date;
 }
@@ -194,48 +196,45 @@ interface RoomMember { id: string; name: string; photoUrl: string | null }
     "id": "01a02a27-7af6-7dfe-ac61-6a93bfef6c1a",
     "roomId": "01a02a27-0000-7000-8000-000000000001",
     "name": "Ana Ramírez",
-    "photoUrl": "https://….public.blob.vercel-storage.com/p/01a02a27…-ana.jpg",
-    "team": "team-25",
-    "track": "simulations",
-    "consent": { "romantic": true, "business": false, "friendship": true },
+    "gender": "F",
+    "birthdate": "1999-05-04",
+    "photoUrl": "https://….s3.…/photos/01a02a27…/face.jpg",
+    "team": null,
+    "track": null,
+    "consent": { "romantic": true, "business": true, "friendship": true },
+    "dataConsentAt": "2026-08-23T18:01:02.000Z",
     "declared": {
-      "moneyPosture": 2,
-      "rootedness": 1,
-      "familyGravity": 3,
-      "capacityHoursBand": 1,
-      "distanceBand": 0,
-      "chronotype": 3,
-      "tags": ["ramen", "escalada", "podcasts", "gatos"],
+      "moneyPosture": null,
+      "rootedness": null,
+      "familyGravity": null,
+      "capacityHoursBand": null,
+      "distanceBand": null,
+      "chronotype": null,
+      "tags": [],
       "acquaintances": []
     },
-    "declaredAt": "2026-08-22T18:04:11.000Z",
-    "quizCompletedAt": "2026-08-22T18:11:40.000Z",
-    "createdAt": "2026-08-22T18:01:02.000Z"
+    "declaredAt": null,
+    "quizCompletedAt": "2026-08-23T18:07:40.000Z",
+    "createdAt": "2026-08-23T18:01:02.000Z"
   },
-  "romanticGate": {
-    "gender": "F",
-    "interestedIn": ["M", "NB"],
-    "single": true,
-    "ageBand": 1,
-    "wantsKids": false
-  },
+  "romanticGate": null,
   "businessGate": null,
   "responses": [
-    { "position": 1,  "mostKey": "c", "leastKey": "b", "shownOrder": "cbad", "answeredAt": "2026-08-22T18:05:01.000Z" },
-    { "position": 2,  "mostKey": "a", "leastKey": "d", "shownOrder": "dacb", "answeredAt": "2026-08-22T18:05:19.000Z" },
-    { "position": 3,  "mostKey": "d", "leastKey": "c", "shownOrder": "bcda", "answeredAt": "2026-08-22T18:05:36.000Z" },
-    { "position": 4,  "mostKey": "b", "leastKey": "a", "shownOrder": "abdc", "answeredAt": "2026-08-22T18:05:52.000Z" },
-    { "position": 5,  "mostKey": "a", "leastKey": "b", "shownOrder": "cdab", "answeredAt": "2026-08-22T18:06:10.000Z" },
-    { "position": 6,  "mostKey": "c", "leastKey": "a", "shownOrder": "acbd", "answeredAt": "2026-08-22T18:07:02.000Z" },
-    { "position": 7,  "mostKey": "d", "leastKey": "b", "shownOrder": "bdca", "answeredAt": "2026-08-22T18:07:20.000Z" },
-    { "position": 8,  "mostKey": "b", "leastKey": "c", "shownOrder": "dcab", "answeredAt": "2026-08-22T18:07:41.000Z" },
-    { "position": 9,  "mostKey": "a", "leastKey": "d", "shownOrder": "badc", "answeredAt": "2026-08-22T18:08:00.000Z" },
-    { "position": 10, "mostKey": "c", "leastKey": "d", "shownOrder": "cadb", "answeredAt": "2026-08-22T18:08:22.000Z" },
-    { "position": 11, "mostKey": "b", "leastKey": "a", "shownOrder": "abcd", "answeredAt": "2026-08-22T18:09:15.000Z" },
-    { "position": 12, "mostKey": "d", "leastKey": "c", "shownOrder": "dbac", "answeredAt": "2026-08-22T18:09:33.000Z" },
-    { "position": 13, "mostKey": "a", "leastKey": "b", "shownOrder": "bacd", "answeredAt": "2026-08-22T18:10:01.000Z" },
-    { "position": 14, "mostKey": "c", "leastKey": "a", "shownOrder": "cdba", "answeredAt": "2026-08-22T18:10:24.000Z" },
-    { "position": 15, "mostKey": "b", "leastKey": "d", "shownOrder": "adbc", "answeredAt": "2026-08-22T18:11:40.000Z" }
+    { "position": 1,  "mostKey": "c", "leastKey": null, "shownOrder": "cbad", "answeredAt": "2026-08-23T18:02:01.000Z" },
+    { "position": 2,  "mostKey": "a", "leastKey": null, "shownOrder": "dacb", "answeredAt": "2026-08-23T18:02:19.000Z" },
+    { "position": 3,  "mostKey": "d", "leastKey": null, "shownOrder": "bcda", "answeredAt": "2026-08-23T18:02:36.000Z" },
+    { "position": 4,  "mostKey": "b", "leastKey": null, "shownOrder": "abdc", "answeredAt": "2026-08-23T18:02:52.000Z" },
+    { "position": 5,  "mostKey": "a", "leastKey": null, "shownOrder": "cdab", "answeredAt": "2026-08-23T18:03:10.000Z" },
+    { "position": 6,  "mostKey": "c", "leastKey": null, "shownOrder": "acbd", "answeredAt": "2026-08-23T18:04:02.000Z" },
+    { "position": 7,  "mostKey": "d", "leastKey": null, "shownOrder": "bdca", "answeredAt": "2026-08-23T18:04:20.000Z" },
+    { "position": 8,  "mostKey": "b", "leastKey": null, "shownOrder": "dcab", "answeredAt": "2026-08-23T18:04:41.000Z" },
+    { "position": 9,  "mostKey": "a", "leastKey": null, "shownOrder": "badc", "answeredAt": "2026-08-23T18:05:00.000Z" },
+    { "position": 10, "mostKey": "c", "leastKey": null, "shownOrder": "cadb", "answeredAt": "2026-08-23T18:05:22.000Z" },
+    { "position": 11, "mostKey": "b", "leastKey": null, "shownOrder": "abcd", "answeredAt": "2026-08-23T18:06:15.000Z" },
+    { "position": 12, "mostKey": "d", "leastKey": null, "shownOrder": "dbac", "answeredAt": "2026-08-23T18:06:33.000Z" },
+    { "position": 13, "mostKey": "a", "leastKey": null, "shownOrder": "bacd", "answeredAt": "2026-08-23T18:07:01.000Z" },
+    { "position": 14, "mostKey": "c", "leastKey": null, "shownOrder": "cdba", "answeredAt": "2026-08-23T18:07:24.000Z" },
+    { "position": 15, "mostKey": "b", "leastKey": null, "shownOrder": "adbc", "answeredAt": "2026-08-23T18:07:40.000Z" }
   ]
 }
 ```
@@ -248,11 +247,9 @@ whose `key` matches) to the pillar and keying that the scorer (issue #7) reads.
 | Field | Rule | Enforced by |
 | --- | --- | --- |
 | `name` | 1..80 chars | check + derived zod |
-| every band | integer 0..3 (`riskPosture`, `exitHorizon`: 0..2) | check + `validateRomanticGate` / `validateBusinessGate` |
-| `tags` | ≤ 12, each in the vocabulary, no duplicates | check `cardinality ≤ 12` + `validateTags` |
-| `interestedIn` | ≥ 1 | check + validator |
-| gate | only when `consent.<lens>` | use case refuses |
-| `declaredAt` | only when all six bands set | check + `isDeclaredComplete` |
+| `birthdate` | a real `YYYY-MM-DD`, 18 ≤ age ≤ 100 | `birthdateProblem` in the use case |
+| `dataConsent` | present | zod literal + `reason: "data-consent"` before any write |
+| every band (dormant) | integer 0..3 when present; `declared_at` only with all six | check + `isDeclaredComplete` |
 | `position` | 1..15, unique per participant | check + unique |
 | `mostKey` / `leastKey` | `a..d`, different | check + `validateResponse` |
 | `shownOrder` | permutation of `abcd` | `validateResponse` |
@@ -265,64 +262,37 @@ Where the types live: `src/lib/domain/participant/participant.ts`, `gates.ts`, `
 
 The client sends **keys**, never text. The server resolves the question and the chosen
 option texts from the participant's `generated_blocks` row and stores them with the
-answer (D15 as amended by D16); a key for a block the person was never shown is rejected. This is the shape
-`src/lib/domain/intake/contract.ts` takes in issues #6 / #8 / #9:
+answer (D15 as amended by D16); a key for a block the person was never shown is rejected.
 
 ```ts
 import { z } from "zod";
-import { TAGS } from "../participant/tags";
 
-const band = z.number().int().min(0).max(3);
 const gender = z.enum(["M", "F", "NB"]);
 const optionKey = z.enum(["a", "b", "c", "d"]);
 
-// 1 · register (D18) — one screen: photo, name, gender, birthdate. The session token is
-// NOT in the payload; it is born here as the httpOnly cookie. The photo rides the same
-// FormData and is judged by the use case (JPEG/PNG/WebP, ≤ 1 MiB).
+// 1 · register (D18) — one screen: photo, name, gender, birthdate, the data-treatment
+// box. The session token is NOT in the payload; it is born here as the httpOnly cookie.
+// The photo rides the same FormData and is judged by the use case (JPEG/PNG/WebP, ≤ 1 MiB).
 export const RegisterInput = z.object({
   room: z.string().trim().min(1).max(200),
   name: z.string().trim().min(1).max(80),
   gender,
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // 18 ≤ age ≤ 100, checked in the domain
+  dataConsent: z.literal("on"),                         // absent when unticked (#49)
 });
 
 // consent — no payload at all (D18): the three flags are written `true` by the
 // registration itself, and no screen mentions them.
-
-// 2 · declared round — saved per screen, hence partial/nullable
-export const DeclaredInput = z
-  .object({
-    moneyPosture: band.nullable(),
-    rootedness: band.nullable(),
-    familyGravity: band.nullable(),
-    capacityHoursBand: band.nullable(),
-    distanceBand: band.nullable(),
-    chronotype: band.nullable(),
-    tags: z.array(z.enum(TAGS)).max(12).default([]),
-  })
-  .partial();
-
+// declared round — no payload at all (D20): not asked; the columns stay null.
 // gates — no payload (D18): not asked; `mvp-defaults.ts` derives what the engine wants.
-// The shapes below are what the tables still hold and what the derivation produces.
-export const RomanticGateInput = z.object({
-  gender,
-  interestedIn: z.array(gender).min(1),
-  single: z.boolean(),
-  ageBand: band,
-  wantsKids: z.boolean(),
-});
-export const BusinessGateInput = z.object({
-  riskPosture: z.number().int().min(0).max(2),
-  exitHorizon: z.number().int().min(0).max(2),
-  redlinesOk: z.boolean(),
-});
 
-// 6 · one block answer — ×15
+// 2 · one block answer — ×15. `leastKey` is read only under HOOKAI_QUIZ_MOST_LEAST=1,
+// and the flag is read on the server, never from the form.
 export const AnswerBlockInput = z
   .object({
     position: z.number().int().min(1).max(15),
     mostKey: optionKey,
-    leastKey: optionKey.nullable(), // null under the single-pick fallback
+    leastKey: optionKey.nullable(),
     shownOrder: z.string().regex(/^[abcd]{4}$/),
   })
   .refine((r) => r.leastKey !== r.mostKey, { message: "leastKey must differ from mostKey" })
@@ -344,15 +314,11 @@ What the server derives and stores per answer — none of it comes from the clie
 ```
 
 The composite, for reading the whole thing as one object (it is never submitted as one —
-the form is seven submissions, and the database fills step by step):
+the form is sixteen submissions, and the database fills step by step):
 
 ```ts
 export const IntakeSubmission = z.object({
   register: RegisterInput,
-  consent: ConsentInput,
-  declared: DeclaredInput,
-  romanticGate: RomanticGateInput.optional(), // only when consent.romantic
-  businessGate: BusinessGateInput.optional(), // only when consent.business
   answers: z
     .array(AnswerBlockInput)
     .max(15)

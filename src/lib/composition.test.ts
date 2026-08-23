@@ -75,6 +75,22 @@ describe("serverDeps().photos", () => {
     expect(() => deps.db).toThrowError(/DATABASE_URL/);
     expect(() => deps.participants).toThrowError(/DATABASE_URL/);
   });
+});
+
+describe("serverDeps() generation members", () => {
+  it("exposes claims and pool as database-backed getters, so a page that never generates opens no connection", () => {
+    delete process.env.DATABASE_URL;
+    resetDb();
+
+    const deps = serverDeps();
+    // Reading the roster-only members still costs nothing ...
+    expect(deps.roster).toBeDefined();
+    // ... and the generation members are getters over `getDb()`, like every
+    // other repository: they throw here and nowhere earlier.
+    expect(() => deps.claims).toThrowError(/DATABASE_URL/);
+    expect(() => deps.pool).toThrowError(/DATABASE_URL/);
+    expect(() => deps.generatedBlocks).toThrowError(/DATABASE_URL/);
+  });
 
   it("AC-6 · with AWS_ENDPOINT_URL_S3 unset and BLOB_READ_WRITE_TOKEN set to any value it is the fake photo store -- the Vercel Blob adapter no longer exists and the token is ignored", async () => {
     delete process.env.AWS_ENDPOINT_URL_S3;

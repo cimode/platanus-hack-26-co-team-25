@@ -5,7 +5,10 @@ import { after } from "next/server";
 import { z } from "zod";
 import { setSessionCookie } from "@/lib/adapters/http/session";
 import { serverDeps } from "@/lib/composition";
-import { prefetchQuizBatch } from "@/lib/use-cases/ensure-quiz-batch";
+import {
+  adoptPoolSet,
+  continueQuizGeneration,
+} from "@/lib/use-cases/ensure-quiz-batch";
 import {
   RegisterParticipantError,
   type RegisterParticipantReason,
@@ -25,11 +28,17 @@ import {
  * reasons (`birthdate-too-young`, `photo`), the screen speaks Spanish. Nothing
  * it can say names what is being measured.
  *
- * On success the participant's first five quiz blocks start being written in
- * `after()` (docs/domain.md D16), off the response and inside `/intake`'s
- * `maxDuration`. The declared round takes minutes and authoring takes ~40-70s,
- * so by the time `/quiz` asks for block 1 it is one SELECT instead of a wait on
- * a model. `prefetchQuizBatch` never rejects.
+ * On success the hand-off is straight to `/quiz` (docs/domain.md D20): there is
+ * no declared round in between any more, so the first questions have to exist
+ * by the time the redirect lands. Two things make that true. First, BEFORE
+ * the redirect, `adoptPoolSet` moves a pre-written set of first questions from
+ * the room's pool into this participant's rows -- one UPDATE, written while
+ * the form was open (`/intake` tops the pool up in `after()`). Second,
+ * `continueQuizGeneration` runs in `after()`, off the response and inside
+ * `/intake`'s `maxDuration`, and chains whatever is still missing: batch 1
+ * when there was nothing to adopt, then 2 and 3 while the first five are
+ * answered. Neither call rejects, and the quiz itself never generates on a
+ * read -- it shows a "writing your questions" state until the rows exist.
  */
 
 /** Only types are exported beside the action -- they erase at compile time. */
@@ -142,6 +151,7 @@ export async function registerAction(
   const { room, name, gender, birthdate } = parsed.data;
 
   let participantId: string;
+  let roomId: string;
   try {
     const { participant, sessionToken } = await registerParticipant(
       {
@@ -160,6 +170,7 @@ export async function registerAction(
     );
     await setSessionCookie(sessionToken);
     participantId = participant.id;
+    roomId = participant.roomId;
   } catch (error) {
     if (error instanceof RegisterParticipantError) {
       return COPY[error.reason] ?? { error: ROOM_MISSING };
@@ -167,11 +178,21 @@ export async function registerAction(
     throw error;
   }
 
-  // The person exists and will reach the questions: start authoring their first
-  // five blocks now, after the response (docs/domain.md D16).
-  after(() => prefetchQuizBatch({ participantId, batch: 1 }, serverDeps()));
+  // Awaited, not deferred: the redirect lands on block 1, and the set it shows
+  // has to be this participant's before the response leaves. One UPDATE.
+  await adoptPoolSet({ participantId, roomId }, serverDeps());
+
+  // Everything still missing -- batch 1 if nothing was adopted, then 2 and 3
+  // -- is authored after the response, claim-guarded so a double submit or a
+  // concurrent quiz read never writes the same batch twice (D20).
+  after(() =>
+    continueQuizGeneration(
+      { participantId, roomId, budgetMs: 240_000 },
+      serverDeps()
+    )
+  );
 
   // Outside the try: `redirect` signals by throwing, and catching it here would
   // swallow the navigation and re-render the form over a created row.
-  redirect("/intake/declared");
+  redirect("/quiz");
 }

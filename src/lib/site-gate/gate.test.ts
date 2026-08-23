@@ -131,7 +131,6 @@ describe("decideGate", () => {
       ["/qr/", "HEAD"],
       ["/intake", "GET"],
       ["/intake", "POST"],
-      ["/intake/declared", "POST"],
       ["/quiz", "GET"],
       ["/quiz", "POST"],
       ["/results", "GET"],

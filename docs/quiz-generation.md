@@ -1,39 +1,130 @@
 # Generating the quiz on demand
 
-Plan for moving block authoring out of `.claude/workflows/create_quest.js` and
-into the deployed app, triggered when a participant starts the intake form.
+How each participant's fifteen blocks come to exist in the deployed app, and
+the plan this replaced.
 
-> ## ⚠ Status: **largely superseded, 2026-08-22**
+> ## ⚠ Status, 2026-08-23
 >
-> The user confirmed `docs/domain.md` **D1/D2** (fixed instrument as a domain
-> constant) and added **D14** (option cards are text, not images). That kills
-> this document's central design. Read `docs/domain.md` first — it wins.
+> Part **A** below is what is deployed: a per-participant pipeline with a
+> per-room pool, claim-guarded background generation, no fallback, and a wait
+> screen. It supersedes the §0–§12 plan that follows it (a per-form-version
+> spec, never built — `docs/domain.md` D1/D2 killed it, then D16 reversed D1
+> again in favour of per-participant forms) and the earlier "section A"
+> (author → judge → repair → fallback, read-through from the quiz page).
 >
-> **Dead here:** §4 `quiz_specs`/`quiz_blocks` tables and the unique-index lock ·
-> §5 the `after()` trigger on form start · §6 the seed-and-promote flow ·
-> §12's image-generation paragraph. There is no request-time generation and no
-> database-backed quiz; `src/lib/domain/quiz/instrument.ts` builds the 15
-> committed blocks at import and a pinned hash freezes them.
+> **Dead:** the committed `INSTRUMENT` as a content fallback · `ensureQuizBatch`
+> and `prefetchQuizBatch` (read-through generation from a page render) · §4's
+> `quiz_specs`/`quiz_blocks` · §5's seed-and-promote · §6 · §12's images.
 >
-> **Still good:** §1 the prompt-drift trap (the rules must be inlined, and
-> `prompts.ts` should own them) · §2's SDK reasoning, now settled as AI SDK v6
-> through AI Gateway · §3 the pipeline shape, especially **one judge over all
-> 15** rather than per batch — the fix for the `b2-d`/`b10-b` duplicate ·
-> §7 the latency and cost analysis · §8 security · §9 testing, including the
-> `LlmPort` `system`/`hashPrompt` gap · §10 retiring the workflow in favour of a
-> CLI driver.
->
-> What survives is an **offline authoring CLI** that produces a *new versioned
-> instrument* for a human to review and commit — never a request-time path.
-> Images are out entirely, so the pipeline is text-only, which is why §7's
-> numbers now describe the whole job rather than a fraction of it.
+> **Still good from the old plan:** §1 the prompt-drift trap (the rules are
+> inlined in `authoring.ts`, which owns them) · §2 the SDK choice (AI SDK
+> through AI Gateway) · §3's *one judge over everything written so far* ·
+> §7 the latency analysis · §8 security · §9 testing.
 
 ---
 
-## A. Reading a batch by hand — and what "bizarre" means here
+## A. What is deployed
 
-*Live section, added 2026-08-22 (#43). Everything below §0 is the superseded
-plan; this part describes what is deployed.*
+### A.1 The shape
+
+```
+QR shown / form opens  ──after()──▶ topUpQuizPool(room)       pool < 4 forms? author the deficit, whole forms
+registration           ──────────▶ adoptPoolSet(p, room)      oldest unclaimed form → p's 15 blocks
+                       ──after()──▶ continueQuizGeneration(p) batches 2, 3 (and 1 if adoption failed)
+/quiz, block pending   ──after()──▶ continueQuizGeneration(p) whatever is still missing
+/quiz, block stored    ──────────▶ one SELECT, render
+```
+
+Three use cases in `src/lib/use-cases/ensure-quiz-batch.ts`, all run behind
+a response in `after()`, all claim-guarded, none of which ever rejects:
+
+| Use case | Does | Stops when |
+| --- | --- | --- |
+| `topUpQuizPool({ roomId, target? })` | authors whole forms (batch 1, then 2 ∥ 3) until the room holds `target` unclaimed ones, one per won slot, all at once; each is planned for a synthetic participant id (`pool:<uuid>`) so the seeded plan is fresh. `target` comes from the page (`src/app/intake/pool-target.ts`: `HOOKAI_QUIZ_POOL_TARGET`, default `POOL_TARGET` = 4, `0` in the e2e server) | the room already holds `target` unclaimed forms, or none of the `POOL_SLOTS` (4) claims `pool:<roomId>:<k>` can be won |
+| `adoptPoolSet({ participantId, roomId })` | one guarded `UPDATE` takes the oldest unclaimed form and stores its 15 blocks as the participant's own, `source: "generated"` (a set from before 2026-08-23 holds batch 1 only; the chain writes the rest) | the pool is empty → returns `false`, and the chain writes the form itself |
+| `continueQuizGeneration({ participantId, roomId, budgetMs? })` | for batch 1..3: skip if five non-fallback rows exist, **skip if any position of the batch is answered**, otherwise claim `participant:<id>:batch:<n>`, author, `saveBatch`, release `ready` | the claim is lost (someone else is on it), authoring throws (release `failed`), or the budget (default 240 s) is spent after a batch |
+
+`quizProgress` (`quiz-progress.ts`) is now a pure read: when the block at
+`nextPosition` is not stored — or only stored with `source: "fallback"`, a
+legacy row — it returns `{ pending: true, block: null, shownOrder: null }`
+with the participant's `roomId` and `avatar`, and the quiz page shows a wait
+that fires `continueQuizGeneration` and polls. It never imports `LlmPort`.
+
+### A.2 Why a pool, and why claims
+
+A block is one tap, five to eight seconds, so a participant reaches block 6
+about 45 s after starting; a batch takes 40–70 s to author. Anything written
+after registration is outrun — first at block 6, then at block 11 — so the
+pool holds **whole forms**: batch 1, then batches 2 and 3 side by side (~100–
+150 s per form), written while the QR is on the wall (`/qr`) and while the
+registration form is open (`/intake`), up to four per room at once. Adoption
+hands over all fifteen blocks, zero wait anywhere. The chain is the cold-room
+fallback and follows the same shape, 1 then 2 ∥ 3, so even then there is at
+most one wait, at block 1.
+
+Claims exist because the same work is fired from several requests —
+registration, every reload of a pending quiz page, every form open — and two
+invocations writing the same batch would spend the gateway twice for one set
+of rows. `quiz_generation_claims(scope pk, claimed_at, finished_at, outcome)`
+is taken with one `INSERT … ON CONFLICT DO UPDATE … WHERE finished_at IS NOT
+NULL OR claimed_at < now() - 200 s RETURNING scope`: a row back means this
+caller owns it. A finished claim is re-claimable (a batch can legitimately
+need regenerating), a 200 s-old unreleased one is a crashed invocation. There
+is no interactive transaction on neon-http, so every claim and every adoption
+is one statement (`data-access` §2).
+
+`quiz_pool_sets(id, room_id, blocks jsonb, claimed_by, claimed_at, created_at)`
+with a partial index on `(room_id, created_at) WHERE claimed_by IS NULL` —
+exactly the "oldest unclaimed set in this room" query adoption runs. Migration
+`drizzle/0008_quiz_generation.sql`.
+
+### A.3 No fallback
+
+`generateQuizBatch` used to serve the committed `INSTRUMENT` block at any
+position the model could not write. Measured on 2026-08-23: a reasoning
+budget blown mid-JSON made every position fall back, every participant read
+the same fifteen blocks, and the logs said nothing. Now the pipeline returns
+five blocks written for this person or throws `QuizAuthoringError` naming the
+positions it could not fill; the chain releases its claim as `failed`, the
+wait screen retries, and `[quiz]` / `[llm]` lines in the function logs say
+which model answered and why it failed. The `fallback` value of
+`generated_blocks.source` survives only to describe rows written before this.
+
+### A.4 The author loop
+
+```
+author (≤3 attempts if the model itself fails)
+  └▶ validate each candidate: length rules → structure → similarity
+      └▶ judge the survivors (sees the ALREADY SHOWN list)
+          └▶ repair call for the rejected positions only, quoting the complaints
+              └▶ one final call for whatever is still missing
+                  └▶ QuizAuthoringError if anything is
+```
+
+Three things keep fifteen blocks fifteen different jokes:
+
+- **The plan tells the model the twist.** `assignmentsFor` draws, from one
+  seeded rng, the domains *and* a `twistKind` per position — five distinct
+  kinds per batch out of eight (`TWIST_KINDS`). Domains are grouped into
+  fifteen disjoint themes (`DOMAIN_GROUPS`) and a participant draws at most
+  one per theme; a batch planned after an adopted set (`assignmentsForBatch(id,
+  n, storedDomains)`) substitutes any position whose setting or theme the set
+  already used, from the same shuffle.
+- **The prompt carries no examples.** Every concrete example — the parrot,
+  "Entro en pánico", the party with the neighbour, the judge's bus — became
+  everyone's scenario. `authoring.ts` states every rule abstractly; the
+  prompt's only specifics are the assignment table and the avoid lists
+  (`avoid` = what the participant and the room have read, `siblings` = the
+  batch's accepted blocks, `notes` = the previous attempt's complaints, each
+  under its own heading).
+- **Similarity is a refusal, not a request.** `tooSimilar(a, b)` in
+  `domain/quiz/similarity.ts` (stopwords stripped; ≥3 shared content words,
+  a shared two-word phrase, or 3-gram Jaccard ≥ 0.35) runs on every candidate
+  against the avoid list and the accepted siblings. A hit is a repair problem
+  quoting the scenario it repeats. The avoid list is every scenario stored for
+  the participant plus the room's 40 newest (`pool.recentScenarios`).
+
+### A.5 Reading a batch by hand — and what "bizarre" means here
 
 ```
 pnpm run quiz:smoke                 # participant "smoke-participant-1", batch 1
@@ -47,17 +138,14 @@ and is run **by hand, never in CI**: it spends tokens and its output is a
 judgement call, not an assertion. The unit tests cover everything that can be
 asserted.
 
-### What you are looking for
-
 The user's brief, verbatim: *"add a touch of more bizarreness while keeping the
 end goal of getting the behavioral data we need; the goal with the questions is
 that people read them, laugh and say wtf."* So read each block twice.
 
 **First as a participant.** The scenario is an everyday situation pushed one
-notch into the absurd — an object that should not be there, a creature behaving
-impossibly, a coincidence nobody planned, an escalation that got away. It should
-land in two short sentences and make you want to read it out loud. Two failures
-to watch for, and they are opposite:
+notch into the absurd, turning on the kind of twist its position was assigned.
+It should land in two short sentences and make you want to read it out loud.
+Two failures to watch for, and they are opposite:
 
 | Failure | Looks like | Why it is a failure |
 | --- | --- | --- |
@@ -73,24 +161,34 @@ the funniest instead of the truest and the block measures nothing — the same
 failure mode as one option being visibly the *nicest*. Check the printout for
 four distinct pillars, exactly one `◀`, and options of eight words or fewer.
 
-### Where the rules live
+**Then across batches.** Run batches 1, 2 and 3 for the same id and read the
+fifteen together: the failure that actually shipped was two blocks with the
+same joke twenty seconds apart, and the similarity check is tuned on the pairs
+in `similarity.test.ts`. A new pair that slips through belongs there.
 
-`src/lib/domain/quiz/authoring.ts` is the single source: `RULES` (structure 1–9,
-tone 10–15), `SPANISH_REGISTER` (Bogotá neutral, tuteo in the scenario,
-first person in the options), `judgePrompt` (the criteria that reject a block,
-including *plain or predictable* and *random rather than anchored*), and
-`authoredBatchSchema` — which enforces the two-sentence and eight-word limits as
-a schema, because a tone instruction is a request and a schema is a refusal.
-`.claude/skills/quest-skill/SKILL.md` restates the tone contract for offline
-authoring and defers to this file on any disagreement.
+### A.6 Where the rules live
 
-The pipeline is author → judge → repair → fallback (`generate-quiz-batch.ts`).
-A block the judge rejects is re-authored with the judge's own words quoted back
-at it; a block that is still structurally invalid after that is served from the
-committed `INSTRUMENT` (still `v1` — regenerating it bumps the structural
-version and is a separate decision).
+`src/lib/domain/quiz/authoring.ts` is the single source: `RULES` (structure
+1–9, tone 10–16), `SPANISH_REGISTER` (Bogotá neutral, tuteo in the scenario,
+first person in the options), `authorPrompt` (table, avoid, siblings, notes),
+`judgePrompt` (the criteria that reject a block, plus the ALREADY SHOWN list),
+`authoredBlocksSchema` (one to five blocks — a repair asks only for what is
+missing) and `authoredBatchSchema`, which enforces the two-sentence and
+eight-word limits as a schema, because a tone instruction is a request and a
+schema is a refusal. `.claude/skills/quest-skill/SKILL.md` restates the tone
+contract for offline authoring and defers to this file on any disagreement.
+
+The gateway (`adapters/llm/gateway.ts`) runs at `reasoning: minimal`,
+`temperature: 0.9`, `maxRetries: 2`, a 60 s deadline per call, and logs the
+model that answered every request.
 
 ---
+
+## The superseded plan (2026-08-22)
+
+Everything below is the original design for a per-form-version spec. It was
+never built; it is kept because its analysis (§1, §2, §3, §7, §8, §9) still
+informs the deployed pipeline above.
 
 ## 0. The one thing that must be decided first
 

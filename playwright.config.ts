@@ -85,7 +85,13 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI && !process.env.E2E_ISOLATED,
     timeout: 120_000,
     // Merged over process.env by Playwright; `next dev` never overwrites a
-    // variable that is already set, so .env cannot undo this.
-    env: GATED ? { SITE_GATE_PASSWORD: GATE_PASSWORD } : undefined,
+    // variable that is already set, so .env cannot undo this. Pool warming is
+    // off: every /intake and /qr render would otherwise author whole forms
+    // against the real gateway for a room nobody answers in -- the specs seed
+    // the blocks they need (e2e/helpers, e2e/intake.spec.ts).
+    env: {
+      HOOKAI_QUIZ_POOL_TARGET: "0",
+      ...(GATED ? { SITE_GATE_PASSWORD: GATE_PASSWORD } : {}),
+    },
   },
 });

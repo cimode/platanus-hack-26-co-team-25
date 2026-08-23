@@ -484,9 +484,9 @@ export function createParticipantRepository(
       lens: Lens
     ): Promise<RankableParticipant[]> {
       // One query per table, joined in memory -- never a query per participant.
-      // The three floor rules that are columns are pushed into SQL; the gate
-      // rule is applied by `meetsFloor()` below, so the §0 rule still has one
-      // home and this method cannot drift from it.
+      // The two floor rules that are columns (photo, consent) are pushed into
+      // SQL; the identity rule is applied by `meetsFloor()` below, so the §0
+      // rule still has one home and this method cannot drift from it.
       const [rows, romantic, business, known] = await db.batch([
         db
           .select(PARTICIPANT_COLUMNS)
@@ -495,7 +495,6 @@ export function createParticipantRepository(
             and(
               eq(participants.roomId, roomId),
               isNotNull(participants.photoUrl),
-              isNotNull(participants.declaredAt),
               eq(consentColumn(lens), true)
             )
           )
