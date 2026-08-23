@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+
 /**
  * `/results` — where the twelfth block hands off, and the end of the
  * participant's flow.
@@ -10,11 +13,11 @@
  * own completed branch used to send them there, so the last thing a finished
  * participant saw was a wall.
  *
- * So this page is deliberately a TERMINAL: there is no link onward, because
- * every screen past the quiz is gated until the reveal. A CTA that lands on a
- * password form is worse than no CTA. What the screen owes them instead is a
- * reason to come back — the reveal happens live, and saying so is the
- * difference between "the form ended" and "you are in".
+ * It used to be a TERMINAL, because every screen past the quiz was gated and a
+ * CTA that lands on a password form is worse than no CTA. `/encuentros` is open
+ * now (same list in `gate.ts`), so there is exactly ONE link onward and it goes
+ * somewhere the participant can actually use. Everything else stays unlinked
+ * until the reveal.
  *
  * It carries NO counter: `e2e/quiz.spec.ts` asserts none is visible once the
  * quiz is done (the locator matches `N/12`), so a progress number here would
@@ -50,7 +53,19 @@ export default function ResultsPage() {
         y ninguno de ustedes lo sabe todavía.
       </p>
 
-      <p className="relative mt-3 font-mono text-[11px] text-ink-faint leading-relaxed lowercase">
+      <Link
+        className={cn(
+          "relative mt-2 w-fit rounded-[14px] bg-primary px-5 py-2.5",
+          "font-display font-bold text-[15px] text-primary-foreground shadow-toy",
+          "transition-transform hover:-translate-y-px hover:shadow-toy-lg active:translate-y-px",
+          "focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+        )}
+        href="/encuentros"
+      >
+        Ver mis encuentros
+      </Link>
+
+      <p className="relative mt-1 font-mono text-[11px] text-ink-faint leading-relaxed lowercase">
         no cierres la pestaña · nos vemos en la demo
         <br />
         simula la vida que aún no ha pasado

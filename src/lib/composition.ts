@@ -2,6 +2,7 @@ import type { Db } from "./adapters/db/client";
 import { getDb } from "./adapters/db/client";
 import { createGeneratedBlockRepository } from "./adapters/db/generated-block-repository";
 import { createLatentRepository } from "./adapters/db/latent-repository";
+import { createMeetRepository } from "./adapters/db/meet-repository";
 import { createParticipantRepository } from "./adapters/db/participant-repository";
 import { createResponseRepository } from "./adapters/db/response-repository";
 import { createRoomRepository } from "./adapters/db/room-repository";
@@ -16,6 +17,7 @@ import { createDbTimelines } from "./adapters/timeline";
 import type { GeneratedBlockRepository } from "./ports/generated-block-repository";
 import type { LatentRepository } from "./ports/latent-repository";
 import type { LlmPort } from "./ports/llm";
+import type { MeetPort } from "./ports/meet";
 import type { OffspringStudio } from "./ports/offspring";
 import type { ParticipantRepository } from "./ports/participant-repository";
 import type { ParticipantsPort } from "./ports/participants";
@@ -25,6 +27,7 @@ import type { RankingPort } from "./ports/ranking";
 import type { ResponseRepository } from "./ports/response-repository";
 import type { RoomRepository } from "./ports/room-repository";
 import type { TimelinePort } from "./ports/timeline";
+import { meetInbox, proposeMeet, respondToMeet } from "./use-cases/meet";
 import { prepareProfile } from "./use-cases/prepare-profile";
 import type { PrepareResultsDeps } from "./use-cases/prepare-results";
 import { prepareResults } from "./use-cases/prepare-results";
@@ -73,6 +76,8 @@ export interface Deps {
   profiles: ProfilePort;
   /** `simulatePair`, likewise (issue #33). */
   timelines: TimelinePort;
+  /** The meet loop: request -> accept/decline (CONTEXT.md §5), bound like `ranking`. */
+  meets: MeetPort;
   /** The AI-offspring studio for the `/match` reveal (CONTEXT.md §3 step 6). */
   offspring: OffspringStudio;
   /**
@@ -101,6 +106,7 @@ export type ServerDeps = Pick<
   | "ranking"
   | "profiles"
   | "timelines"
+  | "meets"
   | "offspring"
   | "scoreParticipant"
 >;
@@ -226,6 +232,21 @@ export function serverDeps(): ServerDeps {
     },
     get timelines(): TimelinePort {
       return createDbTimelines(getDb(), getLlm());
+    },
+    /*
+     * Bound over `rankingDeps()`, not over `serverDeps()` -- `proposeMeet`
+     * authorises through `rankSubjectRoom`, which needs `byIdForRanking`, and
+     * only the ranking slice carries it. Same construction as `ranking` and
+     * `profiles` above, for the same reason.
+     */
+    get meets(): MeetPort {
+      const deps = { ...rankingDeps(), meets: createMeetRepository(getDb()) };
+      return {
+        propose: (input) => proposeMeet(input, deps),
+        respond: (requestId, viewerId, accept) =>
+          respondToMeet(requestId, viewerId, accept, deps),
+        inbox: (viewerId) => meetInbox(viewerId, deps),
+      };
     },
     get scoreParticipant(): PrepareResultsDeps["scoreParticipant"] {
       return rankingDeps().scoreParticipant;

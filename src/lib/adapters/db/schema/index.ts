@@ -21,6 +21,7 @@
 export * from "./enums.ts";
 export * from "./gates.ts";
 export * from "./latents.ts";
+export * from "./meet-requests.ts";
 export * from "./pair-simulations.ts";
 export * from "./participants.ts";
 export * from "./quiz.ts";
