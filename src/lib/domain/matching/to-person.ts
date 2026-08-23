@@ -11,6 +11,12 @@
  *   - `capacityHoursBand`, `distanceBand`, `chronotype` are copied AS-IS: the
  *     engine takes those three as 0..3 bands and dividing them would silently
  *     move every capacity gap, chronotype overlap and distance term.
+ *   - a null declared band ⇒ an ABSENT field (D20). The declared round is no
+ *     longer asked, so every band is null for everyone registered since; the
+ *     engine reads an absent band as unmeasured and scores that term at its
+ *     neutral midpoint with the weights untouched — the same degraded path
+ *     `distanceBand` always had (AUDIT.md S15). Never a fabricated 0: a zero
+ *     band is a real answer ("not at all"), and it would sort the room on it.
  *   - `tags` copied; `team` / `track` null ⇒ undefined; `acquaintances` from the
  *     rankable row; `cohort` passed in (the 30-minute window is the use case's
  *     to compute, because it needs the whole room to find the earliest).
@@ -25,19 +31,12 @@
  *     `bothMeasured` from row presence (AUDIT.md S15).
  *   - `hasPhoto = participant.photoUrl !== null`.
  *
- * It throws on any null declared field. That is the SECOND guard behind
- * `byRoomForRanking`'s floor and never the first (docs/domain.md §5): past the
- * floor every declared field is non-null by construction, so reaching the throw
- * means a caller skipped the floor — and ranking on fabricated zeros, or on the
- * `NaN` that `bandOf()` labels `high`, is the failure it exists to prevent.
+ * It no longer throws on a null declared field: the floor is registration, and
+ * a row past it is rankable whatever the declared columns hold.
  */
 import type { RankableParticipant } from "../participant/floor";
 import { mvpBusinessGate, mvpRomanticGate } from "../participant/mvp-defaults";
-import type {
-  DeclaredBand,
-  DeclaredProfile,
-  Participant,
-} from "../participant/participant";
+import type { DeclaredBand, Participant } from "../participant/participant";
 import { bandToUnit } from "../participant/participant";
 import type { LatentName, Person, RomanticGate } from "./engine";
 
@@ -48,30 +47,14 @@ import type { LatentName, Person, RomanticGate } from "./engine";
  */
 export type PersonLatents = Person["latents"];
 
-/** The declared keys `Person` reads. All six are non-null past the floor. */
-type BandKey = {
-  [K in keyof DeclaredProfile]: DeclaredProfile[K] extends DeclaredBand | null
-    ? K
-    : never;
-}[keyof DeclaredProfile];
+/** A stored band as the engine's 0..3 number, or absent when never asked. */
+function bandOrAbsent(band: DeclaredBand | null): number | undefined {
+  return band === null ? undefined : band;
+}
 
-/**
- * The band, or an Error naming the field.
- *
- * The message names the FIELD and not the participant: a below-floor row
- * reaching here is a caller bug, and an id in a log line is a disclosure the
- * floor exists to prevent (engine.ts:782's `unknown subject id` is the
- * anti-pattern this use case is written to avoid triggering at all).
- */
-function requireBand(declared: DeclaredProfile, key: BandKey): DeclaredBand {
-  const band = declared[key];
-  if (band === null) {
-    throw new Error(
-      `toPerson: declared "${key}" is null — a row below the §0 floor reached ` +
-        "the mapper, and ranking it would score fabricated zeros"
-    );
-  }
-  return band;
+/** A stored band as the engine's 0..1 float (D6), or absent when never asked. */
+function unitOrAbsent(band: DeclaredBand | null): number | undefined {
+  return band === null ? undefined : bandToUnit(band);
 }
 
 /**
@@ -119,16 +102,16 @@ export function toPerson(
     name: participant.name,
     latents: copyLatents(latents),
     declared: {
-      distanceBand: requireBand(declared, "distanceBand"),
+      distanceBand: bandOrAbsent(declared.distanceBand),
       lifeShape: {
-        moneyPosture: bandToUnit(requireBand(declared, "moneyPosture")),
-        rootedness: bandToUnit(requireBand(declared, "rootedness")),
-        familyGravity: bandToUnit(requireBand(declared, "familyGravity")),
+        moneyPosture: unitOrAbsent(declared.moneyPosture),
+        rootedness: unitOrAbsent(declared.rootedness),
+        familyGravity: unitOrAbsent(declared.familyGravity),
         // NOT divided: the engine takes this one as a 0..3 band (§6).
-        capacityHoursBand: requireBand(declared, "capacityHoursBand"),
+        capacityHoursBand: bandOrAbsent(declared.capacityHoursBand),
       },
       tags: [...declared.tags],
-      chronotype: requireBand(declared, "chronotype"),
+      chronotype: bandOrAbsent(declared.chronotype),
     },
     structural: {
       team: participant.team ?? undefined,

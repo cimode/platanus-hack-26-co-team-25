@@ -1,16 +1,21 @@
 import path from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { participantBySession, roomMembers } from "./fixtures/intake-declared";
+import {
+  participantBySession,
+  roomMembers,
+  seedPoolSet,
+} from "./fixtures/intake";
 import { createQuizParticipant } from "./helpers/quiz-participant";
 
 /**
- * Intake on a phone (issue #42, docs/domain.md D18).
+ * Intake on a phone (issue #42, docs/domain.md D18 and D20).
  *
- *     /intake?room=<slug>  one screen  ->  /intake/declared
+ *     /intake?room=<slug>  one screen  ->  /quiz
  *
- * Photo, name, gender and birthdate are asked together and submitted once.
- * There is no consent screen, no gate screen, no step counter and no wordmark:
- * nothing on any screen may hint at what is being measured.
+ * Photo, name, gender and birthdate are asked together and submitted once,
+ * and the hand-off is straight to the questions: there is no declared round,
+ * no consent screen, no gate screen, no step counter and no wordmark. Nothing
+ * on any screen may hint at what is being measured.
  *
  * The room is `e2e-<run>`, created by e2e/global-setup.ts and never the real
  * `platanus-hack-26-bogota` (docs/domain.md D9). Photos go through the fake
@@ -60,6 +65,19 @@ const submitButton = (page: Page) =>
 const dataBox = (page: Page) =>
   page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
+/**
+ * What `/quiz` shows the moment registration lands on it (D20): the beat that
+ * opens the first batch when the questions are already there -- a pool set
+ * was adopted -- or the "writing your questions" state while they are being
+ * authored. Either is the quiz; which one depends on whether another test in
+ * the same room took the pool set first, so both are accepted.
+ */
+const quizOpening = (page: Page) =>
+  page
+    .getByText(/quince escenas/i)
+    .or(page.getByText(/escribiendo tus preguntas/i))
+    .first();
+
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "dipia_session");
 
@@ -108,13 +126,17 @@ function assertClean(html: string, where: string): void {
 }
 
 test.describe("intake", () => {
-  test("AC-1 · one screen registers a participant with photo, name, gender and birthdate", async ({
+  test("AC-1 · one screen registers a participant with photo, name, gender and birthdate and lands on the questions", async ({
     page,
     context,
   }) => {
     const slug = roomSlug();
     const birthdate = bornAgo(27);
     const served: string[] = [];
+
+    // A set of first questions waiting in the room's pool, so registration
+    // adopts it and the first render is block 1's beat rather than a wait.
+    await seedPoolSet();
 
     await page.goto(intakeUrl(slug));
     await expect(submitButton(page)).toBeVisible();
@@ -127,7 +149,9 @@ test.describe("intake", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    // Straight to the questions: no declared round in between (D20).
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
+    await expect(quizOpening(page)).toBeVisible();
     served.push(await page.content());
 
     // The row itself, read through the repository behind the session cookie.
@@ -145,6 +169,8 @@ test.describe("intake", () => {
       business: true,
       friendship: true,
     });
+    // D20: nothing declared was asked, and nothing declared was written.
+    expect(me?.declaredAt).toBeNull();
 
     for (const html of served) assertClean(html, "an intake screen");
   });
@@ -223,7 +249,8 @@ test.describe("safety invariants", () => {
     await expect(bar).toHaveAttribute("aria-valuenow", /\d/);
     await expect(bar).toHaveAttribute("aria-valuemax", /\d/);
 
-    // The first quiz screen, for a participant with their fifteen blocks.
+    // The first quiz screen, for a participant with their fifteen blocks --
+    // the screen registration lands on (D20).
     const quiz = await createQuizParticipant({ context });
     const quizPage = await context.newPage();
     // `?start=1` dismisses the beat that opens a batch, so what is inspected is
@@ -255,7 +282,8 @@ test.describe("safety invariants", () => {
     await birthdateField(page).fill(bornAgo(31));
     await dataBox(page).check();
     await submitButton(page).click();
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
+    await expect(quizOpening(page)).toBeVisible();
 
     const sessions = await sessionCookies(context);
     expect(sessions).toHaveLength(1);
@@ -263,7 +291,8 @@ test.describe("safety invariants", () => {
     expect(cookie.httpOnly).toBe(true);
     expect(cookie.sameSite).toBe("Lax");
 
-    const html = await (await context.request.get("/intake/declared")).text();
+    // The first quiz screen, as bytes: the token is not in the document.
+    const html = await (await context.request.get("/quiz")).text();
     expect(html).not.toContain(cookie.value);
 
     const documentCookie = await page.evaluate(() => document.cookie);
@@ -320,7 +349,7 @@ test.describe("photo guide", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
     const cookies = await sessionCookies(context);
     expect(cookies).toHaveLength(1);
     const me = await participantBySession(cookies[0].value);
@@ -403,7 +432,7 @@ test.describe("data treatment", () => {
     await dataBox(page).check();
     await submitButton(page).click();
 
-    await expect(page).toHaveURL(/\/intake\/declared$/);
+    await expect(page).toHaveURL(/\/quiz(\?|$)/);
 
     const cookies = await sessionCookies(context);
     expect(cookies).toHaveLength(1);

@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
 import { createDb } from "../src/lib/adapters/db/client";
 import { createRoomRepository } from "../src/lib/adapters/db/room-repository";
+import { seedRoster } from "./fixtures/roster";
 
 /**
  * The e2e room (docs/domain.md D9).
@@ -61,8 +61,10 @@ export default async function globalSetup(): Promise<void> {
     return;
   }
 
-  const run = `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
-  const slug = `e2e-${run}`;
+  // Both decided in playwright.config.ts, which runs first and hands the same
+  // slug to the web server as HOOKAI_ROOM_SLUG.
+  const run = process.env.E2E_RUN_ID as string;
+  const slug = process.env.E2E_ROOM_SLUG as string;
 
   const rooms = createRoomRepository(createDb(url));
   await rooms.create({
@@ -71,6 +73,13 @@ export default async function globalSetup(): Promise<void> {
     instrumentVersion: "v1",
   });
 
-  process.env.E2E_RUN_ID = run;
-  process.env.E2E_ROOM_SLUG = slug;
+  /*
+   * The cast the room screens are tested against.
+   *
+   * It lived in `adapters/participants/roster.ts` until `ParticipantsPort`
+   * started reading the `participants` table. Without this the chooser under
+   * test lists nobody, and 1a, 1b, the ranking and the profile all fail for
+   * the same reason -- one none of them is about.
+   */
+  await seedRoster(slug);
 }

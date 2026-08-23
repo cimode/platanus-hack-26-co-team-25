@@ -26,8 +26,9 @@ import { InstrumentVersionMismatchError } from "./quiz-progress.ts";
  * participant's* block at `position` from
  * `generatedBlocks.byBatch(participantId, batchOf(position))` and rejects,
  * naming the participant id and the position, when no stored block has that
- * position (docs/domain.md D16 -- a write never authors: `ensureQuizBatch`
- * and `saveBatch` are never called here); validates `mostKey` and `leastKey`
+ * position (docs/domain.md D16/D20 -- a write never authors: neither
+ * `continueQuizGeneration` nor `saveBatch` is called here); validates
+ * `mostKey` and `leastKey`
  * against that block's option keys, most ≠ least and the presence of
  * `leastKey` unless single-pick; recomputes `shownOrderFor`; and writes
  * through `responses.save`, passing `{ completedAt: now }` only on the

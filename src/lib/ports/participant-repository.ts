@@ -45,7 +45,7 @@ export interface ParticipantRepository {
  * `ParticipantRepository`, rather than added to it: widening the shared port
  * would break the six existing `ParticipantRepository` fakes in other
  * use-case tests (`answer-block`, `quiz-progress`, `set-photo`,
- * `submit-declared`, `submit-business-gate`, `submit-romantic-gate`) with
+ * `submit-business-gate`, `submit-romantic-gate`) with
  * TS2741, and a port method six implementations do not need is a port method
  * that earns nothing. `adapters/db/participant-repository.ts` implements it
  * over the joins `byRoomForRanking` already performs and satisfies this slice

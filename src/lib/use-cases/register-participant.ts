@@ -63,7 +63,7 @@ export class RegisterParticipantError extends Error {
   /**
    * Set only on `reason: "photo"` -- the row exists, the store refused, and
    * the credential is what a test needs to prove the flow resumes on the
-   * registration screen rather than in the declared round (AC-4).
+   * registration screen rather than in the quiz (AC-4).
    */
   readonly sessionToken?: SessionToken;
 

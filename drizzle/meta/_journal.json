@@ -57,6 +57,13 @@
       "when": 1787458541962,
       "tag": "0007_participant_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787462089866,
+      "tag": "0008_quiz_generation",
+      "breakpoints": true
     }
   ]
 }

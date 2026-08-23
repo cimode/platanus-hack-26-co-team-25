@@ -1,25 +1,23 @@
 /**
- * `/quiz`'s loading moment (docs/domain.md D16).
+ * `/quiz`'s Suspense fallback (docs/domain.md D16).
  *
  * `loading.tsx` wraps the page in a Suspense boundary, so a navigation into
- * `/quiz` commits at once and this streams while `quizProgress` works. That
- * work is normally one SELECT -- batch 1 was authored in `after()` at
- * registration -- but for the participant who outran the prefetch, or whose
- * prefetch failed, it is `ensureQuizBatch` writing five blocks inline, measured
- * at ~40-70s. Without this file the browser sat on the last screen of the
- * declared round with no feedback for all of it, and the hand-off read as
- * frozen.
+ * `/quiz` commits at once and this streams while `quizProgress` reads. Reads
+ * never generate any more -- the page answers `pending` and `GenerationWait`
+ * takes over when the block is not written -- so what this covers is the
+ * handful of SELECTs on venue wifi, and it is laid out as the same column as
+ * the wait screen it most often resolves into, so the two do not jump.
  *
  * It must not await anything: a Suspense fallback that suspends on a read is
- * not a loading screen (the `/results` note in docs/domain.md §7). So it carries
- * no count, no name and no block -- the wordmark, and what is happening.
+ * not a loading screen (the `/results` note in docs/domain.md §7). So it
+ * carries no count, no name, no block and no avatar -- the wordmark, and what
+ * is happening.
  *
  * `role="status"` with `aria-live="polite"` announces the line on arrival and
  * lets the block replace it without cutting a screen reader off mid-sentence.
  * The pulse is decoration, and `motion-safe:` keeps it off under reduced motion.
  *
  * A Server Component with no state, so it costs the phone nothing on the wire.
- * Laid out as `BatchBeat` is -- the screen it most often resolves into.
  */
 export default function QuizLoading() {
   return (

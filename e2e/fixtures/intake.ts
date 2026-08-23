@@ -1,29 +1,30 @@
 import type { BrowserContext } from "@playwright/test";
 import { createDb } from "../../src/lib/adapters/db/client";
 import { createParticipantRepository } from "../../src/lib/adapters/db/participant-repository";
+import { createQuizPoolRepository } from "../../src/lib/adapters/db/quiz-pool-repository";
 import { createRoomRepository } from "../../src/lib/adapters/db/room-repository";
 import type {
   Consent,
-  DeclaredProfile,
   Gender,
   SessionToken,
 } from "../../src/lib/domain/participant";
 import { avatarFor } from "../../src/lib/domain/participant/avatar";
+import { INSTRUMENT } from "../../src/lib/domain/quiz";
 
 /**
- * Seeds a participant straight into the `e2e-<run>` room (issue #8).
+ * Seeds straight into the `e2e-<run>` room (issue #8, reshaped by D20).
  *
- * Steps 4 and 5 are the ones under test; driving steps 1-3 through the real
- * screens for every one of them would triple the run time and make a failure in
- * the declared round read as a failure in the photo step. So this fixture
- * creates the participant through the #4 repositories -- photo, consents and,
- * when asked, a complete declared profile -- and hands the session token to a
- * browser context as the `dipia_session` cookie, the same credential the app
- * would have set (docs/domain.md D4).
+ * Driving registration through the real screen for every test that needs a
+ * participant would multiply the run time and make a failure downstream read
+ * as a failure in the photo step. So this fixture creates the participant
+ * through the #4 repositories -- photo and consents -- and hands the session
+ * token to a browser context as the `dipia_session` cookie, the same
+ * credential the app would have set (docs/domain.md D4). There is no declared
+ * round to seed any more: a registered row is a rankable row.
  *
  * It writes only into `e2e-<run>`, the room e2e/global-setup.ts created for
- * this run; the real `platanus-hack-26-bogota` is never touched (D9). AC-10
- * does not use this file: it drives steps 1-3 through the screens on purpose.
+ * this run; the real `platanus-hack-26-bogota` is never touched (D9). The
+ * intake criteria do not use `seedParticipant`: they drive the screen itself.
  *
  * Playwright does not read `.env`; `next dev` does. Loaded the same guarded way
  * global-setup.ts does -- variables already in the environment win, and CI has
@@ -48,20 +49,8 @@ const BASE_URL = "http://localhost:3000";
  * (docs/domain.md D11), so the seeded row is indistinguishable from one the
  * photo step wrote and no test ever uploads anything.
  */
-const SEEDED_PHOTO =
+export const SEEDED_PHOTO =
   "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
-
-/** All six bands -- `saveDeclared` sets `declared_at` only for this (§0). */
-const COMPLETE_DECLARED: DeclaredProfile = {
-  moneyPosture: 1,
-  rootedness: 2,
-  familyGravity: 0,
-  capacityHoursBand: 3,
-  distanceBand: 1,
-  chronotype: 2,
-  tags: [],
-  acquaintances: [],
-};
 
 export interface SeedOptions {
   name?: string;
@@ -69,10 +58,8 @@ export interface SeedOptions {
   consent?: Partial<Consent>;
   gender?: Gender;
   birthdate?: string;
-  /** Seeded with a photo unless a test wants the step-2 guard. */
+  /** Seeded with a photo unless a test wants the registration guard. */
   photo?: boolean;
-  /** "complete" sets all six bands, and with them `declared_at`. */
-  declared?: "none" | "complete";
 }
 
 export interface SeededParticipant {
@@ -82,8 +69,8 @@ export interface SeededParticipant {
 }
 
 const MISSING_URL =
-  "DATABASE_URL is not set, so e2e/fixtures/intake-declared.ts cannot seed a " +
-  "participant. Point .env at a migrated Neon branch (`neon checkout " +
+  "DATABASE_URL is not set, so e2e/fixtures/intake.ts cannot seed into the " +
+  "database. Point .env at a migrated Neon branch (`neon checkout " +
   "dev-domain`).";
 
 const MISSING_ROOM =
@@ -97,6 +84,7 @@ function repositories() {
   return {
     participants: createParticipantRepository(db),
     rooms: createRoomRepository(db),
+    pool: createQuizPoolRepository(db),
   };
 }
 
@@ -111,8 +99,7 @@ export function e2eRoomSlug(): string {
  * Creates one participant in `e2e-<run>` and returns its session token.
  *
  * Every write goes through the ParticipantRepository rather than raw SQL, so a
- * seeded row obeys the same invariants a registered one does -- `declared_at`
- * in particular is set by `saveDeclared`, not by this file.
+ * seeded row obeys the same invariants a registered one does.
  */
 export async function seedParticipant(
   options: SeedOptions = {}
@@ -144,14 +131,27 @@ export async function seedParticipant(
     await participants.setPhoto(participant.id, SEEDED_PHOTO);
   }
 
-  // A participant who has not started the declared round is one whose bands
-  // were never written -- so "none" writes nothing at all, rather than writing
-  // nulls that only look like the absence of a write.
-  if (options.declared === "complete") {
-    await participants.saveDeclared(participant.id, COMPLETE_DECLARED);
-  }
-
   return { id: participant.id, name, sessionToken };
+}
+
+/**
+ * One pre-written set of first questions for the `e2e-<run>` room (D20).
+ *
+ * Registration adopts the oldest unclaimed set as the new participant's batch
+ * 1, so a test that seeds one before registering lands on block 1 with the
+ * questions already there -- and no model is ever called in e2e. The blocks
+ * are the committed instrument's batch 1, the same five the quiz helper seeds.
+ */
+export async function seedPoolSet(): Promise<void> {
+  const { rooms, pool } = repositories();
+  const slug = e2eRoomSlug();
+  const room = await rooms.bySlug(slug);
+  if (!room) throw new Error(`${MISSING_ROOM} (no room with slug ${slug})`);
+
+  await pool.add(
+    room.id,
+    INSTRUMENT.blocks.filter((block) => block.batch === 1)
+  );
 }
 
 /** The participant behind a session cookie -- identity, photo and consents. */

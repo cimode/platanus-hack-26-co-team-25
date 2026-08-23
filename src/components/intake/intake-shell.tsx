@@ -10,7 +10,7 @@ import { FlowProgress } from "@/components/intake/flow-progress";
  * being measured. The wordmark that used to live here is gone with it.
  *
  * The progress bar rides the shell rather than each screen, so a screen cannot
- * forget it and the three declared screens cannot disagree about where it sits.
+ * forget it and every screen agrees where it sits.
  */
 export function IntakeShell({
   children,

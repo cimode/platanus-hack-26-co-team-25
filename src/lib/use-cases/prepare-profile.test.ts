@@ -291,7 +291,12 @@ const ROW_RANKABLE = rankable(RANKABLE, "Rafa", {
   businessGate: BUSINESS,
 });
 const ROW_ABANDONED = rankable(ABANDONED, "Abel", {
-  participant: { declaredAt: null, quizCompletedAt: null },
+  participant: {
+    gender: null,
+    birthdate: null,
+    declaredAt: null,
+    quizCompletedAt: null,
+  },
   declared: NO_BANDS,
   romanticGate: MUTUAL_ROMANTIC,
   businessGate: BUSINESS,
@@ -531,9 +536,7 @@ describe("prepareProfile", () => {
     // Six causes, each genuinely its own -- otherwise this criterion would
     // pass by testing one cause six times.
     expect(AC8_ROOM.find((r) => r.participant.id === GHOST)).toBeUndefined();
-    expect(floorReason(ROW_ABANDONED, "friendship")).toBe(
-      "declared-incomplete"
-    );
+    expect(floorReason(ROW_ABANDONED, "friendship")).toBe("no-identity");
     expect(floorReason(ROW_DECLINER, "romantic")).toBe("no-consent");
     expect(ROW_DECLINER.romanticGate).toBeUndefined();
     expect(floorReason(ROW_NO_PHOTO, "friendship")).toBe("no-photo");

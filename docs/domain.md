@@ -8,51 +8,49 @@
 >
 > Reviewed adversarially from five lenses (engine fidelity, data access, 36-hour
 > pragmatism, CI migrations, safety); 17 findings were adopted, the largest being that the
-> instrument lives in code, not in tables. Last updated: 2026-08-22 (D18).
+> instrument lives in code, not in tables. Last updated: 2026-08-23 (D20).
 
 ---
 
 ## 0. The flow this models
 
 ```
-registration (photo, name, gender, birthdate) ──> declared round ──> quiz (15 blocks, 3 batches) ──> scored ──> ranked
-   │                                                  │                   │                            │          │
- participants + session                          money/rooted/…      quiz_responses            latent_estimates  (computed
- photo_url, gender, birthdate, consent_* = true   tags, chronotype   (one per block)               (I7)        on request, I8)
+registration (photo, name, gender, birthdate) ──> quiz (15 blocks, 3 batches) ──> scored ──> ranked
+   │                                                   │                            │          │
+ participants + session                           quiz_responses            latent_estimates  (computed
+ photo_url, gender, birthdate, consent_* = true    (one per block)               (I7)        on request, I8)
 ```
 
 Amended by **D18** (2026-08-22): registration is one screen and the gate screens are
-gone. The diagram above is the MVP flow; the original five-step one — register → photo →
-consent → declared → gates — is what D18 replaced.
+gone. Amended by **D20** (2026-08-23): the declared round is gone too — registration hands
+straight over to block 1. The diagram above is the MVP flow; the original five-step one —
+register → photo → consent → declared → gates — is what D18 and D20 replaced.
 
-A participant is a row that fills in over ~8 minutes, left to right. Every step is
+A participant is a row that fills in over ~6 minutes, left to right. Every step is
 resumable: a respondent who closes the tab at block 7 is identified by the session cookie
 and lands back on block 8. Nothing is derived from "status" columns — progress is read from
-the data itself (`photo_url is null`, `declared_at is null`, `count(responses)`), so the
-database can never claim a state the rows do not support.
-
-The declared round runs **before** the quiz on purpose (`PILLARS.md` §8): someone who
-abandons at block 4 still has gates, tags, capacity and proximity — still ranks, still
-renders a panel. Photo and consent come first with their own minute (`AUDIT.md` S16).
+the data itself (`photo_url is null`, `count(responses)`), so the database can never claim
+a state the rows do not support.
 
 **The floor, stated once.** A participant is rankable under a lens only when *all* of:
-`photo_url is not null` · `consent_<lens>` · `gender` and `birthdate` are not null ·
-`declared_at is not null`. The gate-row condition was removed by **D18** — no gate is
-asked any more, so requiring its row would put everybody below the floor; the identity
-clause replaces it, because a row registered before D18 has no gender and no birthdate and
-therefore no romantic gate that could be derived. Anyone below the floor is **suppressed with a reason,
-never ranked** (`AUDIT.md` S15). `declared_at` is in the floor because the engine's
-`LifeShape` and `chronotype` are required numbers with no degraded path: a friendship-
-consented person who quit during the declared round would otherwise be ranked on fabricated
-zeros, or on `NaN` that `bandOf()` labels `high`. Quiz abandoners rank; declared-round
-abandoners do not.
+`photo_url is not null` · `consent_<lens>` · `gender` and `birthdate` are not null. The
+gate-row condition was removed by **D18** — no gate is asked any more, so requiring its row
+would put everybody below the floor; the identity clause replaces it, because a row
+registered before D18 has no gender and no birthdate and therefore no romantic gate that
+could be derived. The `declared_at` condition was removed by **D20** for the same reason:
+nothing asks the declared round, so requiring it would empty every ranking. The engine
+reads a null band as **unmeasured** — each declared term scores at its neutral midpoint
+with the weights untouched, the degraded path `distanceBand` always had (`AUDIT.md` S15)
+— so nobody ranks on fabricated zeros either. Anyone below the floor is **suppressed with
+a reason, never ranked** (S15). Quiz abandoners rank, on the prior for every unscored
+pillar.
 
 ## 1. Decisions this file makes
 
 | # | Decision | Why |
 | --- | --- | --- |
 | D1 | ⚠️ **SUPERSEDED by D16** — was: **One fixed instrument for the whole room** — the 15 blocks in `quiz/batch-{1,2,3}.json`. Not generated per participant. | `PILLARS.md` §7.2: the precision claim rests on a *fixed balanced form* — every person answers the same 15 blocks, so every between-person contrast is on the same items. Per-person items destroy linking, and with it the 25% technical-depth argument. `AUDIT.md` F1: "irreversible once the form ships". The content exists and has passed the desirability judge. Generation (DeepSeek → Qwen) is an **offline pipeline that produces a versioned instrument**, not a request-time job. |
-| D2 | ⚠️ **PARTLY SUPERSEDED by D16** — the constant survives as the structural contract and as the per-participant *fallback*; it is no longer what everyone answers. Was: **The instrument is a domain constant, not three tables.** `src/lib/domain/quiz/instrument.ts` builds it from the JSON at import, validates every block, carries `INSTRUMENT.version` (`v1`), and a unit test pins the content hash — version included. Responses reference `(position, key)`; the room records which version it administered, and the quiz (I6) and scoring (I7) use cases **throw when `room.instrument_version !== INSTRUMENT.version`**. | Sixty rows of committed, already-validated JSON that the engine never reads do not need a `QuizRepository`, a seed, a status enum, a partial unique index and a freeze-diff guard. The hash test plus the room↔version check *are* the freeze: editing a block means bumping the version, and a bumped version can only be administered and scored in a room created for it — never re-scored onto an existing room's responses. The quiz screen reads a constant — zero database reads per block on venue wifi. |
+| D2 | ⚠️ **PARTLY SUPERSEDED by D16** — the constant survives as the structural contract (and, until D20, as the per-participant *fallback*); it is no longer what anyone answers. Was: **The instrument is a domain constant, not three tables.** `src/lib/domain/quiz/instrument.ts` builds it from the JSON at import, validates every block, carries `INSTRUMENT.version` (`v1`), and a unit test pins the content hash — version included. Responses reference `(position, key)`; the room records which version it administered, and the quiz (I6) and scoring (I7) use cases **throw when `room.instrument_version !== INSTRUMENT.version`**. | Sixty rows of committed, already-validated JSON that the engine never reads do not need a `QuizRepository`, a seed, a status enum, a partial unique index and a freeze-diff guard. The hash test plus the room↔version check *are* the freeze: editing a block means bumping the version, and a bumped version can only be administered and scored in a room created for it — never re-scored onto an existing room's responses. The quiz screen reads a constant — zero database reads per block on venue wifi. |
 | D3 | Blocks are delivered in **three batches of five**. Between-batch screens are *transitions* (a "batch 2 of 3" beat), not waits. | The staged experience the product wants, without any generation latency in it (`docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` §9). **Amended 2026-08-22 (D14):** the original rationale was prefetching the next five option images; with text-only options there is nothing to preload, so the batching survives purely as pacing. |
 | D4 | Identity is a **session token in an httpOnly cookie**, stored in its own table. No email, no login. | `CONTEXT.md` §5: "auth beyond the minimum needed to identify a participant" is out of scope. The token is what makes "a ranking is visible only to the person who ran it" enforceable. A new device loses the session; acceptable for a one-evening demo. Its own table means no read of `participants` can return it *structurally* — not by convention. |
 | D5 | **Gates live in their own tables, one per lens.** No row ⇔ never asked. | `PILLARS.md` §2: Eligibility Gates is "the only pillar with genuinely lens-partitioned content"; A8 says asking is a disclosure event. Gender and orientation are asked *only* of people who consented to the romantic lens, and the absent row maps 1:1 to the engine's `gates.romantic === undefined` → suppressed. |
@@ -64,11 +62,12 @@ abandoners do not.
 | D11 | Photos go to **Vercel Blob** (`@vercel/blob`, `BLOB_READ_WRITE_TOKEN`), `photo_url` on the participant; tests use a fake `PhotoStore`. | GA, CDN-served, one env var, no Postgres egress for a room view that loads a hundred faces. Blob URLs are unguessable and are only ever embedded in pages the viewer is authorised to see; withdrawal deletes the blob. Fallback if provisioning becomes a problem at hour N: `photo bytea` served by a private route handler — same port, different adapter. **Amended 2026-08-22 (#25):** Neon Object Storage replaces Vercel Blob — same port, branch-scoped bucket, `AWS_*` env; `bytea` remains the fallback. |
 | D12 | Romantic consent covers the ranking **and** the AI-offspring render, and the copy says so. | `AUDIT.md` S17: face-merge renders only for mutually opted-in pairs. One switch, explicitly worded. |
 | D14 | **Option cards are text, not images.** No `public/quiz/*.png`, no image-generation pipeline, no `imagePathOf`. The `imagePrompts` already in `quiz/batch-*.json` stay in the file as authored history and are ignored by the domain type. | Confirmed by the user 2026-08-22. Cuts the entire image budget (60 renders per instrument version, and ~6,000 under the per-participant design §10.1 rejects), removes the model's least reliable capability — Spanish caption text baked into an image — from the critical path, and deletes issue I3 outright. Options are ≤8 words by the authoring rules, which is a card; the 2×2 grid in `docs/design/CLAUDE_DESIGN_QUIZ_BLOCK.md` renders them as type. |
-| D16 | **Each participant gets their own generated form, authored live, batch by batch.** Reverses D1/D2. Fixed for everyone: 15 positions, the 4/4/4/3 focus-pillar rotation, four pillars once each, exactly one reversed option on the focus pillar. Varies per person: which everyday domain each position is set in, and the writing. Authored at entry and rolled forward — batch N+1 while batch N is answered. Stored in `generated_blocks(participant_id, position)`. **The committed 15 blocks become the per-participant fallback**, served whenever authoring fails, the model is down, or `AI_GATEWAY_API_KEY` is absent. | Confirmed by the user 2026-08-22, after §10.1 had been recorded the other way and built on — see the note below. The linking objection in D1 was **overstated**: the estimator uses *authored*, not calibrated, item parameters (`AUDIT.md` S8), so a block's likelihood depends on which pillar was chosen and how it was keyed, never on the scenario text. Identical structure is identical measurement, and `validateBlock()` enforces the structure on every generated block. D14 is what makes it affordable — text-only options mean ~1,500 short completions for 100 attendees rather than ~6,000 image renders. Residual risk is content quality with no human in the loop, carried by the structural validator, a repair pass and the fallback. Measured: ~38–70s per batch of five, 15/15 blocks correctly keyed first attempt. |
+| D16 | **Each participant gets their own generated form, authored live, batch by batch.** Reverses D1/D2. Fixed for everyone: 15 positions, the 4/4/4/3 focus-pillar rotation, four pillars once each, exactly one reversed option on the focus pillar. Varies per person: which everyday domain each position is set in, and the writing. Stored in `generated_blocks(participant_id, position)`. **Amended 2026-08-23 (D20).** The whole form comes from the room's pool (`quiz_pool_sets`: complete 15-block forms, topped up in the background while `/qr` is shown and the registration form is open, adopted atomically at registration); whatever is still missing is written by a claim-guarded chain (`quiz_generation_claims`, one `INSERT … ON CONFLICT` per claim) in `after()` — batch 1 first, then batches 2 and 3 side by side. There is no content fallback: `generate-quiz-batch` either returns five validated blocks or throws, `quiz-progress` reports `pending` for a block not yet stored (a legacy `source = 'fallback'` row counts as not authored), and the screen waits and retries. An answered batch is never regenerated. Migration `0008_quiz_generation`. ~~The committed 15 blocks become the per-participant fallback, served whenever authoring fails~~ — struck by D20. | Confirmed by the user 2026-08-22, after §10.1 had been recorded the other way and built on — see the note below. The linking objection in D1 was **overstated**: the estimator uses *authored*, not calibrated, item parameters (`AUDIT.md` S8), so a block's likelihood depends on which pillar was chosen and how it was keyed, never on the scenario text. Identical structure is identical measurement, and `validateBlock()` enforces the structure on every generated block. D14 is what makes it affordable — text-only options mean ~1,500 short completions for 100 attendees rather than ~6,000 image renders. Residual risk is content quality with no human in the loop, carried by the structural validator, a judge and a repair pass; since D20 a batch that still fails is retried by the next request rather than papered over with the constant. Measured: ~38–70s per batch of five, 15/15 blocks correctly keyed first attempt. |
 | D15 | **Every answer row carries its question.** ⚠️ The `instruments(version pk, hash, blocks jsonb, seeded_at)` **half is SUPERSEDED by D16** — there is no such table, no seed writes one, and the constant is mirrored nowhere; `generated_blocks(participant_id, position)` is the stored question set, per person. **What was kept, and shipped in I9/#13:** `quiz_responses` gains `instrument_version`, `scenario`, `most_text`, `least_text`, captured at answer time — now resolved from *that participant's* `generated_blocks` row rather than from the constant, with `save` rejecting when the block or the key is missing. | Requested by the user 2026-08-22: answers must be readable in the database together with the questions, without the code. Under D16 (same day, later) the question is not derivable from the code at *all*, so the answer-row columns became the whole of this decision instead of half of it — and a shared mirror became meaningless, because no two participants answer the same 15 scenarios. `INSTRUMENT` is still hash-pinned by its unit test and is still the per-participant fallback (D2). Cost: ~150 bytes per answer, and one extra read per `save` (the block, by its unique index). |
 | D13 | **Rankings are computed on request, not stored.** Latent estimates *are* stored — they are the avatar. | `rankRoom` is pure and ranks a 100-person room in milliseconds; persisting its output was ceremony on the last issue. The loading moment is `loading.tsx` narrating "scoring 15 blocks · ranking N people". The projected room view, when it exists, computes mutual top-k from the same in-memory array behind an operator credential. `latent_estimates` stays: it is `CONTEXT.md` §3 step 2, and the timeline will read it. |
-| D18 | **MVP intake: one registration screen, then the questions.** Photo, name, `gender` and `birthdate` are asked together and stored on `participants`; `consent_romantic`, `consent_business` and `consent_friendship` are set `true` by the registration itself — participating *is* consenting for this version, and no screen says the word. `romantic_gates` / `business_gates` are **no longer asked**; the tables stay in the schema, unused, and `toPerson` (I8/#10) derives the engine's gate inputs from `src/lib/domain/participant/mvp-defaults.ts`: `interestedIn` = every gender, `single` = true, `wantsKids` = true, `riskPosture` = 1, `exitHorizon` = 1, `redlinesOk` = true, and `ageBand` = `ageBandOf(birthdate, today)` (18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3). The §0 floor loses the gate-row clause and gains the identity one. No team/track question, no "interested in", no age band asked — it is derived. Nothing on any intake or quiz screen names a pillar, a lens, consent, a gate, a team, a track, the wordmark or a step number: one `Progress` bar over the whole 19-step flow is the only progress copy. Supersedes D12 for this version (the romantic switch does not exist; the AI-offspring render is out of the MVP). **Amended by issue #49 (2026-08-22):** the registration screen carries one required checkbox authorising the treatment of personal data — unticked by default, refused server-side with `reason: "data-consent"` before any row is written, and recorded as `participants.data_consent_at timestamptz` (migration `drizzle/0005_data_consent.sql`, nullable only for pre-#49 rows). It is the moment, not merely the fact, because Ley 1581 de 2012 (habeas data) expects the authorisation to be explicit and dated. The per-lens consents above are unaffected and still unasked; the screen never says the English word. | Requested by the user 2026-08-22 after testing the deployed form: completion rate is the demo (`CONTEXT.md` §4), and five steps with named categories was the thing people dropped out of. The declared round survives untouched because it is 60 % of the ranking weight (`PILLARS.md` §3) — its six bands are simply asked as ordinary questions rather than labelled with the axis they measure, which is also what stops the form teaching people what to answer (`AUDIT.md` S16). The defaults are the permissive end of every axis on purpose: a gate whose unasked half filtered people out would silently shrink the ranking. |
+| D18 | **MVP intake: one registration screen, then the questions.** Photo, name, `gender` and `birthdate` are asked together and stored on `participants`; `consent_romantic`, `consent_business` and `consent_friendship` are set `true` by the registration itself — participating *is* consenting for this version, and no screen says the word. `romantic_gates` / `business_gates` are **no longer asked**; the tables stay in the schema, unused, and `toPerson` (I8/#10) derives the engine's gate inputs from `src/lib/domain/participant/mvp-defaults.ts`: `interestedIn` = every gender, `single` = true, `wantsKids` = true, `riskPosture` = 1, `exitHorizon` = 1, `redlinesOk` = true, and `ageBand` = `ageBandOf(birthdate, today)` (18–24 → 0, 25–31 → 1, 32–39 → 2, 40+ → 3). The §0 floor loses the gate-row clause and gains the identity one. No team/track question, no "interested in", no age band asked — it is derived. Nothing on any intake or quiz screen names a pillar, a lens, consent, a gate, a team, a track, the wordmark or a step number: one `Progress` bar over the whole 19-step flow is the only progress copy. Supersedes D12 for this version (the romantic switch does not exist; the AI-offspring render is out of the MVP). **Amended by issue #49 (2026-08-22):** the registration screen carries one required checkbox authorising the treatment of personal data — unticked by default, refused server-side with `reason: "data-consent"` before any row is written, and recorded as `participants.data_consent_at timestamptz` (migration `drizzle/0005_data_consent.sql`, nullable only for pre-#49 rows). It is the moment, not merely the fact, because Ley 1581 de 2012 (habeas data) expects the authorisation to be explicit and dated. The per-lens consents above are unaffected and still unasked; the screen never says the English word. | Requested by the user 2026-08-22 after testing the deployed form: completion rate is the demo (`CONTEXT.md` §4), and five steps with named categories was the thing people dropped out of. The declared round survived D18 because it is 60 % of the ranking weight (`PILLARS.md` §3); **D20** (2026-08-23) removed it anyway — registration redirects to `/quiz` directly, the six band columns, `tags` and `declared_at` stay in the schema **dormant** (no destructive migration, never written for new participants), and the engine scores each unmeasured declared term at its neutral midpoint. The defaults are the permissive end of every axis on purpose: a gate whose unasked half filtered people out would silently shrink the ranking. |
 | D19 | **A generated pair narrative is cached; a ranking is not.** | Issue #34: a simulated life costs ~33s live and is identical for both members of the pair. `pair_simulations` stores the canonical `(lo, hi)` row; hits are re-authorised against live floor, consent, gates and latent freshness. Rankings stay ephemeral (D13) because they are a live judgement about the room; a narrative is an expensive artifact both people are entitled to see the same version of. |
+| D20 | **Registration hands straight to the quiz; reads never generate.** The declared round is out of the flow (columns dormant, see D18). Question authoring is chained in `after()` under a database claim (`quiz_generation_claims`, migration `0008_quiz_generation`): `continueQuizGeneration` writes whatever batches 1..3 are missing — batch 1 first, then 2 and 3 side by side — until its budget is spent, and a lost claim means someone else is on it. While `/qr` is on the wall and the registration form is open, those pages top up a per-room **pool** of whole forms (`quiz_pool_sets`, 15 blocks each, `HOOKAI_QUIZ_POOL_TARGET` sets how many stay warm, 0 in e2e), and `registerAction` adopts one as the new participant's entire form before redirecting — a block is one tap, so anything written after registration would be outrun by block 6. `quizProgress` never calls the model: a block that is not stored yet is served as `pending`, and the quiz shows "writing your questions" until the rows land. The committed 15 blocks are **never served to a participant** any more — a row with `source = 'fallback'` counts as not authored. | Requested by the user 2026-08-23 after the declared round and a model call on the read path both cost completions. A read that generates is a 40-70 s page; a read that waits on a row someone else is writing is a 2 s poll. The pool is what makes a cold room's first participant land on a question rather than a spinner, and the claim is what keeps the three requests that notice a missing batch from each paying for it. |
 
 ## 2. Aggregates (`src/lib/domain/`)
 
@@ -77,6 +76,7 @@ domain/
 ├─ participant/   Participant (own, full) · RoomMember { id, name, photoUrl } (what others see)
 │                 Consent, DeclaredProfile, RomanticGate, BusinessGate, TAGS (picker vocabulary)
 │                 bandToUnit(), meetsFloor(p, lens) — §0 rule, one function, used by every rankable read
+│                 intakeStepOf(p) — "register" | "quiz" (D20: no declared step)
 ├─ quiz/          INSTRUMENT (15 blocks from quiz/batch-*.json, validated at import)
 │                 Block { position, batch, focusPillar, scenario, options[4] }  Option { key, text, pillar, keyed }
 │                 validateBlock()  — four pillars once each, exactly one reversed, reversed ∈ focusPillar
@@ -85,7 +85,7 @@ domain/
 │                 validateResponse() — most ≠ least, keys ∈ a..d, position ∈ 1..15
 │                 batchOf(position)   — no imagePathOf: options are text (D14)
 ├─ matching/      (exists) Person, scorePair, rankRoom
-│                 toPerson(rankable, latents, cohort) — I8; throws on any null declared field (cannot happen past the floor)
+│                 toPerson(rankable, latents, cohort) — I8; a null declared band ⇒ an absent field the engine scores as unmeasured (D20)
 └─ scoring/       (I7) responses → LatentEstimate per pillar
 ```
 
@@ -130,7 +130,7 @@ lenses are TypeScript unions; nothing in the database stores them.
 | distance_band | smallint | 0..3 — re-contact latency after closeness or conflict (3 = longest) |
 | chronotype | smallint | 0..3 |
 | tags | text[] not null default '{}' | slugs from `TAGS`; check `cardinality(tags) <= 12` |
-| declared_at | timestamptz | set when the declared round is complete; **part of the floor** |
+| declared_at | timestamptz | set when all six bands are present; **dormant since D20** — nothing asks them, and it is no longer part of the floor |
 | quiz_completed_at | timestamptz | set on block 15; also the **arrival cohort** timestamp (`PILLARS.md` §2) |
 | created_at | timestamptz not null | |
 
@@ -225,8 +225,8 @@ Mirroring the constant in SQL would store the one form almost nobody answered.
 
 What D15 asked for survives whole in the four columns above, and matters more under D16 than
 it did under D2: the question a row answers is no longer derivable from the code at all, so
-the row has to carry it. The constant stays hash-pinned by its unit test and stays the
-per-participant fallback (D2); it is seeded nowhere.
+the row has to carry it. The constant stays hash-pinned by its unit test as the structural
+contract (D2); since D20 it is never served to a participant, and it is seeded nowhere.
 
 ## 4. Tables that land later
 
@@ -244,7 +244,7 @@ Nothing else. Rankings are computed (D13).
 | Invariant | Source | Enforced by |
 | --- | --- | --- |
 | No stored progress state — progress is read from the rows | §0 | schema (no status column); `declared_at` check |
-| Below-floor participants are never ranked (§0 rule, incl. `declared_at`) | `AUDIT.md` S15 | `meetsFloor(p, lens)` applied inside `byRoomForRanking(room, lens)`; `toPerson` throws on a null declared field; I8 safety test with the abandoned-participant fixture |
+| Below-floor participants are never ranked (§0 rule: photo, consent, identity) | `AUDIT.md` S15 | `meetsFloor(p, lens)` applied inside `byRoomForRanking(room, lens)`; a null declared band is scored as unmeasured, never as zero (D20); I8 safety test with the no-photo / no-identity fixtures |
 | Romantic consent defaults to **off** | `CONTEXT.md` §7.3 | column default + a **running** safety test from I1 on |
 | The session token never leaves the server | D4 | own table; `SessionToken` is not a field of `Participant`; type-level test |
 | Other participants' gate rows, consent flags, declared bands and latents never leave the server | A8, `PILLARS.md` §2 Consent & Disclosure | `byRoom()` returns `RoomMember` only; full rows flow only through `byRoomForRanking()` → `toPerson()` inside `prepare-results`. **I1**: a type-level test that `RoomMember` has exactly `id`, `name`, `photoUrl`. **I8**: a serialisation test greps the results payload for `interested_in`, `gender`, `single`, `wants_kids`, `consent_` |
@@ -260,8 +260,10 @@ Nothing else. Rankings are computed (D13).
 
 ## 6. Mapping to the engine (`Person`) — lands with I8
 
-Only participants that pass `meetsFloor(p, lens)` reach `toPerson`. For them, every
-declared field is non-null by construction.
+Only participants that pass `meetsFloor(p, lens)` reach `toPerson`. Since **D20** every
+declared band is null for everyone registered after it; `toPerson` maps a null band to an
+absent `Person` field and the engine scores that term at its neutral midpoint, weights
+untouched. The rows below describe the value when one exists.
 
 | `Person` field | Source |
 | --- | --- |
@@ -292,7 +294,7 @@ interface ParticipantRepository {
   upsertBusinessGate(id, gate): Promise<void>;
   markQuizCompleted(id, at: Date): Promise<void>;
   byRoom(roomId): Promise<RoomMember[]>;                            // id, name, photoUrl — nothing else
-  byRoomForRanking(roomId, lens): Promise<RankableParticipant[]>;   // applies the FULL §0 floor for `lens` (photo, consent_<lens>, declared_at, gate row);
+  byRoomForRanking(roomId, lens): Promise<RankableParticipant[]>;   // applies the FULL §0 floor for `lens` (photo, consent_<lens>, gender + birthdate — D20);
                                                                     // full rows + gates + acquaintances; one query per table, joined in memory (no N+1)
 }
 
@@ -398,7 +400,7 @@ These are decided above so work can start; each is one line to reverse.
 
 1. **D1/D2 — REVERSED by the user 2026-08-22, see D16.** This entry previously read
    "confirmed", and #4/#11/#14 were built against that reading. The reversal came after.
-   Nothing merged is wasted — `INSTRUMENT` is still hash-pinned and still the fallback, and
+   Nothing merged is wasted — `INSTRUMENT` is still hash-pinned (no longer served since D20), and
    `quiz_responses(participant_id, position)` joins `generated_blocks(participant_id,
    position)` unchanged — but two things need a second look:
    **(a) D15's `instruments` table** mirrors one shared question set per version; under D16

@@ -17,7 +17,10 @@
 
 import { createGatewayLlm } from "../src/lib/adapters/llm/gateway";
 import { assignmentsForBatch } from "../src/lib/domain/quiz/assignments";
-import { generateQuizBatch } from "../src/lib/use-cases/generate-quiz-batch";
+import {
+  generateQuizBatch,
+  QuizAuthoringError,
+} from "../src/lib/use-cases/generate-quiz-batch";
 
 const participantId = process.argv[2] ?? "smoke-participant-1";
 const batch = Number(process.argv[3] ?? 1);
@@ -45,9 +48,8 @@ async function main(): Promise<void> {
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
   for (const block of result.blocks) {
-    const fellBack = result.fellBackAt.includes(block.position);
     console.log(
-      `── ${block.position}. [${block.focusPillar}] ${fellBack ? "(FALLBACK) " : ""}${block.scenario}`
+      `── ${block.position}. [${block.focusPillar}] ${block.scenario}`
     );
     for (const option of block.options) {
       const mark = option.keyed === "reversed" ? "◀" : " ";
@@ -65,10 +67,14 @@ async function main(): Promise<void> {
   );
   console.log(`elapsed     ${elapsed}s`);
   console.log(`repaired    ${result.repairedAt.join(", ") || "none"}`);
-  console.log(`fell back   ${result.fellBackAt.join(", ") || "none"}`);
 }
 
 main().catch((error) => {
+  // There is no fallback any more: when the model cannot fill a position the
+  // use case names it, which is the thing worth reading before retrying.
+  if (error instanceof QuizAuthoringError) {
+    console.error(`unfilled positions: ${error.positions.join(", ")}`);
+  }
   console.error(error);
   process.exit(1);
 });
