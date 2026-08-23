@@ -32,18 +32,24 @@ import type { Assignment } from "./assignments.ts";
  * `focusPillar` are *not* asked for — they are ours, and re-deriving them from
  * the assignment removes a whole class of drift between plan and output.
  */
+/**
+ * SHAPE ONLY. This schema is what `generateObject` validates the model's
+ * output against, and a schema miss fails the WHOLE call as "no object" --
+ * three of those and the batch is lost. The length rules (two short
+ * sentences, 220 characters, twelve words) therefore live in
+ * `authoredBlockProblem` below, where breaking one costs that position a
+ * repair, not the batch. The caps here only stop a paragraph: a Spanish
+ * two-sentence scenario lands between 150 and 300 characters, and in
+ * production the 220 cap used to fail one call in three.
+ */
 export const authoredBlockSchema = z.object({
   position: z.int().min(1).max(15),
-  scenario: z.string().min(10).max(220),
+  scenario: z.string().min(10).max(600),
   options: z
     .array(
       z.object({
         key: z.enum(["a", "b", "c", "d"]),
-        // 90, not 60: twelve words of Spanish run to ~85 characters, and this
-        // schema is what the model's output is validated against -- an option
-        // one character over it fails the WHOLE call as "no object", not one
-        // position as a repair. The word cap below is the real rule.
-        text: z.string().min(2).max(90),
+        text: z.string().min(1).max(200),
         pillar: z.enum(["regulation", "politeness", "reliability", "agency"]),
         keyed: z.enum(["positive", "reversed"]),
       })
@@ -64,15 +70,17 @@ function wordCount(text: string): number {
 }
 
 /**
- * Scenario: at most two short sentences. Option: the prompt asks for 4–7 words
- * and the judge frowns past 8, but the HARD cap is looser. The options render
- * as full-width rows since 2026-08-23 (style "B · Diálogo"), where a ten-word
- * line simply wraps; what the cap guards against is a paragraph, not a joke
- * that ran one word long. Rejecting at nine cost real forms: the model lands
- * 9–10 words often enough that whole batches failed after repair and the
- * final pass, and with the pool of whole forms one lost batch is a lost form.
+ * Scenario: at most two short sentences and 220 characters (the bubble on a
+ * 390px phone). Option: the prompt asks for 4–7 words and the judge frowns
+ * past 8, but the HARD cap is looser. The options render as full-width rows
+ * since 2026-08-23 (style "B · Diálogo"), where a ten-word line simply wraps;
+ * what the cap guards against is a paragraph, not a joke that ran one word
+ * long. Rejecting at nine cost real forms: the model lands 9–10 words often
+ * enough that whole batches failed after repair and the final pass, and with
+ * the pool of whole forms one lost batch is a lost form.
  */
 const MAX_SENTENCES = 2;
+const MAX_SCENARIO_CHARS = 220;
 const MAX_OPTION_WORDS = 12;
 
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
@@ -80,11 +88,20 @@ export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
 /** The length complaint about a scenario, worded for the repair prompt. */
 function scenarioProblem(block: AuthoredBlock): string | null {
   const sentences = sentenceCount(block.scenario);
-  if (sentences <= MAX_SENTENCES) return null;
-  return (
-    `position ${block.position}: the scenario has ${sentences} ` +
-    `sentences; the limit is ${MAX_SENTENCES} short sentences`
-  );
+  if (sentences > MAX_SENTENCES) {
+    return (
+      `position ${block.position}: the scenario has ${sentences} ` +
+      `sentences; the limit is ${MAX_SENTENCES} short sentences`
+    );
+  }
+  const chars = block.scenario.trim().length;
+  if (chars > MAX_SCENARIO_CHARS) {
+    return (
+      `position ${block.position}: the scenario has ${chars} ` +
+      `characters; the limit is ${MAX_SCENARIO_CHARS}`
+    );
+  }
+  return null;
 }
 
 /** The length complaint about one option, worded for the repair prompt. */

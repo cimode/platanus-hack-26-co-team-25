@@ -245,6 +245,32 @@ describe("generateQuizBatch", () => {
     }
   });
 
+  it("repairs one over-long scenario instead of failing the whole call", async () => {
+    const { llm, state } = authorStub((call) => {
+      const batch = goodBatch("p-long-scene", 1);
+      if (call === 1) {
+        // 260 characters, two sentences: past the bubble's 220 but well
+        // inside the shape schema, so the call lands and only this position
+        // goes to repair. In production the old 220 cap in the schema made
+        // this fail the call outright, three times, and lost the batch.
+        batch.blocks[2].scenario = `Llegas a la cena y ${"tu tía cuenta la misma anécdota del viaje a Cartagena mientras el perro del vecino se come el postre ".repeat(2)}y nadie dice nada.`;
+      }
+      return batch;
+    });
+
+    const result = await generateQuizBatch(
+      { participantId: "p-long-scene", batch: 1 },
+      { llm }
+    );
+
+    expect(state.authorCalls).toBe(2);
+    expect(result.repairedAt).toEqual([3]);
+    for (const block of result.blocks) {
+      expect(block.scenario.length).toBeLessThanOrEqual(220);
+      expect(() => validateBlock(block)).not.toThrow();
+    }
+  });
+
   it("ignores blocks the model returns for positions outside the batch and repairs the gap", async () => {
     const { llm, state } = authorStub((call) => {
       const batch = goodBatch("p-4", 1);

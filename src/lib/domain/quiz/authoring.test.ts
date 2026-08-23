@@ -272,6 +272,23 @@ describe("authoredBatchSchema", () => {
     expect(message).toContain("12 words");
   });
 
+  it("lets a 260-character scenario through the shape schema and makes it that block's problem", () => {
+    // This is the production failure of 2026-08-23: with the cap in the
+    // model-facing schema, one long Spanish scenario failed the whole call.
+    const batch = goodBatch();
+    const block = batch.blocks[2];
+    block.scenario = `Llegas a la cena y ${"tu tía cuenta la misma anécdota del viaje a Cartagena mientras el perro del vecino se come el postre ".repeat(2)}y nadie dice nada.`;
+    expect(block.scenario.length).toBeGreaterThan(220);
+    expect(block.scenario.length).toBeLessThan(600);
+
+    expect(authoredBatchShapeSchema.safeParse(batch).success).toBe(true);
+    const problem = authoredBlockProblem(block);
+    expect(problem).toContain(`position ${block.position}`);
+    expect(problem).toContain("characters");
+    expect(problem).toContain("220");
+    expect(authoredBatchSchema.safeParse(batch).success).toBe(false);
+  });
+
   it("lets a ten-word option through: full-width rows wrap, and the prompt already asks for fewer", () => {
     const batch = goodBatch();
     batch.blocks[3].options[2].text =
