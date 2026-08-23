@@ -24,7 +24,11 @@ export {
   ROOM_EVENTS,
   type RoomEventKind,
 } from "@/lib/domain/emotes/emotes";
-export { AvatarSprite, type AvatarSpriteProps } from "./avatar-sprite";
+export {
+  AvatarSprite,
+  type AvatarSpriteProps,
+  type SpriteSource,
+} from "./avatar-sprite";
 export {
   dispatchEmote,
   type EmoteSignal,

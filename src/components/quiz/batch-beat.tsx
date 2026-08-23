@@ -18,14 +18,20 @@ import { SceneStage, SceneText } from "./scene-stage";
  * the beat cannot be "already dismissed" in a column: the URL is the whole of
  * that state, and a reload without it simply shows the moment again.
  */
-export function OpeningBeat({ avatar }: { avatar: Avatar | null }) {
+export function OpeningBeat({
+  avatar,
+  photoUrl,
+}: {
+  avatar: Avatar | null;
+  photoUrl: string | null;
+}) {
   return (
     <main className="mx-auto flex h-dvh w-full max-w-md flex-col justify-center gap-8 overflow-hidden px-6 py-10">
       <p className="font-mono text-xs tracking-[0.06em] text-ink-faint lowercase">
         dipia · quiz
       </p>
 
-      <SceneStage avatar={avatar}>
+      <SceneStage avatar={avatar} photoUrl={photoUrl}>
         <SceneText text="Doce escenas. En cada una, toca la opción que más se parece a ti. No hay respuestas correctas." />
       </SceneStage>
 

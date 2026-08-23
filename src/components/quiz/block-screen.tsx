@@ -66,6 +66,7 @@ export function BlockScreen({
   order,
   singlePick,
   avatar,
+  photoUrl,
   initialMost = null,
   initialLeast = null,
 }: {
@@ -82,6 +83,8 @@ export function BlockScreen({
   singlePick: boolean;
   /** The participant's stored plate; null only for a row older than the column. */
   avatar: Avatar | null;
+  /** Their own photo, composited onto that plate in the browser. */
+  photoUrl: string | null;
   /** The stored row's marks, so a re-answer opens on what was written. */
   initialMost?: OptionKey | null;
   initialLeast?: OptionKey | null;
@@ -192,6 +195,7 @@ export function BlockScreen({
       <SceneStage
         avatar={avatar}
         className="shrink-0"
+        photoUrl={photoUrl}
         eyebrow={`escena ${block.position} de ${total}`}
         onEnd={player.stop}
         playing={player.playing}
