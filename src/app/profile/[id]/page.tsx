@@ -5,10 +5,10 @@ import { notFound, redirect } from "next/navigation";
 import { IMPERSONATION_COOKIE } from "@/app/impersonation";
 import { LENS_COOKIE } from "@/app/lens";
 import { AvatarStage } from "@/components/profile/avatar-stage";
-import { mockProfile } from "@/components/profile/mock";
+import { mockBio } from "@/components/profile/bio";
 import { ProfileCard } from "@/components/profile/profile-card";
 import { StandingPill } from "@/components/profile/standing-pill";
-import { mockRankedRoom, type RankCandidate } from "@/components/rank/mock";
+import type { ProfileView } from "@/components/profile/view";
 import { serverDeps } from "@/lib/composition";
 import { isLens, type Lens } from "@/lib/domain/room/layout";
 import { enterRoom } from "@/lib/use-cases/enter-room";
@@ -44,26 +44,35 @@ export default async function ProfilePage({
   // No lens is not a 404 -- it is a question nobody asked yet, same as on 1c.
   if (!isLens(lens)) redirect("/room");
 
-  const { me, others } = await enterRoom(
-    store.get(IMPERSONATION_COOKIE)?.value,
-    serverDeps()
-  );
+  const deps = serverDeps();
+  const { me } = await enterRoom(store.get(IMPERSONATION_COOKIE)?.value, deps);
   if (!me) redirect("/");
 
-  const candidates: readonly RankCandidate[] = others.map((spot) => ({
-    id: spot.participant.id,
-    name: spot.participant.name,
-    photoUrl: spot.sprite,
-    team: spot.participant.team,
-  }));
+  /*
+   * `byId` collapses every suppression cause into ONE `null` -- unknown id,
+   * yourself, below the §0 floor, gate-failed, not consented to this lens --
+   * so the `notFound()` below cannot become an oracle for who is in the room
+   * (AC-PROF-2). `standing` is carried across from the same ranking `/rank`
+   * renders rather than recomputed, so the two screens cannot drift.
+   */
+  const person = await deps.profiles.byId(id, me.id, lens);
+  if (person === null) notFound();
 
-  // The SAME room screen 1c painted, so `standing` cannot disagree with it.
-  const profile = mockProfile(
-    id,
-    mockRankedRoom(lens, me, candidates),
-    candidates
-  );
-  if (!profile) notFound();
+  /*
+   * `bio` is the one thing on this screen that is still a stand-in, and it
+   * stays off `PersonProfile` on purpose: the ranking produces no prose, and
+   * the real sentence comes from an AI step over intake's declared data that
+   * does not exist yet.
+   *
+   * It is written from the tags the PORT returned, which are already
+   * intersected with the viewer's. The fixture wrote from the person's own
+   * tags; those never cross the port, and reaching for a second source to
+   * recover them would be exactly the disclosure `tags` exists to prevent.
+   */
+  const profile: ProfileView = {
+    ...person,
+    bio: mockBio(person.id, person.tags),
+  };
 
   return (
     <main

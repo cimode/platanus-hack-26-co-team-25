@@ -1,4 +1,27 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+
+/*
+ * The `e2e-<run>` room's slug is decided HERE, not in global-setup, because
+ * two things need it and only one of them used to.
+ *
+ * The specs reach their isolated room by putting `?room=<slug>` in the URL.
+ * `/` cannot: the impersonation chooser has no room in its path, and since
+ * `ParticipantsPort` started reading the `participants` table it resolves the
+ * venue from `HOOKAI_ROOM_SLUG` like every other default. Left unset, the
+ * chooser under test is empty and every spec downstream of it fails for a
+ * reason that has nothing to do with what it asserts.
+ *
+ * Config module scope runs before the web server starts and before global
+ * setup, so both read the same value. An externally supplied E2E_ROOM_SLUG
+ * still wins, which is how a debugging run points at a room it already seeded.
+ */
+const RUN_ID =
+  process.env.E2E_RUN_ID ??
+  `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
+const ROOM_SLUG = process.env.E2E_ROOM_SLUG ?? `e2e-${RUN_ID}`;
+process.env.E2E_RUN_ID = RUN_ID;
+process.env.E2E_ROOM_SLUG = ROOM_SLUG;
 
 // 3000, the same port `npm run dev` uses, ON PURPOSE. Next 16 refuses to start
 // a second dev server for the same directory whatever port you give it, so a
@@ -85,11 +108,18 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI && !process.env.E2E_ISOLATED,
     timeout: 120_000,
     // Merged over process.env by Playwright; `next dev` never overwrites a
-    // variable that is already set, so .env cannot undo this. Pool warming is
-    // off: every /intake and /qr render would otherwise author whole forms
-    // against the real gateway for a room nobody answers in -- the specs seed
-    // the blocks they need (e2e/helpers, e2e/intake.spec.ts).
+    // variable that is already set, so .env cannot undo this.
+    //
+    // The room is the load-bearing one: it points the app under test at the
+    // room global setup seeds, so `/` lists the cast instead of nobody. A
+    // developer's `.env` naming the real demo room cannot override it, which
+    // is the point -- a test run must never read `platanus-hack-26-bogota`.
+    //
+    // Pool warming is off: every /intake and /qr render would otherwise author
+    // whole forms against the real gateway for a room nobody answers in -- the
+    // specs seed the blocks they need (e2e/helpers, e2e/intake.spec.ts).
     env: {
+      HOOKAI_ROOM_SLUG: ROOM_SLUG,
       HOOKAI_QUIZ_POOL_TARGET: "0",
       ...(GATED ? { SITE_GATE_PASSWORD: GATE_PASSWORD } : {}),
     },

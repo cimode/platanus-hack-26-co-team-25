@@ -83,10 +83,13 @@ describe("serverDeps() generation members", () => {
     resetDb();
 
     const deps = serverDeps();
-    // Reading the roster-only members still costs nothing ...
-    expect(deps.roster).toBeDefined();
-    // ... and the generation members are getters over `getDb()`, like every
-    // other repository: they throw here and nowhere earlier.
+    // The roster reads the `participants` table now -- the hardcoded module it
+    // replaced was the only member that cost nothing, and it is gone. So it
+    // throws here like every other repository, which is the property this test
+    // is really about: nothing connects until it is read.
+    expect(() => deps.roster).toThrowError(/DATABASE_URL/);
+    // The generation members are getters over `getDb()` too: they throw here
+    // and nowhere earlier.
     expect(() => deps.claims).toThrowError(/DATABASE_URL/);
     expect(() => deps.pool).toThrowError(/DATABASE_URL/);
     expect(() => deps.generatedBlocks).toThrowError(/DATABASE_URL/);

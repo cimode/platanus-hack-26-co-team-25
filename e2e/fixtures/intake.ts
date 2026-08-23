@@ -49,7 +49,7 @@ const BASE_URL = "http://localhost:3000";
  * (docs/domain.md D11), so the seeded row is indistinguishable from one the
  * photo step wrote and no test ever uploads anything.
  */
-const SEEDED_PHOTO =
+export const SEEDED_PHOTO =
   "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
 
 export interface SeedOptions {

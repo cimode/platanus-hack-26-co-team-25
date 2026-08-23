@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { rosterIdByName, rosterSeeded } from "./fixtures/roster";
 
 /**
  * Screen 1d -- `/profile/[id]`.
@@ -7,14 +8,28 @@ import { expect, type Page, test } from "@playwright/test";
  * them here would make every failure on this screen also a failure of theirs.
  */
 
-const VIEWER = { id: "p-laura-mendez", name: "Laura Méndez" };
-const SUBJECT = "p-diego-morales";
+/*
+ * People are named, never hardcoded by id.
+ *
+ * `participants.id` is a `uuid` column, so `p-diego-morales` was never a row
+ * -- it was an id from the hardcoded roster module that production no longer
+ * has. `e2e/global-setup.ts` seeds this cast into `e2e-<run>` and publishes
+ * the real uuids; `rosterIdByName` reads them back.
+ *
+ * Resolved through functions rather than constants because the lookup throws
+ * when the cast was not seeded, and a throw at module scope would fail the
+ * FILE instead of skipping it.
+ */
+const VIEWER_NAME = "Laura Méndez";
+const SUBJECT_NAME = "Diego Morales";
+const viewerId = () => rosterIdByName(VIEWER_NAME);
+const subjectId = () => rosterIdByName(SUBJECT_NAME);
 
 async function open(page: Page, path: string, lens = "romantic") {
   await page.context().clearCookies();
   const at = { domain: "localhost", path: "/" };
   await page.context().addCookies([
-    { name: "dipia_impersonating", value: VIEWER.id, ...at },
+    { name: "dipia_impersonating", value: viewerId(), ...at },
     { name: "dipia_lens", value: lens, ...at },
   ]);
   return page.goto(path);
@@ -26,10 +41,18 @@ async function open(page: Page, path: string, lens = "romantic") {
 const bodyText = (page: Page) => page.evaluate(() => document.body.innerText);
 
 test.describe("1d · the profile", () => {
+  // Same convention as the intake specs: without a database global setup seeds
+  // no cast, so there is nobody to be ranked against and every assertion here
+  // would fail for that reason rather than its own.
+  test.skip(
+    !rosterSeeded(),
+    "DATABASE_URL is not set, so e2e/global-setup.ts seeded no cast."
+  );
+
   test("AC-PROF-1 · a ranked person renders under their own name", async ({
     page,
   }) => {
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Diego Morales"
     );
@@ -46,7 +69,7 @@ test.describe("1d · the profile", () => {
     expect(unknown?.status()).toBe(404);
     const unknownBody = await bodyText(page);
 
-    const self = await open(page, `/profile/${VIEWER.id}`);
+    const self = await open(page, `/profile/${viewerId()}`);
     expect(self?.status()).toBe(404);
     const selfBody = await bodyText(page);
 
@@ -62,14 +85,14 @@ test.describe("1d · the profile", () => {
     // the same underlying guarantee: this is not one global profile.
     const readings = new Set<string>();
     for (const lens of ["romantic", "business", "friendship"]) {
-      await open(page, `/profile/${SUBJECT}`, lens);
+      await open(page, `/profile/${subjectId()}`, lens);
       readings.add(await bodyText(page));
     }
     expect(readings.size).toBeGreaterThan(1);
   });
 
   test("AC-PROF-3 · reasons are named, never numbered", async ({ page }) => {
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     const text = await page.locator("main").innerText();
     expect(text).toMatch(/les une:/);
     expect(text).not.toMatch(/\d+([.,]\d+)?\s*%/);
@@ -81,7 +104,7 @@ test.describe("1d · the profile", () => {
   test("AC-PROF-3 · shared tags are shown as shared, or an explicit empty state", async ({
     page,
   }) => {
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     const shared = page.getByRole("list", { name: /en común/i });
     const empty = page.getByRole("status", { name: /nada en común/i });
 
@@ -102,7 +125,7 @@ test.describe("1d · the profile", () => {
     page,
   }) => {
     for (const lens of ["romantic", "business", "friendship"]) {
-      await open(page, `/profile/${SUBJECT}`, lens);
+      await open(page, `/profile/${subjectId()}`, lens);
       const text = await page.locator("body").innerText();
       expect(text, lens).not.toMatch(/beb[eé]|hijo|offspring/i);
       const named = await page.evaluate(() =>
@@ -130,9 +153,9 @@ test.describe("1d · the profile", () => {
     // asserts the observable half: the same person renders identically twice,
     // and nothing consent-shaped appears in the payload. When #10 supplies real
     // consent, THIS test must be replaced by the spec's, not extended.
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     const first = await page.locator("main").innerHTML();
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     expect(await page.locator("main").innerHTML()).toBe(first);
     expect(first).not.toMatch(/consent|consiente|permiso/i);
   });
@@ -140,26 +163,26 @@ test.describe("1d · the profile", () => {
   test("AC-PROF-5 · the CTA carries the person and nothing else", async ({
     page,
   }) => {
-    await open(page, `/profile/${SUBJECT}`, "business");
+    await open(page, `/profile/${subjectId()}`, "business");
     const cta = page.getByRole("link", { name: /simular vida/i });
     // Exactly the segment. No query string, and above all no viewer id -- a
     // link that leaks out of this session must name a person and nothing about
     // who was looking at them.
-    await expect(cta).toHaveAttribute("href", `/simulate/${SUBJECT}`);
+    await expect(cta).toHaveAttribute("href", `/simulate/${subjectId()}`);
     const href = await cta.getAttribute("href");
     expect(href).not.toContain("?");
-    expect(href).not.toContain(VIEWER.id);
+    expect(href).not.toContain(viewerId());
   });
 
   test("AC-PROF-6 · the avatar moves, and stops under reduced motion", async ({
     page,
   }) => {
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     const moving = await page.evaluate(() => document.getAnimations().length);
     expect(moving, "the stage should be alive by default").toBeGreaterThan(0);
 
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await open(page, `/profile/${SUBJECT}`);
+    await open(page, `/profile/${subjectId()}`);
     const still = await page.evaluate(() => document.getAnimations().length);
     expect(still).toBe(0);
   });
