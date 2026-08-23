@@ -78,5 +78,10 @@ node_modules/
 scripts/face/out/
 scripts/face/__pycache__/
 
+# The local review page for the face fit. Never shipped: PR #75 landed the
+# README and fit.py and deliberately left this out, and biome (which lints the
+# whole repo in CI) will not accept a hand-written demo page.
+scripts/face/demo.html
+
 # agent worktrees (hookai /work pipelines)
 .hookai-worktrees/
