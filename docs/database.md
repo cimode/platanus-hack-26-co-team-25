@@ -1,7 +1,9 @@
 # Database
 
 Lakebase Postgres on Neon (project `hookai`, `aws-us-east-2`, PG 18), accessed
-through **Drizzle** over the `neon-http` driver.
+through **Drizzle** over the `neon-http` driver. `hookai` is the product's
+former name, kept on the Neon project deliberately -- renaming it there breaks
+every existing branch link and buys nothing.
 
 ## Why Drizzle
 

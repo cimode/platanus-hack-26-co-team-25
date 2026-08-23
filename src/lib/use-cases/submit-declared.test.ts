@@ -69,7 +69,7 @@ function inMemoryParticipants(saved: DeclaredProfile = NO_BANDS): {
     birthdate: "1996-05-04",
     avatar: null,
     photoUrl: "https://store.test/photos/p1.jpg",
-    team: "hookai",
+    team: "dipia",
     track: "AI",
     consent: { ...DEFAULT_CONSENT, friendship: true },
     dataConsentAt: null,

@@ -75,7 +75,7 @@ which would hand stage 2 a checkout with none of stage 1's tests in it. All four
 stages for an issue must share one tree.
 
 ```bash
-WT="../.hookai-worktrees/issue-$N"
+WT="../.dipia-worktrees/issue-$N"
 git worktree add -b "feat/$N-<short-slug>" "$WT" HEAD
 
 # A fresh worktree has no node_modules, and every stage runs `pnpm run verify`.

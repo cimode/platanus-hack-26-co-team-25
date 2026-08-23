@@ -88,7 +88,7 @@ test.describe("safety invariants", () => {
   // PairScore surface, never gates, consent, bands, latents or a photo field
   // name. Today /results/[lens] does not exist, so every document is a 404
   // and the check is vacuous; when the screen and fixture land, set Bruno's
-  // hookai_session cookie on the context first, expect both responses to be
+  // dipia_session cookie on the context first, expect both responses to be
   // 200, /results/romantic to contain Ana's name and photo URL and
   // /results/business to contain Carla's -- keeping the leak loop below on
   // every document.

@@ -384,7 +384,7 @@ test.describe("safety invariants", () => {
   // These are the tests that matter most for a live demo in front of the
   // people being ranked. They are worth writing before the features exist.
 
-  // Runs today (kind: safety, issue #4). A viewer holding no hookai_session
+  // Runs today (kind: safety, issue #4). A viewer holding no dipia_session
   // cookie never sees anyone's ranking. Vacuous while /results/[lens] is a
   // 404; when #10 lands, a subject-less request is sent to /intake instead of
   // rendering a ranking, and #10 replaces this body with its fixture-backed

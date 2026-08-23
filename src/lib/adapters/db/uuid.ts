@@ -3,7 +3,7 @@
  *
  * Postgres does not miss on a malformed uuid, it errors: `invalid input syntax
  * for type uuid`. So a lookup that promises `T | null` has to refuse the string
- * before it reaches the driver, or a stale `hookai_session` cookie becomes a
+ * before it reaches the driver, or a stale `dipia_session` cookie becomes a
  * 500 on every screen instead of the unknown-session path to `/intake`.
  *
  * It lives in the adapter because the shape of the column is the adapter's

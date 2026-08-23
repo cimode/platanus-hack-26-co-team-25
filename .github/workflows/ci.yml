@@ -236,7 +236,7 @@ jobs:
             }
             const { total } = JSON.parse(fs.readFileSync(path, "utf8"));
             const pct = (k) => `${total[k].pct}% (${total[k].covered}/${total[k].total})`;
-            const marker = "<!-- hookai-coverage -->";
+            const marker = "<!-- dipia-coverage -->";
             const body = [
               marker,
               "### Coverage — `src/lib/**`",
@@ -501,7 +501,7 @@ jobs:
         with:
           script: |
             const url = "${{ steps.deploy.outputs.url }}";
-            const marker = "<!-- hookai-preview -->";
+            const marker = "<!-- dipia-preview -->";
             const body = `${marker}\n### Preview deploy\n\n${url}\n\n\`/design\` → ${url}/design`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;

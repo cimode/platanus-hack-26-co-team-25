@@ -15,7 +15,7 @@ import { type EnvLike, integrationDb } from "./test-db";
  */
 
 const FAKE_URL =
-  "postgresql://user:pw@ep-fake-123.us-east-2.aws.neon.tech/hookai?sslmode=require";
+  "postgresql://user:pw@ep-fake-123.us-east-2.aws.neon.tech/dipia?sslmode=require";
 
 const savedUrl = process.env.DATABASE_URL;
 

@@ -1,6 +1,6 @@
 ---
 name: data-access
-description: "Trigger: database, schema, table, migration, drizzle, repository, persistence, query, save, store, participant data. How persistence is shaped and how it reaches a use case in the hookai hexagon."
+description: "Trigger: database, schema, table, migration, drizzle, repository, persistence, query, save, store, participant data. How persistence is shaped and how it reaches a use case in the dipia hexagon."
 license: Apache-2.0
 metadata:
   version: "1.0"

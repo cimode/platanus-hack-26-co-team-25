@@ -1,6 +1,6 @@
 ---
 name: ui-composition
-description: "Trigger: component, page, screen, form, intake form, UI, layout, styling, server component, client component, server action, shadcn, lens, theming. How screens are composed and how they reach a use case in hookai."
+description: "Trigger: component, page, screen, form, intake form, UI, layout, styling, server component, client component, server action, shadcn, lens, theming. How screens are composed and how they reach a use case in dipia."
 license: Apache-2.0
 metadata:
   version: "1.0"

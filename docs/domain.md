@@ -146,7 +146,7 @@ participant every time. A join that buys nothing.
 
 | column | type | notes |
 | --- | --- | --- |
-| token | uuid pk | `gen_random_uuid()`; travels only in the `hookai_session` httpOnly cookie |
+| token | uuid pk | `gen_random_uuid()`; travels only in the `dipia_session` httpOnly cookie |
 | participant_id | uuid unique not null → participants cascade | one live session per participant |
 | created_at | timestamptz not null | |
 
