@@ -26,7 +26,7 @@ export function RoomCanvas({ spots }: { spots: readonly Placement[] }) {
     // A <section> with a name IS a region, which is what legitimises both the
     // aria-label and the tabIndex below.
     <section
-      aria-label="La sala. Desplazá horizontalmente para ver a todos."
+      aria-label="La sala. Desplaza horizontalmente para ver a todos."
       /* absolute inset-0, NOT h-full: `height: 100%` resolves against a parent
          with a definite height, and the room band gets its height from flex-1.
          With h-full the scroller measured 0px, so every sprite's fractional
