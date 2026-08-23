@@ -73,3 +73,7 @@ node_modules/
 
 # emote pipeline scratch (clips, frames); the packed sheets live in public/sprites/emotes
 .emotes-work/
+
+# Demo walkthrough audio (large, local only)
+*.m4a
+demo/*.m4a

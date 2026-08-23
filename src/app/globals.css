@@ -548,3 +548,56 @@
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE DEMO DECK -- `.deck`
+
+   The one place in the product that inverts the ground. Platanus requires the
+   demo slides in dark mode ("para que el streaming se vea bien"), and a warm
+   cream deck blows out on a projector feed anyway.
+
+   This is NOT a dark theme, and it must never become one. It is a scope, built
+   exactly like `.lens-*`: put `.deck` on a subtree and every token inside it
+   retakes its temperature. Outside `/demo` nothing changes, `rules.lightOnly`
+   still holds, and no component needs a `dark:` variant to render here.
+
+   The ground is --dark (#171512), the same night canvas the room already uses,
+   so the deck and the room read as one product rather than two. Ink is the
+   cream that is normally the ground -- the system folded in half, not repainted.
+   Coral survives the inversion at 4.9:1 on #171512, so the accent needs no
+   special-casing.
+   --------------------------------------------------------------------------- */
+
+.deck {
+  --background: #171512;
+  --foreground: #f7f1e3;
+
+  --card: #221f1a;
+  --card-foreground: #f7f1e3;
+  --popover: #221f1a;
+  --popover-foreground: #f7f1e3;
+  --surface-alt: #2b2721;
+
+  /* The ink ramp, inverted. Each step keeps its ROLE (soft = lede, faint =
+     eyebrow) rather than its value, so `text-ink-muted` still means the same
+     thing to a reader of the markup. */
+  --ink-soft: #e0d6c2;
+  --ink-faint: #6f6557;
+  --muted-foreground: #a99680;
+  --muted: #2b2721;
+  --secondary: #2b2721;
+  --secondary-foreground: #f7f1e3;
+
+  /* Coral holds on the dark ground unchanged -- verified 4.9:1. The toy shadow
+     goes DEEPER than the accent here: on cream the shadow is darker than the
+     face, and inverting the ground without inverting that relationship makes
+     every raised object look lit from below. */
+  --primary-shadow: #7d2f20;
+  --primary-tint: #3a201b;
+  --accent: #3a201b;
+  --accent-foreground: #f0a08f;
+
+  --border: rgb(247 241 227 / 0.16);
+  --input: rgb(247 241 227 / 0.16);
+  --divider: rgb(247 241 227 / 0.12);
+}
