@@ -103,7 +103,7 @@ export async function answerBlockAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Turn the fifteen answers into four posteriors, after the response is sent.
+ * Turn the twelve answers into four posteriors, after the response is sent.
  *
  * Until now the ONLY thing that ever scored anyone was `prepareResults`, and it
  * scores the VIEWER alone (`prepare-results.ts:273`). So everybody else in the
@@ -120,10 +120,12 @@ export async function answerBlockAction(formData: FormData): Promise<void> {
  *     plain value closed over during the action, so the callback cannot be the
  *     thing that makes this route dynamic in a way rendering did not.
  *   - It must never reject. An unhandled rejection in a background task takes
- *     the whole invocation down -- the same reason `continueQuizGeneration`
- *     swallows and warns rather than throwing.
- *   - `after` runs on the ROUTE's budget, not its own; `/quiz` declares
- *     `maxDuration = 300`.
+ *     the whole invocation down, so everything is caught and warned about.
+ *   - `after` runs on the ROUTE's budget, not its own -- and `/quiz` declares
+ *     no `maxDuration` since D21, because nothing on it waits for a model any
+ *     more. This does not need one either: scoring is a handful of row reads,
+ *     the MAP fit, and one upsert of four rows. It is arithmetic, not
+ *     narration.
  *
  * `scoreParticipant` re-checks completion itself (`score-participant.ts:89`)
  * and refuses an incomplete quiz, so scheduling it on a row that changed under

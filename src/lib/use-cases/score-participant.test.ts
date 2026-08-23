@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { ParticipantId } from "../domain/participant";
 import type { BlockResponse, OptionKey } from "../domain/quiz";
-import { INSTRUMENT, PILLARS } from "../domain/quiz";
+import { BLOCK_COUNT, INSTRUMENT, PILLARS } from "../domain/quiz";
 import type { StoredBlock } from "../ports/generated-block-repository";
 import type {
   LatentPosteriors,
@@ -19,13 +19,13 @@ import { scoreParticipant } from "./score-participant";
  * §10.1(b) -- the version names the shared structure, not the scenarios),
  * reads the participant's responses through
  * `ResponseRepository.byParticipant`, then *that participant's* stored blocks
- * through `GeneratedBlockRepository.byParticipant` (docs/domain.md D16: the
- * form is per person, read from `generated_blocks`, never from the
- * `INSTRUMENT` constant), builds
+ * through `GeneratedBlockRepository.byParticipant` (the form is per person --
+ * twelve bank blocks dealt by `formFor(participantId)` and recorded as rows --
+ * never the `INSTRUMENT` constant), builds
  * `itemParametersOfBlocks(stored.map((s) => s.block))` -- NOT
  * `itemParametersOf`, which is the convenience wrapper over the committed
  * `Instrument` (items.ts:120) and would silently score every participant
- * against the fallback form -- runs
+ * against the same twelve blocks -- runs
  * `estimateLatents(responses, items)` on the responses unchanged, and writes
  * the four `StoredLatent` rows through
  * `LatentRepository.replaceForParticipant` with `computedAt = deps.now()`.
@@ -47,10 +47,10 @@ import { scoreParticipant } from "./score-participant";
  * GeneratedBlockRepository and LatentRepository that record every call, a
  * `Room` literal as the input (never a RoomRepository lookup) and a fixed
  * `now` -- no adapter import, so the biome.json hexagon rule holds. The fake
- * blocks are `INSTRUMENT.blocks` wrapped as `StoredBlock[]` (source
- * "fallback"), or a prefix of them for AC-11 -- the one place the constant is
- * convenient, because it is a valid 15-block form; the use case itself never
- * reads it for parameters.
+ * blocks are `INSTRUMENT.blocks` wrapped as `StoredBlock[]` (source "bank"),
+ * or a prefix of them for AC-11 -- the one place the constant is convenient,
+ * because it is a valid twelve-block form; the use case itself never reads it
+ * for parameters.
  *
  * AC-11 is also where `itemParametersOfBlocks` is pinned behaviourally: the
  * fake holds blocks at positions 1..10 only, so an implementation that reached
@@ -94,13 +94,13 @@ function answersFor(
   }));
 }
 
-const ALL_POSITIONS = Array.from({ length: 15 }, (_, i) => i + 1);
+const ALL_POSITIONS = Array.from({ length: BLOCK_COUNT }, (_, i) => i + 1);
 
 /** The participant's own form, as `generated_blocks` holds it. */
-function storedBlocks(count = 15): StoredBlock[] {
+function storedBlocks(count = BLOCK_COUNT): StoredBlock[] {
   return INSTRUMENT.blocks
     .slice(0, count)
-    .map((block) => ({ block, source: "fallback" as const }));
+    .map((block) => ({ block, source: "bank" as const }));
 }
 
 interface ResponsesFake extends ResponseRepository {
@@ -246,10 +246,10 @@ describe("scoreParticipant", () => {
     expect(await latents.byParticipant(P)).toEqual({});
   });
 
-  it("AC-7 · rejects with the Error naming position 16 or the duplicated position 3 against the participant's 15 stored blocks, and writes nothing", async () => {
+  it("AC-7 · rejects with the Error naming position 13 or the duplicated position 3 against the participant's 12 stored blocks, and writes nothing", async () => {
     const beyondTheForm = [
       ...answersFor(P, ALL_POSITIONS),
-      { ...answersFor(P, [1])[0], position: 16 },
+      { ...answersFor(P, [1])[0], position: 13 },
     ];
     const duplicated = [
       ...answersFor(P, ALL_POSITIONS),
@@ -273,7 +273,7 @@ describe("scoreParticipant", () => {
         depsWith(outOfRange, outOfRangeBlocks, outOfRangeLatents)
       )
     );
-    expect(first).toMatch(/\b16\b/);
+    expect(first).toMatch(/\b13\b/);
     expect(outOfRangeLatents.writes).toEqual([]);
 
     const twice = responsesFake({ [P]: duplicated });
@@ -293,7 +293,7 @@ describe("scoreParticipant", () => {
     expect(twiceLatents.writes).toEqual([]);
   });
 
-  it('AC-10 · a room at "v0" rejects naming both versions before responses or blocks are read; the same fakes at INSTRUMENT.version score 15 and write four rows', async () => {
+  it('AC-10 · a room at "v0" rejects naming both versions before responses or blocks are read; the same fakes at INSTRUMENT.version score 12 and write four rows', async () => {
     const responses = responsesFake({ [P]: answersFor(P, ALL_POSITIONS) });
     const generatedBlocks = blocksFake({ [P]: storedBlocks() });
     const latents = latentsFake();
@@ -320,7 +320,7 @@ describe("scoreParticipant", () => {
       },
       deps
     );
-    expect(result).toEqual({ scored: true, responsesUsed: 15 });
+    expect(result).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
     expect(latents.writes).toHaveLength(1);
     expect(latents.writes[0].rows).toHaveLength(4);
   });
@@ -350,7 +350,7 @@ describe("scoreParticipant", () => {
     expect(await latents.byParticipant(P)).toEqual({});
   });
 
-  it("AC-12 · a completed participant resolves { scored: true, responsesUsed: 15 } and writes exactly four rows, one per pillar, with computedAt equal to the fixed now; a second identical call is idempotent", async () => {
+  it("AC-12 · a completed participant resolves { scored: true, responsesUsed: 12 } and writes exactly four rows, one per pillar, with computedAt equal to the fixed now; a second identical call is idempotent", async () => {
     const responses = responsesFake({ [P]: answersFor(P, ALL_POSITIONS) });
     const generatedBlocks = blocksFake({ [P]: storedBlocks() });
     const latents = latentsFake();
@@ -363,7 +363,7 @@ describe("scoreParticipant", () => {
 
     const result = await scoreParticipant(input, deps);
 
-    expect(result).toEqual({ scored: true, responsesUsed: 15 });
+    expect(result).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
     expect(latents.writes).toHaveLength(1);
     expect(latents.writes[0].id).toBe(P);
 
@@ -383,7 +383,7 @@ describe("scoreParticipant", () => {
     // Idempotent: the same input scores to the same object (the estimator is
     // deterministic) and the upsert leaves four rows, not eight.
     const again = await scoreParticipant(input, deps);
-    expect(again).toEqual({ scored: true, responsesUsed: 15 });
+    expect(again).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
     expect(latents.writes).toHaveLength(2);
     expect(latents.writes[1].rows).toEqual(rows);
 
@@ -452,7 +452,7 @@ describe("scoreParticipant", () => {
       deps
     );
 
-    expect(completed).toEqual({ scored: true, responsesUsed: 15 });
+    expect(completed).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
     expect(latents.writes).toHaveLength(1);
     expect(latents.writes[0].id).toBe(OTHER);
     expect(latents.writes[0].rows).toHaveLength(4);

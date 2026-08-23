@@ -3,14 +3,14 @@
  *
  * Bayesian MAP scoring of a Thurstonian choice model with fixed, authored
  * item parameters (AUDIT.md S8) — `estimateLatents(responses, items)` turns
- * up to 15 block responses into one posterior per pillar, `map-luce-v1`.
+ * up to 12 block responses into one posterior per pillar, `map-luce-v1`.
  *
- * Under docs/domain.md D16 every participant answers their own generated
- * form, so `items` is never a constant: it is `itemParametersOf(blocks)` over
- * that participant's stored blocks, a pure projection of each option's
- * `pillar` and `keyed` — scenario text is never read. What every form shares
- * is the structure — 15 positions, the 4/4/4/3 focus-pillar rotation of
- * `assignmentsFor`, four pillars once each, one reversed option on the focus
+ * Every participant answers their own twelve blocks, dealt out of the
+ * committed bank by `formFor()`, so `items` is never a constant: it is
+ * `itemParametersOf(blocks)` over that participant's blocks, a pure projection
+ * of each option's `pillar` and `keyed` — scenario text is never read. What
+ * every form shares is the structure — 12 positions, three focus blocks per
+ * pillar, four pillars once each, one reversed option on the focus
  * pillar — and that is what these tests simulate over: respondent n answers
  * `structuralBlocksFor("participant-" + n)`, a different key↔pillar layout
  * and domain set per person, the same structure. Levels are recovered on one
@@ -26,7 +26,7 @@
  *   AC-1  determinism + shape: same input, identical object; mean = Φ(theta)
  *   AC-2  levels recovered across 200 forms: r > 0.80 per pillar, r(sum) > 0.85
  *   AC-3  all-positive keying loses levels (AUDIT F1): sum of thetas ≈ 0
- *   AC-4  fewer responses → wider posterior: seTheta(5) > seTheta(15)
+ *   AC-4  fewer responses → wider posterior: seTheta(5) > seTheta(12)
  *   AC-5  most-only responses still score; least widens nothing
  *   AC-8  safety: no NaN / infinite estimate, mean in [0, 1], se > 0, |θ| ≤ 4
  *
@@ -84,7 +84,7 @@ interface Respondent {
  * come back on one common metric across 200 different forms because the
  * likelihood reads pillar and keying and never text.
  *
- * One RNG stream, full 15-block most+least answers. AC-4 and AC-5 TRUNCATE or
+ * One RNG stream, full 12-block most+least answers. AC-4 and AC-5 TRUNCATE or
  * STRIP these same answers rather than re-simulating: a second mulberry32(42)
  * run with different options consumes the stream at a different rate, so
  * `short[i]` would be a different person than `full[i]` and the comparison
@@ -125,9 +125,9 @@ function allPositive(blocks: Respondent["blocks"]): BlockItems[] {
 }
 
 describe("estimateLatents", () => {
-  it("AC-1 · scores 15 responses on the form structuralBlocksFor(participant-1) twice to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {
+  it("AC-1 · scores 12 responses on the form structuralBlocksFor(participant-1) twice to the identical object: map-luce-v1, four estimates, mean = Φ(theta)", () => {
     const [person] = cohort(1);
-    expect(person.responses).toHaveLength(15);
+    expect(person.responses).toHaveLength(12);
 
     const first = estimateLatents(person.responses, person.items);
     const second = estimateLatents(person.responses, person.items);
@@ -227,7 +227,7 @@ describe("estimateLatents", () => {
     );
   });
 
-  it("AC-4 · scoring positions 1..5 instead of all 15 against the same items widens seTheta on every pillar for every respondent", () => {
+  it("AC-4 · scoring positions 1..5 instead of all 12 against the same items widens seTheta on every pillar for every respondent", () => {
     const people = cohort(50);
     for (let i = 0; i < people.length; i++) {
       const wide = estimateLatents(
@@ -238,7 +238,7 @@ describe("estimateLatents", () => {
       for (const pillar of PILLARS) {
         expect(
           wide.estimates[pillar].seTheta,
-          `respondent ${i} ${pillar}: 5 blocks must be wider than 15`
+          `respondent ${i} ${pillar}: 5 blocks must be wider than 12`
         ).toBeGreaterThan(narrow.estimates[pillar].seTheta);
       }
     }
@@ -514,7 +514,7 @@ describe("safety invariants", () => {
   // When src/lib/domain/scoring/estimate.ts lands, `scoredToday` becomes the
   // ScoredLatents of estimateLatents over the adversarial respondent on
   // structuralBlocksFor("adversary") (most = the block's single reversed
-  // option, least = the lowest-key positive option, all 15 blocks), the 200
+  // option, least = the lowest-key positive option, all 12 blocks), the 200
   // mulberry32(42) respondents of AC-2 on their own forms and their
   // 5-response truncations — every one scored against itemParametersOf(their
   // own blocks), never a shared constant; `expectWellFormed` runs on each
@@ -562,8 +562,8 @@ describe("safety invariants", () => {
     // The adversarial respondent: every "most" is the block's reversed option
     // and every "least" is its lowest-key positive one — the answer pattern
     // that drives theta hardest away from the prior in all four coordinates.
-    // Built on the committed fallback form, which is a valid 15-block form and
-    // the one place the constant is genuinely convenient (D16 §10.1).
+    // Built on INSTRUMENT, which survives the question bank precisely as a
+    // fixed, valid 12-block form for cases like this one.
     const adversarialItems = itemParametersOfBlocks(INSTRUMENT.blocks);
     const adversarial: BlockResponse[] = INSTRUMENT.blocks.map((block) => {
       const reversed = block.options.find((o) => o.keyed === "reversed");

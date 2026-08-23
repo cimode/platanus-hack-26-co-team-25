@@ -490,6 +490,10 @@ carries zero information about trait *levels*, the direction the soft-min terms 
 > there is nothing to select from. Real adaptivity needs a bank of 40–60 blocks. We ship
 > the fixed form and defend it on its linking properties. The mechanics below are
 > retained for reference only — do not put them in the pitch.
+>
+> **Since `docs/domain.md` D21 the form is 12 blocks dealt from a committed 400-block
+> bank.** Still not adaptive: the deal is seeded by the participant id and never reads an
+> answer. See `PILLARS.md` §7.2.
 
 #### (retained for reference)
 
@@ -529,7 +533,7 @@ into labelled bands.
 
 | Criterion | What this research contributes |
 |---|---|
-| **Aspecto técnico (25%)** | Bayesian MAP scoring of a Thurstonian choice model over desirability-matched forced-choice blocks — a **fixed balanced form** (every latent in 15/15 blocks, maximal linking, mixed keying) · effect-size-anchored scoring with level terms, gates, and penalty-only dyadic terms · illustrative survival dynamics coupled to the children model. Weight anchoring per `PILLARS.md` A1–A2; τ is the one named unanchored parameter. *(Adaptive selection and complementarity scoring were withdrawn — see `PILLARS.md` §7.)* |
+| **Aspecto técnico (25%)** | Bayesian MAP scoring of a Thurstonian choice model over desirability-matched forced-choice blocks — a **fixed balanced form** (every latent in every block, maximal linking, mixed keying; 12 blocks per person since D21) · effect-size-anchored scoring with level terms, gates, and penalty-only dyadic terms · illustrative survival dynamics coupled to the children model. Weight anchoring per `PILLARS.md` A1–A2; τ is the one named unanchored parameter. *(Adaptive selection and complementarity scoring were withdrawn — see `PILLARS.md` §7.)* |
 | **Originalidad (15%)** | Being the team that read the literature and built the honest version — simulation instead of prediction — while everyone else ships a match percentage. |
 | **Impacto (20%)** | The proximity literature (Festinger 1950; Zajonc 1968) is direct scientific backing for the product's core thesis: the connections are already in the room. |
 | **Ambición (20%)** | A calibrated psychometric instrument plus a coupled life-course simulation, built in 36 hours. |

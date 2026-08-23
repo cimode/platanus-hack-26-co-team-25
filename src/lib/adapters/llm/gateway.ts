@@ -21,7 +21,7 @@ import { generateObject, NoObjectGeneratedError, RetryError } from "ai";
 
 import type { LlmPort, LlmRequest } from "../../ports/llm";
 
-/** Sonnet is the quality/latency point this workload wants (docs/quiz-generation.md §7). */
+/** Sonnet is the quality/latency point the timeline and offspring workloads want. */
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-5";
 
 /**
@@ -64,9 +64,11 @@ const REASONING_LEVELS: readonly string[] = [
  * it again and pushed the request past `maxDuration`. Measured the same day
  * against the author prompt: `none` answers in ~14 s but doubles the focus
  * pillar in most blocks; `minimal` and `low` author in ~15–30 s and pass
- * structure on 4–5 of 5 first time. The judge→repair loop carries the rest
- * (docs/quiz-generation.md §7). Raise it with `AI_REASONING=low` if quality
- * slips; the token cap below is not the lever.
+ * structure on 4–5 of 5 first time. Those numbers were measured on the quiz
+ * authoring pipeline D21 retired; the setting stays because the timeline
+ * narrator and the offspring reveal have the same adaptive-thinking failure
+ * mode. Raise it with `AI_REASONING=low` if quality slips; the token cap below
+ * is not the lever.
  */
 export const DEFAULT_REASONING: GatewayReasoning = "minimal";
 

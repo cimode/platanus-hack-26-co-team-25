@@ -12,7 +12,7 @@ export interface Room {
   id: RoomId;
   slug: string;
   name: string;
-  /** Which instrument this room administered, e.g. "v1". */
+  /** Which instrument this room administered, e.g. "bank-1". */
   instrumentVersion: string;
   createdAt: Date;
 }

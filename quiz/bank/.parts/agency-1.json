@@ -1,0 +1,779 @@
+{
+  "blocks": [
+    {
+      "focusPillar": "agency",
+      "domain": "birthdays",
+      "scenario": "Llegas a tu propia fiesta y descubres que pusieron el pastel de otro cumpleañero. Los globos también dicen otro nombre.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río y sigo la fiesta",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Le pido al mesero que corrija esto",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Aviso al organizador y sigo ayudando",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Dejo que decidan qué hacer",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "running-routes",
+      "scenario": "Corres tu ruta favorita cuando el altavoz del parque anuncia tu nombre completo pidiendo que devuelvas un préstamo bibliotecario.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Comento que el altavoz exagera un poco",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Prometo devolver el libro esa tarde",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Hago lo que el grupo decida",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Me rio del anuncio y sigo trotando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "lost-charger",
+      "scenario": "Buscas tu cargador perdido debajo de la cama y encuentras un cono de tránsito naranja completo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Reviso cada rincón hasta encontrar el cargador",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Dejo el cono donde mis amigos digan",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Me encojo de hombros y sigo buscando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le pregunto al portero sin acusar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "hotel-stays",
+      "scenario": "Entras a tu habitación de hotel y el pez del acuario del lobby está nadando en la bañera.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo cualquier instrucción que me den",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y llamo a recepción tranquilo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Señalo el error sin culpar al staff",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Cuido al pez hasta que lo recojan",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "zoo-visits",
+      "scenario": "Visitas el zoológico y el mono se llama exactamente igual que tu ex, según la placa.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me carcajeo y sigo el recorrido",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Comento la coincidencia sin burlarme del mono",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Termino el tour como lo planeamos",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Voy a donde mi grupo prefiera ir",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "friend-reunions",
+      "scenario": "En la reunión alguien menciona quién pagó la pizza hace tres años y ahora todos sacan capturas de pantalla.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Digo que el chiste ya no aplica",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Prometo mandar el comprobante mañana mismo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Apoyo la opinión que más se repita",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Respiro hondo y cambio de tema",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "picnics",
+      "scenario": "En el picnic saludas efusivamente a un desconocido pensando que es tu primo, y él te sigue el juego.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Busco a mi primo real de inmediato",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Me quedo donde el grupo decida sentarse",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Me río del error y sigo comiendo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Le pido disculpas por la confusión amable",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "concerts",
+      "scenario": "En el concierto todos levantan el brazo izquierdo en el coro, sin que nadie lo haya anunciado nunca.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Levanto el brazo porque todos lo hacen",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Sigo cantando sin darle más vueltas",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le pregunto al de al lado el motivo",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo hasta el final del show",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "haircuts",
+      "scenario": "Sales de la peluquería y notas que te dieron la bolsa de productos de otro cliente en vez de la tuya.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me rio y reviso qué me tocó",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Aviso el cambio sin regañar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Regreso a cambiar la bolsa correcta",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Uso lo que sea que me den",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "pickup-football",
+      "scenario": "Vas a patear el penal decisivo cuando tu reloj anuncia en voz alta tu próxima cita médica.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Le pido al árbitro un segundo breve",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Anoto la cita para no olvidarla",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Pateo donde el equipo me indique",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Ignoro el aviso y pateo tranquilo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "video-calls",
+      "scenario": "Entras a una videollamada importante y detrás de ti aparece un flamenco de plástico de tamaño real.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Sigo la reunión hasta que termine bien",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Muevo la cámara si alguien lo pide",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Me río y sigo con la llamada",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Aclaro la situación sin culpar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "airports",
+      "scenario": "Esperas tu vuelo cuando el perro de seguridad se sienta educadamente en la fila de migración, como un pasajero más.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Hago la fila que otros me indiquen",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me da risa y sigo haciendo fila",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Comento lo curioso sin molestar al guía",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Llego a tiempo al conteo de abordaje",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "pets",
+      "scenario": "Llevas a tu perro al parque y otro dueño trae un perro idéntico, con el mismo nombre en la placa.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la casualidad y sigo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Comento la coincidencia sin invadir al dueño",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Vuelvo mañana a la misma hora exacta",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Dejo que el otro dueño elija el juego",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "group-chats",
+      "scenario": "Alguien manda un audio de treinta segundos al chat y en una hora hay doscientos mensajes sin parar.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Pido que bajen el tono sin atacar",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Reviso el chat completo antes de dormir",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Opino lo que la mayoría ya opina",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Silencio el chat y sigo mi día",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "flat-hunting",
+      "scenario": "Visitas un apartamento y el vecino te confunde con el dueño anterior, invitándote a tomar café.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino de ver todo el apartamento",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Acepto el café si insisten un poco",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Sigo la visita sin darle importancia",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Aclaro el malentendido con buena cara",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "museums",
+      "scenario": "En la sala de arte todos susurran exactamente la misma frase frente al cuadro grande, sin que nadie la haya escrito.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Repito la frase porque todos la dicen",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Sonrío y sigo mi propio recorrido",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Pregunto el origen de la frase con calma",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Termino la visita guiada completa hoy",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "gifts",
+      "scenario": "Abres tu regalo de cumpleaños y adentro está envuelto el regalo que tú compraste para otra persona.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la vuelta y sigo abriendo",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Comento el cruce sin regañar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Busco el regalo correcto antes de la noche",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo con lo que me den",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "gym-classes",
+      "scenario": "Estás en plena plancha de abdominales cuando el altavoz del gimnasio anuncia tu turno en la peluquería de al lado.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Le aviso al instructor sin quejarme feo",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Voy a la peluquería justo después de clase",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Sigo el plan que la clase decida",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Termino la plancha sin perder la calma",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "smart-speakers",
+      "scenario": "Le pides música a tu altavoz inteligente y en vez de eso aparece un boleto de lotería premiado debajo.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Guardo el boleto hasta encontrar al dueño",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Dejo que mis amigos decidan qué hacer",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Me sorprendo y sigo pidiendo mi canción",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Pregunto de quién es sin acusar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "packing",
+      "scenario": "Terminas de empacar la maleta y el gato del vecino aparece adentro, ya dormido entre tus camisas.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Dejo la maleta como otros la organicen",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me río y saco al gato con calma",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Le aviso al vecino sin regañar al gato",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Reempaco todo antes de salir a tiempo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "dinner-reservations",
+      "scenario": "Llegas al restaurante y la mesa de al lado celebra el mismo aniversario, con el mismo plato favorito.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río de la casualidad y sigo cenando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Comento la coincidencia sin interrumpir su cena",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Confirmo la reserva para el próximo año",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Pido lo mismo que la otra mesa",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "bike-rides",
+      "scenario": "Alguien toca el timbre de su bici para saludar y en minutos toda la ciclovía es un coro de timbres.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Pido que bajen el volumen sin gritar",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Termino la ruta completa como planeamos",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Toco el timbre porque todos lo hacen",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "d",
+          "text": "Me río del ruido y sigo pedaleando",
+          "pillar": "regulation",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "moving-house",
+      "scenario": "El día de la mudanza, los vecinos te confunden con el técnico de internet y te dejan entrar a su apartamento.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Termino mi mudanza antes de que oscurezca",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Reviso su router si ellos insisten",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "c",
+          "text": "Aclaro entre risas y sigo con mis cajas",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Corrijo el error sin hacerlos sentir mal",
+          "pillar": "politeness",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "movies-series",
+      "scenario": "En la sala de cine todos se quedan sentados hasta el final de los créditos, sin que nadie lo haya pedido.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me quedo sentado porque todos se quedan",
+          "pillar": "agency",
+          "keyed": "reversed"
+        },
+        {
+          "key": "b",
+          "text": "Me relajo y espero sin desesperarme",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Pregunto la razón sin criticar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Me quedo hasta que se prendan las luces",
+          "pillar": "reliability",
+          "keyed": "positive"
+        }
+      ]
+    },
+    {
+      "focusPillar": "agency",
+      "domain": "queues",
+      "scenario": "Haces fila en el supermercado y te das cuenta de que llevas el carrito de otra persona, con productos totalmente distintos.",
+      "options": [
+        {
+          "key": "a",
+          "text": "Me río del cambio y sigo la fila",
+          "pillar": "regulation",
+          "keyed": "positive"
+        },
+        {
+          "key": "b",
+          "text": "Aviso el cruce sin señalar a nadie",
+          "pillar": "politeness",
+          "keyed": "positive"
+        },
+        {
+          "key": "c",
+          "text": "Busco mi carrito antes de pagar todo",
+          "pillar": "reliability",
+          "keyed": "positive"
+        },
+        {
+          "key": "d",
+          "text": "Pago lo que sea que me toque",
+          "pillar": "agency",
+          "keyed": "reversed"
+        }
+      ]
+    }
+  ]
+}

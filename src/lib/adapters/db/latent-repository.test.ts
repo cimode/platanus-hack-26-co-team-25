@@ -4,7 +4,12 @@ import { eq, is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { describe, expect, it, onTestFinished, type TestContext } from "vitest";
 import type { BlockResponse } from "@/lib/domain/quiz";
-import { INSTRUMENT, validateBlock } from "@/lib/domain/quiz";
+import {
+  BLOCK_COUNT,
+  formFor,
+  INSTRUMENT,
+  validateBlock,
+} from "@/lib/domain/quiz";
 import type { StoredBlock } from "@/lib/ports/generated-block-repository";
 import type { StoredLatent } from "@/lib/ports/latent-repository";
 import type { Room } from "@/lib/ports/room-repository";
@@ -47,11 +52,11 @@ import { integrationDb } from "./test-db";
  * guard (skips without DATABASE_URL,
  * fails under DB_REQUIRED=1): a room created by #4's createRoomRepository at
  * INSTRUMENT.version (the Room it returns is the input to scoreParticipant),
- * participants A and B, B pre-seeded with four rows; A's 15 blocks saved
+ * participants A and B, B pre-seeded with four rows; A's twelve blocks saved
  * first through createGeneratedBlockRepository(db).saveBatch
- * (INSTRUMENT.blocks as StoredBlock[] -- docs/domain.md D16: scoring reads
+ * (`formFor(a.id)` as StoredBlock[] -- scoring reads
  * the participant's generated_blocks rows, never the constant) and then A's
- * 15 quiz_responses through createResponseRepository(db);
+ * twelve quiz_responses through createResponseRepository(db);
  * `scoreParticipant({ participantId: A, room }, { responses, generatedBlocks,
  * latents, now })` twice with the real createResponseRepository,
  * createGeneratedBlockRepository and createLatentRepository adapters; then A
@@ -127,18 +132,14 @@ async function itRoom(db: Db): Promise<Room> {
   return room;
 }
 
-/** D16: scoring reads the participant's own generated_blocks rows. */
-async function giveGeneratedForm(db: Db, participantId: string): Promise<void> {
+/** Scoring reads the participant's own `generated_blocks` rows, so give them. */
+async function giveAssignedForm(db: Db, participantId: string): Promise<void> {
   const generatedBlocks = createGeneratedBlockRepository(db);
-  for (const batch of [1, 2, 3]) {
-    const blocks: StoredBlock[] = INSTRUMENT.blocks
-      .filter((block) => block.batch === batch)
-      .map((block) => {
-        validateBlock(block);
-        return { block, source: "fallback" as const };
-      });
-    await generatedBlocks.saveBatch(participantId, blocks);
-  }
+  const blocks: StoredBlock[] = formFor(participantId).map((block) => {
+    validateBlock(block);
+    return { block, source: "bank" as const };
+  });
+  await generatedBlocks.saveBatch(participantId, blocks);
 }
 
 function answer(participantId: string, position: number): BlockResponse {
@@ -261,12 +262,14 @@ describe("safety invariants", () => {
     const bBefore = await rowsOf(db, b.id);
     expect(bBefore).toHaveLength(4);
 
-    await giveGeneratedForm(db, a.id);
+    await giveAssignedForm(db, a.id);
     const responses = createResponseRepository(db);
-    for (let position = 1; position <= 14; position++) {
+    for (let position = 1; position < BLOCK_COUNT; position++) {
       await responses.save(answer(a.id, position));
     }
-    await responses.save(answer(a.id, 15), { completedAt: COMPLETED_AT });
+    await responses.save(answer(a.id, BLOCK_COUNT), {
+      completedAt: COMPLETED_AT,
+    });
 
     const deps = {
       responses,
@@ -281,9 +284,9 @@ describe("safety invariants", () => {
     };
 
     const first = await scoreParticipant(input, deps);
-    expect(first).toEqual({ scored: true, responsesUsed: 15 });
+    expect(first).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
     const second = await scoreParticipant(input, deps);
-    expect(second).toEqual({ scored: true, responsesUsed: 15 });
+    expect(second).toEqual({ scored: true, responsesUsed: BLOCK_COUNT });
 
     // Four rows after two runs: the composite pk makes the second an upsert.
     const aRows = await rowsOf(db, a.id);

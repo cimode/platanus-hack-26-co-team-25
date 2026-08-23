@@ -35,9 +35,11 @@ Input: `focusPillar` (which pillar is reversed-keyed + scenario flavor), `index`
 
 ## Tone contract
 
-Identical to the live prompt in `src/lib/domain/quiz/authoring.ts` (rules 10–15).
-That file wins on any disagreement; this section exists so offline authoring and
-the fallback set read like the generated ones.
+This section IS the tone contract now. There is no live prompt to defer to any
+more: D21 deleted request-time authoring, and every question a participant sees
+comes from the committed bank in `quiz/bank/`. What this section governs is how
+new bank blocks are written, and `scripts/quiz-bank/merge.mjs` is what refuses
+one that ignores it.
 
 - **Bizarro pero cotidiano.** The scenario is an ordinary situation pushed one
   notch into the absurd: an object that should not be there, a creature behaving

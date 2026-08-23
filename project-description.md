@@ -17,7 +17,7 @@ con la que elijas. Esa simulación es la excusa para ir a saludar.
 
 ### 1. El cuestionario
 
-Cada persona responde **15 bloques de elección forzada**. En cada bloque hay
+Cada persona responde **12 bloques de elección forzada**. En cada bloque hay
 cuatro opciones y hay que elegir la que más te representa y la que menos.
 
 Dos decisiones importantes:
@@ -27,13 +27,15 @@ Dos decisiones importantes:
 - **Clave mixta** — exactamente una opción por bloque está invertida, así que
   responder en piloto automático no produce un perfil coherente.
 
-Los bloques se generan por participante con un modelo de lenguaje, contra un
-instrumento comprometido en el repositorio que sirve de respaldo determinista si
-el gateway no responde.
+Los bloques salen de un **banco de 400 preguntas comprometido en el repositorio**
+(100 por rasgo, escritas y validadas fuera de línea). A cada persona se le reparten
+doce de forma determinista a partir de su id — tres por rasgo, en un orden propio —,
+así que dos personas casi nunca ven la misma secuencia y **ninguna pregunta cuesta
+una llamada a un modelo**. Nadie espera a que se escriba nada.
 
 ### 2. El avatar
 
-De esas 15 elecciones el sistema estima **cuatro rasgos latentes**:
+De esas 12 elecciones el sistema estima **cuatro rasgos latentes**:
 
 | Rasgo | Qué mide |
 | --- | --- |
