@@ -200,14 +200,14 @@ silently assume.
 5. **Coherence enforcement** — what actually guarantees the timeline does not
    contradict itself? Constrained state passed forward, a validation pass, or
    a deterministic event graph the LLM only narrates?
-6. **Product name** — still `<FILL THIS>` in `platanus-hack-project.jsonc`.
+6. ~~**Product name**~~ — **RESOLVED.** `dipia`, always lowercase. Deployed at https://www.dipia.lat. The old name `hookai` is gone from the repo, including the session cookie (now `dipia_session`). It survives only where it names live infrastructure outside this repo: the `HOOKAI_ROOM_SLUG` / `HOOKAI_QUIZ_SINGLE_PICK` environment variables set in Vercel, and the Neon and Vercel project names.
 
 ---
 
 ## 8. Submission checklist (from the repo README)
 
-- [ ] `platanus-hack-project.jsonc` — name, one-liner (Spanish), description (Spanish), deploy URL
-- [ ] `project-description.md` — replace with the real project description
+- [x] `platanus-hack-project.jsonc` — name, one-liner (Spanish), description (Spanish), deploy URL
+- [x] `project-description.md` — replace with the real project description
 - [ ] `project-logo.png` — 1000x1000, max 500kb
 - [ ] README — concise and to the point
 - [ ] Deploy: mirror to a personal repo (org repo cannot be connected to Vercel)
