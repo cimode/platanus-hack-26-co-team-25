@@ -38,11 +38,16 @@ export type RegisterState = {
   genderError?: string;
   birthdateError?: string;
   photoError?: string;
+  /** The data-treatment box (issue #49). */
+  dataError?: string;
   /** Anything not attributable to one field. */
   error?: string;
 };
 
 const ROOM_MISSING = "Esta sala no existe.";
+
+/** One sentence, said the same way whichever side refuses (issue #49). */
+const DATA_MISSING = "Necesitamos tu autorización para continuar";
 
 const RegisterInput = z.object({
   room: z.string().trim().min(1).max(200),
@@ -55,6 +60,11 @@ const RegisterInput = z.object({
   birthdate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Escribe tu fecha de nacimiento"),
+  /**
+   * An unticked checkbox submits NOTHING -- no key at all -- so the literal
+   * a browser sends when it is ticked is the whole contract (issue #49).
+   */
+  dataConsent: z.literal("on", DATA_MISSING),
 });
 
 /** `formData.get` returns `File | string | null`; only a string is a field. */
@@ -84,6 +94,7 @@ const COPY: Record<RegisterParticipantReason, RegisterState> = {
     photoError: "Ese archivo no sirve como foto",
   },
   "photo-too-large": { photoError: "La foto pesa demasiado, intenta de nuevo" },
+  "data-consent": { dataError: DATA_MISSING },
   photo: { photoError: "No pudimos guardar tu foto, intenta de nuevo" },
 };
 
@@ -96,6 +107,7 @@ export async function registerAction(
     name: text(formData, "name"),
     gender: text(formData, "gender"),
     birthdate: text(formData, "birthdate"),
+    dataConsent: text(formData, "dataConsent"),
   });
 
   // The file is read before the parse result is judged so that a person who
@@ -113,12 +125,16 @@ export async function registerAction(
         ? undefined
         : issueFor(parsed.error, "birthdate"),
       photoError: hasPhoto ? undefined : "Agrega una foto",
+      dataError: parsed.success
+        ? undefined
+        : issueFor(parsed.error, "dataConsent"),
     };
     const named =
       fields.nameError ??
       fields.genderError ??
       fields.birthdateError ??
-      fields.photoError;
+      fields.photoError ??
+      fields.dataError;
     // Nothing left but `room`, which nobody typed.
     return named ? fields : { error: ROOM_MISSING };
   }
@@ -133,6 +149,8 @@ export async function registerAction(
         name,
         gender,
         birthdate,
+        // The parse above already refused anything but the ticked literal.
+        dataConsent: true,
         photo: {
           bytes: new Uint8Array(await file.arrayBuffer()),
           contentType: file.type,

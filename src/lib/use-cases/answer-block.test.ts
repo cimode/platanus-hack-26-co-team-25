@@ -104,6 +104,7 @@ function makeWorld(options: { instrumentVersion?: string } = {}) {
       tags: [],
       acquaintances: [],
     },
+    dataConsentAt: null,
     declaredAt: null,
     quizCompletedAt: null,
     createdAt: NOW,

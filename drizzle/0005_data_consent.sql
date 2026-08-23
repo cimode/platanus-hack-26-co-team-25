@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "data_consent_at" timestamp with time zone;

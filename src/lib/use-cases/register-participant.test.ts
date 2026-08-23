@@ -82,6 +82,7 @@ function fakeParticipants() {
           tags: [],
           acquaintances: [],
         },
+        dataConsentAt: input.dataConsentAt ?? null,
         declaredAt: null,
         quizCompletedAt: null,
         createdAt: new Date(),
@@ -128,6 +129,7 @@ const VALID = {
   gender: "F",
   birthdate: BORN_27,
   photo: PHOTO,
+  dataConsent: true,
   today: TODAY,
 };
 
@@ -155,6 +157,10 @@ describe("registerParticipant", () => {
     });
 
     // The stored row agrees, and the credential resumes past registration.
+    // Issue #49: the authorisation is recorded with its moment, not as a flag.
+    expect(participant.dataConsentAt).toEqual(TODAY);
+    expect(rows.get(participant.id)?.dataConsentAt).toEqual(TODAY);
+
     expect(rows.get(participant.id)?.photoUrl).toBe(participant.photoUrl);
     expect(intakeStepOf(await repo.bySessionToken(sessionToken))).toBe(
       "declared"
@@ -205,6 +211,22 @@ describe("registerParticipant", () => {
     const resumed = await repo.bySessionToken(token);
     expect(resumed?.photoUrl).toBeNull();
     expect(intakeStepOf(resumed)).toBe("register");
+  });
+
+  // kind: edge (issue #49 AC-3). Habeas data is checked before anything is
+  // read or written, so the refusal has to be provable by the repository
+  // having been asked for nothing at all.
+  it("AC-3 · without the data-treatment flag it refuses and creates no row", async () => {
+    const { repo, rows } = fakeParticipants();
+
+    await expect(
+      registerParticipant(
+        { ...VALID, dataConsent: false },
+        { participants: repo, rooms, photos: storingPhotos }
+      )
+    ).rejects.toMatchObject({ reason: "data-consent" });
+
+    expect(rows.size).toBe(0);
   });
 
   it("refuses an unknown room, a blank name and a gender that is not one of the three", async () => {
