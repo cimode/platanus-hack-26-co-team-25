@@ -208,6 +208,6 @@ silently assume.
 
 - [x] `platanus-hack-project.jsonc` — name, one-liner (Spanish), description (Spanish), deploy URL
 - [x] `project-description.md` — replace with the real project description
-- [ ] `project-logo.png` — 1000x1000, max 500kb
+- [x] `project-logo.png` — 1000x1000, max 500kb
 - [ ] README — concise and to the point
 - [ ] Deploy: mirror to a personal repo (org repo cannot be connected to Vercel)
