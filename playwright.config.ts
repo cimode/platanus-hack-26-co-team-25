@@ -12,8 +12,19 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 3000);
 const BASE_URL = `http://localhost:${PORT}`;
 
+// The site gate (issue #50) is switched on by SITE_GATE_PASSWORD alone, so a
+// gated run needs its own dev server. `E2E_GATE=1` is that mode: the server
+// boots with a throwaway password and ONLY e2e/site-gate.spec.ts runs, because
+// every other spec would be answered with a 302 to /gate. Without the variable
+// -- local dev, CI, every existing run -- there is no gate and the gate spec is
+// the one file left out.
+const GATED = !!process.env.E2E_GATE;
+const GATE_PASSWORD = "test-gate-pw";
+
 export default defineConfig({
   testDir: "./e2e",
+  testMatch: GATED ? "**/site-gate.spec.ts" : undefined,
+  testIgnore: GATED ? undefined : "**/site-gate.spec.ts",
   // Creates the `e2e-<run>` room the intake specs register into and exports
   // its slug as E2E_ROOM_SLUG (docs/domain.md D9). Workers are forked after it
   // runs, so they inherit the variable.
@@ -73,5 +84,8 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env.CI && !process.env.E2E_ISOLATED,
     timeout: 120_000,
+    // Merged over process.env by Playwright; `next dev` never overwrites a
+    // variable that is already set, so .env cannot undo this.
+    env: GATED ? { SITE_GATE_PASSWORD: GATE_PASSWORD } : undefined,
   },
 });
