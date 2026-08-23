@@ -112,6 +112,7 @@ function participantFixture(
     track: "fintech",
     consent: { romantic: true, business: true, friendship: true },
     declared: { ...ALL_BANDS },
+    dataConsentAt: null,
     declaredAt: new Date("2026-08-22T18:00:00.000Z"),
     quizCompletedAt: new Date("2026-08-22T18:30:00.000Z"),
     createdAt: new Date("2026-08-22T17:45:00.000Z"),

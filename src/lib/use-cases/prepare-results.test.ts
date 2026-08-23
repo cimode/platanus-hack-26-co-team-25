@@ -190,6 +190,7 @@ function rankable(
       team: null,
       track: null,
       consent: ALL_LENSES,
+      dataConsentAt: null,
       declaredAt: DECLARED_AT,
       quizCompletedAt: T0,
       createdAt: CREATED_AT,

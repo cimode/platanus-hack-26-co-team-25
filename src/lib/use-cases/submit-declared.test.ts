@@ -71,6 +71,7 @@ function inMemoryParticipants(saved: DeclaredProfile = NO_BANDS): {
     team: "hookai",
     track: "AI",
     consent: { ...DEFAULT_CONSENT, friendship: true },
+    dataConsentAt: null,
     declaredAt: null,
     quizCompletedAt: null,
     createdAt: new Date("2026-08-22T10:00:00.000Z"),

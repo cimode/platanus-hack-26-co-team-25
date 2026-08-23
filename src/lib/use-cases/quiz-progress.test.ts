@@ -132,6 +132,7 @@ function makeWorld(options: WorldOptions = {}) {
       tags: [],
       acquaintances: [],
     },
+    dataConsentAt: null,
     declaredAt: null,
     quizCompletedAt: options.quizCompletedAt ?? null,
     createdAt: NOW,

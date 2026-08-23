@@ -133,6 +133,9 @@ export async function seedParticipant(
       business: options.consent?.business ?? true,
       friendship: options.consent?.friendship ?? true,
     },
+    // Issue #49: a registered row always carries the moment its data-treatment
+    // authorisation was given, so a seeded one has to as well.
+    dataConsentAt: new Date(),
   });
 
   if (options.photo !== false) {

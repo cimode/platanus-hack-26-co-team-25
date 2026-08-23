@@ -71,6 +71,7 @@ const PARTICIPANT_COLUMNS = {
   distanceBand: participants.distanceBand,
   chronotype: participants.chronotype,
   tags: participants.tags,
+  dataConsentAt: participants.dataConsentAt,
   declaredAt: participants.declaredAt,
   quizCompletedAt: participants.quizCompletedAt,
   createdAt: participants.createdAt,
@@ -134,6 +135,7 @@ type ParticipantRow = {
   distanceBand: number | null;
   chronotype: number | null;
   tags: string[];
+  dataConsentAt: Date | null;
   declaredAt: Date | null;
   quizCompletedAt: Date | null;
   createdAt: Date;
@@ -175,6 +177,7 @@ function toParticipant(
       tags: row.tags,
       acquaintances: known,
     },
+    dataConsentAt: row.dataConsentAt,
     declaredAt: row.declaredAt,
     quizCompletedAt: row.quizCompletedAt,
     createdAt: row.createdAt,
@@ -243,6 +246,10 @@ export function createParticipantRepository(
             consentRomantic: input.consent.romantic,
             consentBusiness: input.consent.business,
             consentFriendship: input.consent.friendship,
+            // Issue #49: the moment the data-treatment box was ticked, written
+            // with the row it authorises rather than by a later update, so a
+            // participant without an authorisation cannot exist for an instant.
+            dataConsentAt: input.dataConsentAt ?? null,
             team: input.team ?? null,
             track: input.track ?? null,
           })

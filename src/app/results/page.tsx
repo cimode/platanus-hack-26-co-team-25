@@ -21,7 +21,7 @@ export default function ResultsPage() {
       <h1 className="font-display text-4xl font-extrabold text-ink">Listo</h1>
 
       <p className="text-base text-ink-muted">
-        Terminaste las quince. Guardá el teléfono: lo que sigue aparece en la
+        Terminaste las quince. Guarda el teléfono: lo que sigue aparece en la
         pantalla grande.
       </p>
     </main>

@@ -15,9 +15,16 @@ import type { RoomRepository } from "../ports/room-repository";
  *
  * One screen, one action: photo, name, gender and birthdate arrive together,
  * the row and the credential are born together, and the photo is stored in the
- * same call. There is no consent question -- participating is consenting for
- * this version -- so the three flags are written `true` here rather than on a
- * screen of their own.
+ * same call. There is no per-LENS consent question -- participating is
+ * consenting for this version -- so those three flags are written `true` here
+ * rather than on a screen of their own.
+ *
+ * The one authorisation that IS asked for is the treatment of personal data
+ * (issue #49): the app stores a real name, a photo, a birthdate and answers
+ * for ~100 people and ranks them, and Ley 1581 de 2012 expects that
+ * authorisation to be explicit and recorded WITH ITS MOMENT. It is checked
+ * first, before any read and long before any write, so a refusal leaves the
+ * database exactly as it was.
  *
  * The room arrives as a SLUG, never as an id: `?room=` is in the QR code and
  * therefore attacker-controlled, and a slug has to be resolved against the
@@ -46,7 +53,9 @@ export type RegisterParticipantReason =
   | "photo-missing"
   | "photo-unsupported-type"
   | "photo-too-large"
-  | "photo";
+  | "photo"
+  /** The data-treatment box was not ticked (issue #49, Ley 1581 de 2012). */
+  | "data-consent";
 
 export class RegisterParticipantError extends Error {
   readonly reason: RegisterParticipantReason;
@@ -76,6 +85,12 @@ export interface RegisterParticipantInput {
   gender: string;
   birthdate: IsoDate;
   photo: RegisterPhoto | null;
+  /**
+   * True only when the person ticked the data-treatment box (issue #49).
+   * A boolean rather than a timestamp: the screen reports a tick, and the
+   * moment is the use case's to mint, so a client cannot backdate it.
+   */
+  dataConsent: boolean;
   /** Injected so the age rules are testable on any day of the year (AC-3). */
   today?: Date;
 }
@@ -132,6 +147,12 @@ export async function registerParticipant(
     throw new RegisterParticipantError("invalid-name");
   }
 
+  // Before anything else that could write: Ley 1581 de 2012 wants an explicit
+  // authorisation, so a registration without one never reaches a table.
+  if (!input.dataConsent) {
+    throw new RegisterParticipantError("data-consent");
+  }
+
   if (!GENDERS.includes(input.gender as Gender)) {
     throw new RegisterParticipantError("invalid-gender");
   }
@@ -170,6 +191,9 @@ export async function registerParticipant(
     gender,
     birthdate: input.birthdate,
     consent: { ...IMPLIED_CONSENT },
+    // The moment, not just the fact (issue #49): habeas data asks when the
+    // authorisation was given, and `today` keeps it testable.
+    dataConsentAt: input.today ?? new Date(),
   });
 
   let url: string;

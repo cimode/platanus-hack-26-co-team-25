@@ -126,6 +126,9 @@ export async function createQuizParticipant(
     gender: "F",
     birthdate: "1996-05-04",
     consent: { romantic: true, business: true, friendship: true },
+    // Issue #49: registered rows carry the moment they authorised the
+    // treatment of their data, so a seeded one does too.
+    dataConsentAt: new Date(),
     name: options.name ?? "Quiz participant",
     team: "hookai",
     track: "AI",

@@ -56,6 +56,9 @@ const birthdateField = (page: Page) => page.getByLabel(/cuándo naciste/i);
 const photoField = (page: Page) => page.getByLabel(/tu foto/i);
 const submitButton = (page: Page) =>
   page.getByRole("button", { name: /^empezar$/i });
+/** The data-treatment box (issue #49): unticked until a test ticks it. */
+const dataBox = (page: Page) =>
+  page.getByRole("checkbox", { name: /tratamiento de mis datos personales/i });
 
 const sessionCookies = async (context: BrowserContext) =>
   (await context.cookies()).filter((c) => c.name === "hookai_session");
@@ -122,6 +125,7 @@ test.describe("intake", () => {
     await nameField(page).fill("Ana Ramírez");
     await genderField(page).selectOption("F");
     await birthdateField(page).fill(birthdate);
+    await dataBox(page).check();
     await submitButton(page).click();
 
     await expect(page).toHaveURL(/\/intake\/declared$/);
@@ -164,6 +168,7 @@ test.describe("intake", () => {
     await nameField(page).fill(refused);
     await genderField(page).selectOption("M");
     await birthdateField(page).fill(bornAgo(15));
+    await dataBox(page).check();
     await submitButton(page).click();
 
     await expect(page).toHaveURL(/\/intake\?/);
@@ -174,6 +179,7 @@ test.describe("intake", () => {
     await nameField(page).fill(refused);
     await genderField(page).selectOption("M");
     await birthdateField(page).fill(bornAgo(27));
+    await dataBox(page).check();
     await submitButton(page).click();
 
     await expect(page).toHaveURL(/\/intake\?/);
@@ -248,6 +254,7 @@ test.describe("safety invariants", () => {
     await nameField(page).fill("Elena Ruiz");
     await genderField(page).selectOption("F");
     await birthdateField(page).fill(bornAgo(31));
+    await dataBox(page).check();
     await submitButton(page).click();
     await expect(page).toHaveURL(/\/intake\/declared$/);
 
@@ -262,5 +269,149 @@ test.describe("safety invariants", () => {
 
     const documentCookie = await page.evaluate(() => document.cookie);
     expect(documentCookie).not.toContain("hookai_session");
+  });
+});
+
+/**
+ * The photo field itself (issue #47): a square that says a photo is required
+ * before one exists, and the same square under an oval face guide once it does.
+ * The file input stays the real control -- hidden to the eye, not to the
+ * accessibility tree, and still the thing Playwright fills.
+ */
+test.describe("photo guide", () => {
+  const faceGuide = (page: Page) =>
+    page.getByRole("img", { name: /guía para centrar la cara/i });
+  const changePhoto = (page: Page) =>
+    page.getByRole("button", { name: /cambiar foto/i });
+
+  test("AC-1 · before a photo is chosen the square says one is required", async ({
+    page,
+  }) => {
+    await page.goto(intakeUrl(roomSlug()));
+
+    await expect(page.getByText(/tu foto — obligatoria/i)).toBeVisible();
+    await expect(page.getByText(/tócala para tomarla ahora/i)).toBeVisible();
+    // The silhouette placeholder, not a photo, and no guide to draw yet.
+    await expect(faceGuide(page)).toHaveCount(0);
+    await expect(changePhoto(page)).toHaveCount(0);
+    // The real control, reachable by its accessible name.
+    await expect(photoField(page)).toHaveCount(1);
+    await expect(photoField(page)).toHaveAttribute("type", "file");
+  });
+
+  test("AC-2 · a chosen photo shows the oval guide, the hint and a way to change it, and still registers", async ({
+    page,
+    context,
+  }) => {
+    const slug = roomSlug();
+    const birthdate = bornAgo(24);
+
+    await page.goto(intakeUrl(slug));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+
+    await expect(faceGuide(page)).toBeVisible();
+    await expect(
+      page.getByText(/centra tu cara dentro del óvalo/i)
+    ).toBeVisible();
+    await expect(changePhoto(page)).toBeVisible();
+
+    await nameField(page).fill("Lucía Peña");
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(birthdate);
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+    const cookies = await sessionCookies(context);
+    expect(cookies).toHaveLength(1);
+    const me = await participantBySession(cookies[0].value);
+    expect(me?.name).toBe("Lucía Peña");
+    expect(me?.photoUrl).toBeTruthy();
+  });
+
+  test("AC-3 · submitting with no photo shows the error by the square and creates no row", async ({
+    page,
+    context,
+  }) => {
+    const slug = roomSlug();
+    const refused = "Sin Foto Torres";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
+
+    await page.goto(intakeUrl(slug));
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("M");
+    await birthdateField(page).fill(bornAgo(29));
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/agrega una foto/i)).toBeVisible();
+    // The square is still the placeholder: nothing was chosen.
+    await expect(page.getByText(/tu foto — obligatoria/i)).toBeVisible();
+    await expect(faceGuide(page)).toHaveCount(0);
+
+    expect(await sessionCookies(context)).toHaveLength(0);
+    expect(await named()).toBe(0);
+  });
+});
+
+/**
+ * The data-treatment authorisation (issue #49, Ley 1581 de 2012).
+ *
+ * The box is unticked by default and the submit is refused without it -- by
+ * the SERVER, not by the browser's own bubble, so the sentence is the app's and
+ * the action refuses the same way when it is called without this page at all.
+ * What is stored is the MOMENT, not merely the fact.
+ */
+test.describe("data treatment", () => {
+  test("AC-1 · an unticked box keeps the screen, shows the error and creates no row", async ({
+    page,
+    context,
+  }) => {
+    const refused = "Sara Quintero";
+    const named = async () =>
+      (await roomMembers()).filter((m) => m.name === refused).length;
+    expect(await named()).toBe(0);
+
+    await page.goto(intakeUrl(roomSlug()));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill(refused);
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(bornAgo(26));
+    await expect(dataBox(page)).not.toBeChecked();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\?/);
+    await expect(page.getByText(/necesitamos tu autorización/i)).toBeVisible();
+
+    expect(await sessionCookies(context)).toHaveLength(0);
+    expect(await named()).toBe(0);
+  });
+
+  test("AC-2 · ticking it registers and stores when the authorisation was given", async ({
+    page,
+    context,
+  }) => {
+    const before = Date.now() - 1000;
+
+    await page.goto(intakeUrl(roomSlug()));
+    await photoField(page).setInputFiles(FIXTURE_PHOTO);
+    await nameField(page).fill("Sara Quintero");
+    await genderField(page).selectOption("F");
+    await birthdateField(page).fill(bornAgo(26));
+    await dataBox(page).check();
+    await submitButton(page).click();
+
+    await expect(page).toHaveURL(/\/intake\/declared$/);
+
+    const cookies = await sessionCookies(context);
+    expect(cookies).toHaveLength(1);
+    const me = await participantBySession(cookies[0].value);
+    expect(me?.dataConsentAt).toBeTruthy();
+    const at = new Date(me?.dataConsentAt as Date).getTime();
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now() + 1000);
   });
 });

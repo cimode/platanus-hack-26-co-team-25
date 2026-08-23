@@ -53,6 +53,14 @@ export const participants = pgTable(
     distanceBand: smallint("distance_band"),
     chronotype: smallint("chronotype"),
     tags: text("tags").array().notNull().default([]),
+    /**
+     * WHEN the person authorised the treatment of their personal data on the
+     * registration screen (issue #49, Ley 1581 de 2012). Nullable because rows
+     * written before the box existed have no moment to record; a null means
+     * "never asked", never "said no" -- the registration use case refuses
+     * before any row is written when the box is unticked.
+     */
+    dataConsentAt: timestamp("data_consent_at", { withTimezone: true }),
     /** Set when the declared round is complete; part of the §0 floor. */
     declaredAt: timestamp("declared_at", { withTimezone: true }),
     /** Set on block 15; also the arrival-cohort timestamp (PILLARS.md §2). */
