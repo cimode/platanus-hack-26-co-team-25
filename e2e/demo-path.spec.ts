@@ -278,7 +278,20 @@ test.describe("1b · the room", () => {
     // rather than working around a flake.
     await page.emulateMedia({ reducedMotion: "reduce" });
     await enterAs(page, "diego");
-    const sprite = page.locator("figure").nth(6);
+
+    // Whoever stands closest to the camera, rather than whoever the DOM
+    // happens to list seventh. `--depth` IS the floor position, so the
+    // greatest one has nobody in front of it -- and a sprite with somebody in
+    // front of it cannot be hovered by a pointer at all, in the test or in the
+    // product. Picking by index meant the subject was whoever the roster put
+    // there, and a room that placed a nearer neighbour over them swallowed
+    // every hover until the test timed out.
+    const figures = page.locator("figure[data-participant]");
+    await expect(figures.first()).toBeVisible();
+    const depths = await figures.evaluateAll((els) =>
+      els.map((el) => Number(getComputedStyle(el).getPropertyValue("--depth")))
+    );
+    const sprite = figures.nth(depths.indexOf(Math.max(...depths)));
     const caption = sprite.locator("figcaption");
 
     const before = await sprite.evaluate((el) => getComputedStyle(el).zIndex);
